@@ -25,10 +25,24 @@ export interface Team {
   logoUrl?: string;
 }
 
+export interface Player {
+  id: string;
+  source: string;
+  externalId?: string;
+  fullName: string;
+  position: PlayerPosition;
+  nflTeam?: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Pick {
   id: string;
   draftId: string;
   teamId: string;
+  playerId: string;
+  participantId?: string;
   round: number;
   pickNumber: number;
   overallPickNumber: number;

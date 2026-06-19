@@ -1,15 +1,15 @@
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
-import type { DraftPick } from "@/types/pick";
-import type { Team } from "@/types/draft";
+import type { Pick, Team } from "@/types/draft";
 import RecentPicks from "./RecentPicks";
 
 interface DraftBoardProps {
   teams: string[];
   rounds: number;
-  picks: DraftPick[];
+  picks: Pick[];
+  currentPickNumber: number;
   canMakePick: boolean;
   canUndoPick: boolean;
-  onSlotClick: (overallPickNumber: number) => void;
+  onSlotClick: () => void;
   onUndoPick: () => void;
 }
 
@@ -17,6 +17,7 @@ export default function DraftBoard({
   teams,
   rounds,
   picks,
+  currentPickNumber,
   canMakePick,
   canUndoPick,
   onSlotClick,
@@ -30,7 +31,6 @@ export default function DraftBoard({
   }));
 
   const slots = generateSnakeDraftOrder(teamObjects, rounds);
-  const currentPickNumber = picks.length + 1;
   const currentSlot = slots.find(
     (slot) => slot.overallPickNumber === currentPickNumber
   );
@@ -105,7 +105,7 @@ export default function DraftBoard({
                           key={slot.overallPickNumber}
                           onClick={() => {
                             if (isSelectable) {
-                              onSlotClick(slot.overallPickNumber);
+                              onSlotClick();
                             }
                           }}
                           className={`border border-gray-700 p-3 min-w-[170px] h-28 align-top ${
@@ -124,7 +124,7 @@ export default function DraftBoard({
                             <div className="mt-2">
                               <div className="font-bold">{pick.playerName}</div>
                               <div className="text-xs text-gray-400">
-                                {pick.position} - {pick.nflTeam}
+                                {pick.playerPosition} - {pick.nflTeam}
                               </div>
                             </div>
                           ) : (

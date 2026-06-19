@@ -4,15 +4,13 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
-import type { DraftPick } from "@/types/pick";
-import type { DraftSetup } from "@/lib/draftApi";
-import { getDraftSetup } from "@/lib/draftApi";
-import { getDraftState, saveDraftState } from "@/lib/draftStorage";
+import { makePick, undoPick } from "@/lib/draftApi";
 import { getTeamOnClock } from "@/lib/draftLogic";
 import {
   getParticipantAccessState,
   getParticipantForUser,
 } from "@/lib/participantLogic";
+import { useRealtimeDraftRoom } from "@/hooks/useRealtimeDraftRoom";
 
 interface DraftRoomProps {
   draftId: string | null;
@@ -20,87 +18,96 @@ interface DraftRoomProps {
 
 export default function DraftRoom({ draftId }: DraftRoomProps) {
   const router = useRouter();
-  const [setup, setSetup] = useState<DraftSetup | null>(null);
-  const [picks, setPicks] = useState<DraftPick[]>([]);
-  const [selectedPick, setSelectedPick] = useState<number | null>(null);
+  const { snapshot, status, error, refresh } = useRealtimeDraftRoom(draftId);
   const [showPickModal, setShowPickModal] = useState(false);
-  const [error, setError] = useState("");
+  const [isMakingPick, setIsMakingPick] = useState(false);
+  const [isUndoing, setIsUndoing] = useState(false);
+  const [actionError, setActionError] = useState("");
 
   useEffect(() => {
     if (!draftId) {
       router.replace("/create");
-      return;
     }
-
-    let cancelled = false;
-
-    async function loadDraft() {
-      try {
-        const loadedSetup = await getDraftSetup(draftId as string);
-        const savedState = getDraftState(draftId as string);
-
-        if (!cancelled) {
-          setSetup(loadedSetup);
-          setPicks(savedState?.picks ?? []);
-        }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to load the draft."
-          );
-        }
-      }
-    }
-
-    void loadDraft();
-
-    return () => {
-      cancelled = true;
-    };
   }, [draftId, router]);
 
-  useEffect(() => {
-    if (!draftId || !setup) {
+  async function handleMakePick(playerId: string) {
+    if (!draftId) {
       return;
     }
 
-    saveDraftState({
-      draftId,
-      currentPick: picks.length + 1,
-      picks,
-    });
-  }, [draftId, setup, picks]);
+    setActionError("");
+    setIsMakingPick(true);
 
-  if (error) {
+    try {
+      await makePick(draftId, playerId);
+      await refresh();
+      setShowPickModal(false);
+    } catch (pickError) {
+      setActionError(
+        pickError instanceof Error ? pickError.message : "Unable to make pick."
+      );
+    } finally {
+      setIsMakingPick(false);
+    }
+  }
+
+  async function handleUndoPick() {
+    if (!draftId) {
+      return;
+    }
+
+    setActionError("");
+    setIsUndoing(true);
+
+    try {
+      await undoPick(draftId);
+      await refresh();
+    } catch (undoError) {
+      setActionError(
+        undoError instanceof Error ? undoError.message : "Unable to undo pick."
+      );
+    } finally {
+      setIsUndoing(false);
+    }
+  }
+
+  if (error && !snapshot) {
     return <main className="p-8 text-red-500">{error}</main>;
   }
 
-  if (!setup) {
-    return <main className="p-8">Loading draft...</main>;
+  if (!snapshot) {
+    return <main className="p-8">Connecting to draft room...</main>;
   }
 
-  const teamNames = setup.teams.map((team) => team.name);
+  const teamNames = snapshot.teams.map((team) => team.name);
   const currentParticipant = getParticipantForUser(
-    setup.participants,
-    setup.currentUserId
+    snapshot.participants,
+    snapshot.currentUserId
   );
   const accessState = getParticipantAccessState(currentParticipant);
   const teamOnClock = getTeamOnClock(
-    setup.teams,
-    picks.length + 1,
-    setup.draft.rounds
+    snapshot.teams,
+    snapshot.draft.currentPick,
+    snapshot.draft.rounds
   );
+  const draftAcceptsPicks =
+    snapshot.draft.status === "setup" || snapshot.draft.status === "active";
   const canMakePick =
+    draftAcceptsPicks &&
     accessState.kind === "assigned" &&
     accessState.teamId === teamOnClock?.id;
   const canUndoPick = currentParticipant?.role === "commissioner";
+  const draftedPlayerIds = new Set(
+    snapshot.picks.map((pick) => pick.playerId)
+  );
+  const availablePlayers = snapshot.players.filter(
+    (player) => !draftedPlayerIds.has(player.id)
+  );
 
   let participantMessage: string;
 
   if (accessState.kind === "assigned") {
-    const assignedTeam = setup.teams.find(
+    const assignedTeam = snapshot.teams.find(
       (team) => team.id === accessState.teamId
     );
     participantMessage = `You control ${assignedTeam?.name ?? "an assigned team"}.`;
@@ -114,65 +121,57 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
 
   return (
     <main className="p-8">
-      <h1 className="text-4xl font-bold mb-2">{setup.draft.name}</h1>
+      <div className="flex items-start justify-between gap-4 mb-2">
+        <h1 className="text-4xl font-bold">{snapshot.draft.name}</h1>
+        <span
+          className={`text-sm capitalize ${
+            status === "connected" ? "text-green-400" : "text-yellow-400"
+          }`}
+        >
+          {status}
+        </span>
+      </div>
 
       <p className="mb-8 text-gray-400">
-        {teamNames.length} Teams | {setup.draft.rounds} Rounds
+        {teamNames.length} Teams | {snapshot.draft.rounds} Rounds
       </p>
 
       <p className="mb-6 border border-gray-700 rounded p-3">
         {participantMessage}
       </p>
 
+      {(error || actionError) && (
+        <p className="mb-4 text-red-500">{actionError || error}</p>
+      )}
+
       <div className="overflow-auto">
         <DraftBoard
           teams={teamNames}
-          rounds={setup.draft.rounds}
-          picks={picks}
-          canMakePick={canMakePick}
-          canUndoPick={canUndoPick}
-          onSlotClick={(overallPickNumber) => {
-            setSelectedPick(overallPickNumber);
+          rounds={snapshot.draft.rounds}
+          picks={snapshot.picks}
+          currentPickNumber={snapshot.draft.currentPick}
+          canMakePick={canMakePick && !isMakingPick}
+          canUndoPick={canUndoPick && !isUndoing}
+          onSlotClick={() => {
+            setActionError("");
             setShowPickModal(true);
           }}
-          onUndoPick={() => {
-            setPicks((current) =>
-              [...current]
-                .sort(
-                  (first, second) =>
-                    first.overallPickNumber - second.overallPickNumber
-                )
-                .slice(0, -1)
-            );
-          }}
+          onUndoPick={handleUndoPick}
         />
       </div>
 
-      {showPickModal && selectedPick && (
+      {showPickModal && (
         <PickModal
+          players={availablePlayers}
+          isSaving={isMakingPick}
+          error={actionError}
           onClose={() => {
-            setShowPickModal(false);
-            setSelectedPick(null);
+            if (!isMakingPick) {
+              setShowPickModal(false);
+              setActionError("");
+            }
           }}
-          onSave={(playerName, position, nflTeam) => {
-            const newPick: DraftPick = {
-              overallPickNumber: selectedPick,
-              playerName,
-              position,
-              nflTeam,
-              draftedBy: "",
-            };
-
-            setPicks((current) => [
-              ...current.filter(
-                (pick) => pick.overallPickNumber !== selectedPick
-              ),
-              newPick,
-            ]);
-
-            setShowPickModal(false);
-            setSelectedPick(null);
-          }}
+          onSave={handleMakePick}
         />
       )}
     </main>

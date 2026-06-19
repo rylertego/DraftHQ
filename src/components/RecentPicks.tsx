@@ -1,7 +1,7 @@
-import type { DraftPick } from "@/types/pick";
+import type { Pick } from "@/types/draft";
 
 interface RecentPicksProps {
-  picks: DraftPick[];
+  picks: Pick[];
 }
 
 export default function RecentPicks({
@@ -40,7 +40,7 @@ export default function RecentPicks({
               </div>
 
               <div className="text-sm text-gray-400">
-                {pick.position} - {pick.nflTeam}
+                {pick.playerPosition} - {pick.nflTeam}
               </div>
             </div>
           ))

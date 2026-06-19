@@ -3,6 +3,9 @@ import type {
   DraftParticipant,
   DraftRole,
   DraftStatus,
+  Pick,
+  Player,
+  PlayerPosition,
   Team,
 } from "@/types/draft";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
@@ -39,11 +42,47 @@ interface TeamRow {
   logo_url: string | null;
 }
 
+interface PlayerRow {
+  id: string;
+  source: string;
+  external_id: string | null;
+  full_name: string;
+  position: PlayerPosition;
+  nfl_team: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+interface PickPlayerRow {
+  full_name: string;
+  position: PlayerPosition;
+  nfl_team: string | null;
+}
+
+interface PickRow {
+  id: string;
+  draft_id: string;
+  team_id: string;
+  player_id: string;
+  participant_id: string | null;
+  round: number;
+  pick_number: number;
+  overall_pick_number: number;
+  created_at: string;
+  players: PickPlayerRow | PickPlayerRow[];
+}
+
 export interface DraftSetup {
   draft: Draft;
   teams: Team[];
   participants: DraftParticipant[];
   currentUserId: string;
+}
+
+export interface DraftRoomSnapshot extends DraftSetup {
+  picks: Pick[];
+  players: Player[];
 }
 
 function getSingleRow<T>(data: unknown, description: string): T {
@@ -91,6 +130,43 @@ function mapTeam(row: TeamRow): Team {
     name: row.name,
     draftPosition: row.draft_position,
     logoUrl: row.logo_url ?? undefined,
+  };
+}
+
+function mapPlayer(row: PlayerRow): Player {
+  return {
+    id: row.id,
+    source: row.source,
+    externalId: row.external_id ?? undefined,
+    fullName: row.full_name,
+    position: row.position,
+    nflTeam: row.nfl_team ?? undefined,
+    active: row.active,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
+}
+
+function mapPick(row: PickRow): Pick {
+  const player = Array.isArray(row.players) ? row.players[0] : row.players;
+
+  if (!player) {
+    throw new Error(`Player data is missing for pick ${row.id}.`);
+  }
+
+  return {
+    id: row.id,
+    draftId: row.draft_id,
+    teamId: row.team_id,
+    playerId: row.player_id,
+    participantId: row.participant_id ?? undefined,
+    round: row.round,
+    pickNumber: row.pick_number,
+    overallPickNumber: row.overall_pick_number,
+    playerName: player.full_name,
+    playerPosition: player.position,
+    nflTeam: player.nfl_team ?? undefined,
+    createdAt: row.created_at,
   };
 }
 
@@ -214,4 +290,67 @@ export async function assignTeam(
   return mapParticipant(
     getSingleRow<ParticipantRow>(data, "the updated participant")
   );
+}
+
+export async function getDraftRoomSnapshot(
+  draftId: string
+): Promise<DraftRoomSnapshot> {
+  await ensureAnonymousUser();
+
+  const [setup, picksResult, playersResult] = await Promise.all([
+    getDraftSetup(draftId),
+    supabase
+      .from("picks")
+      .select(
+        "id,draft_id,team_id,player_id,participant_id,round,pick_number,overall_pick_number,created_at,players(full_name,position,nfl_team)"
+      )
+      .eq("draft_id", draftId)
+      .order("overall_pick_number"),
+    supabase
+      .from("players")
+      .select(
+        "id,source,external_id,full_name,position,nfl_team,active,created_at,updated_at"
+      )
+      .eq("active", true)
+      .order("full_name"),
+  ]);
+
+  if (picksResult.error) {
+    throw picksResult.error;
+  }
+
+  if (playersResult.error) {
+    throw playersResult.error;
+  }
+
+  return {
+    ...setup,
+    picks: (picksResult.data as unknown as PickRow[]).map(mapPick),
+    players: (playersResult.data as PlayerRow[]).map(mapPlayer),
+  };
+}
+
+export async function makePick(draftId: string, playerId: string) {
+  await ensureAnonymousUser();
+
+  const { error } = await supabase.rpc("make_pick", {
+    p_draft_id: draftId,
+    p_player_id: playerId,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function undoPick(draftId: string) {
+  await ensureAnonymousUser();
+
+  const { error } = await supabase.rpc("undo_pick", {
+    p_draft_id: draftId,
+  });
+
+  if (error) {
+    throw error;
+  }
 }
