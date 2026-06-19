@@ -5,6 +5,7 @@ import PickModal from "@/components/PickModal";
 import { getDraftConfig, getDraftTeams } from "@/lib/storage";
 import DraftBoard from "@/components/DraftBoard";
 import type { DraftPick } from "@/types/pick";
+import { getDraftState, saveDraftState } from "@/lib/draftStorage";
 
 export default function DraftBoardPage() {
   const [draftName, setDraftName] = useState("");
@@ -17,16 +18,43 @@ export default function DraftBoardPage() {
   const [selectedPick, setSelectedPick] = useState<number | null>(null);
 
   useEffect(() => {
-    const config = getDraftConfig();
+  const savedState = getDraftState();
 
-    if (!config) {
-      return;
-    }
+  if (savedState) {
+    setDraftName(savedState.draftName);
+    setRounds(savedState.rounds);
+    setTeams(savedState.teams);
+    setPicks(savedState.picks);
+    return;
+  }
 
-    setDraftName(config.name);
-    setRounds(config.rounds);
-    setTeams(getDraftTeams());
-  }, []);
+  const config = getDraftConfig();
+
+  if (!config) {
+    return;
+  }
+
+  const storedTeams = getDraftTeams();
+
+  setDraftName(config.name);
+  setRounds(config.rounds);
+  setTeams(storedTeams);
+}, []);
+
+useEffect(() => {
+  if (!draftName || teams.length === 0 || rounds === 0) {
+    return;
+  }
+
+  saveDraftState({
+    draftName,
+    teamCount: teams.length,
+    rounds,
+    teams,
+    currentPick: picks.length + 1,
+    picks,
+  });
+}, [draftName, teams, rounds, picks]);
   
 
   return (
@@ -46,6 +74,7 @@ export default function DraftBoardPage() {
 >
   Test Pick Modal
 </button>
+
         <DraftBoard
   teams={teams}
   rounds={rounds}
@@ -54,7 +83,18 @@ export default function DraftBoardPage() {
     setSelectedPick(overallPickNumber);
     setShowPickModal(true);
   }}
+  onUndoPick={() => {
+    setPicks((current) =>
+      current
+        .sort(
+          (a, b) =>
+            a.overallPickNumber - b.overallPickNumber
+        )
+        .slice(0, -1)
+    );
+  }}
 />
+
       </div>
 
        {showPickModal && selectedPick && (
