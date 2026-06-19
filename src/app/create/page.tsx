@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
+import { createDraft } from "@/lib/draftApi";
 
 export default function CreateDraftPage() {
   const router = useRouter();
@@ -10,8 +11,9 @@ export default function CreateDraftPage() {
   const [teamCount, setTeamCount] = useState(12);
   const [rounds, setRounds] = useState(15);
   const [error, setError] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
 
-  function handleCreateDraft() {
+  async function handleCreateDraft() {
     if (!draftName.trim()) {
       setError("Draft name is required.");
       return;
@@ -27,15 +29,25 @@ export default function CreateDraftPage() {
       return;
     }
 
-    const draftConfig = {
-      name: draftName.trim(),
-      teamCount,
-      rounds,
-    };
+    setError("");
+    setIsCreating(true);
 
-    localStorage.setItem("draftConfig", JSON.stringify(draftConfig));
+    try {
+      const draft = await createDraft({
+        name: draftName.trim(),
+        teamCount,
+        rounds,
+      });
 
-    router.push("/teams");
+      router.push(`/teams?draftId=${draft.id}`);
+    } catch (createError) {
+      setError(
+        createError instanceof Error
+          ? createError.message
+          : "Unable to create the draft."
+      );
+      setIsCreating(false);
+    }
   }
 
   return (
@@ -80,9 +92,10 @@ export default function CreateDraftPage() {
 
         <button
           onClick={handleCreateDraft}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
+          disabled={isCreating}
+          className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded"
         >
-          Create Draft
+          {isCreating ? "Creating..." : "Create Draft"}
         </button>
       </div>
     </main>
