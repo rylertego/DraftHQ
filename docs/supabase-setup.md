@@ -26,8 +26,17 @@ Next.js embeds `NEXT_PUBLIC_` variables in the browser bundle at build time.
 Add the same two variables to the deployment environment before building the
 application. Keep production and preview projects or keys separate when needed.
 
-Database migrations will live in `supabase/migrations/`. No schema migrations
-have been added yet.
+Database migrations live in `supabase/migrations/`. Apply them with the Supabase
+CLI for a linked project, or paste the migration into the SQL editor while the
+project is being bootstrapped.
+
+Enable anonymous sign-ins under **Authentication > Providers > Anonymous**.
+Anonymous users receive the authenticated database role and are still subject
+to row-level security policies.
+
+The current schema grants clients read-only access to rooms they belong to and
+to the player catalog. Draft mutations will be added later as validated database
+functions; do not add direct table write policies for browser clients.
 
 The client validates these variables when `src/lib/supabase.ts` is imported.
 Hosted project URLs must use HTTPS; HTTP is accepted only for local development.
