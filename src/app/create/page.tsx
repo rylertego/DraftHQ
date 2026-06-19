@@ -35,7 +35,7 @@ export default function CreateDraftPage() {
 
     localStorage.setItem("draftConfig", JSON.stringify(draftConfig));
 
-    router.push("/draft");
+    router.push("/teams");
   }
 
   return (
