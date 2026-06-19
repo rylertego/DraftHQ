@@ -99,31 +99,42 @@ export default function DraftBoard({
 
                     return (
                       <td
-                        key={slot.overallPickNumber}
-                        onClick={() => onSlotClick(slot.overallPickNumber)}
-                        className={`border border-gray-700 p-3 min-w-[170px] h-28 align-top cursor-pointer ${
-                          isCurrent ? "bg-blue-950" : ""
-                        }`}
-                      >
-                        <div className="text-xs text-gray-400">
-                          Pick {slot.overallPickNumber}
-                        </div>
+  key={slot.overallPickNumber}
+  onClick={() => {
+    if (isCurrent) {
+      onSlotClick(slot.overallPickNumber);
+    }
+  }}
+  className={`border border-gray-700 p-3 min-w-[170px] h-28 align-top ${
+    isCurrent
+      ? "cursor-pointer bg-blue-950"
+      : "cursor-not-allowed"
+  }`}
+>
+  <div className="text-xs text-gray-400">
+    Pick {slot.overallPickNumber}
+  </div>
 
-                        <div className="font-semibold">{slot.teamName}</div>
+  <div className="font-semibold">
+    {slot.teamName}
+  </div>
 
-                        {pick ? (
-                          <div className="mt-2">
-                            <div className="font-bold">{pick.playerName}</div>
-                            <div className="text-xs text-gray-400">
-                              {pick.position} - {pick.nflTeam}
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="text-xs text-gray-500 mt-2">
-                            Empty
-                          </div>
-                        )}
-                      </td>
+  {pick ? (
+    <div className="mt-2">
+      <div className="font-bold">
+        {pick.playerName}
+      </div>
+
+      <div className="text-xs text-gray-400">
+        {pick.position} - {pick.nflTeam}
+      </div>
+    </div>
+  ) : (
+    <div className="text-xs text-gray-500 mt-2">
+      {isCurrent ? "Click to draft" : "Waiting"}
+    </div>
+  )}
+</td>
                     );
                   })}
                 </tr>
