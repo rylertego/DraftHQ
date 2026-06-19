@@ -1,12 +1,20 @@
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
-import { Team } from "@/types/draft";
+import type { DraftPick } from "@/types/pick";
+import type { Team } from "@/types/draft";
 
 interface DraftBoardProps {
   teams: string[];
   rounds: number;
+  picks: DraftPick[];
+  onSlotClick: (overallPickNumber: number) => void;
 }
 
-export default function DraftBoard({ teams, rounds }: DraftBoardProps) {
+export default function DraftBoard({
+  teams,
+  rounds,
+  picks,
+  onSlotClick,
+}: DraftBoardProps) {
   const teamObjects: Team[] = teams.map((name, index) => ({
     id: String(index + 1),
     draftId: "local",
@@ -15,7 +23,17 @@ export default function DraftBoard({ teams, rounds }: DraftBoardProps) {
   }));
 
   const slots = generateSnakeDraftOrder(teamObjects, rounds);
-  const currentSlot = slots[0];
+
+  const currentPickNumber = picks.length + 1;
+  const currentSlot = slots.find(
+    (slot) => slot.overallPickNumber === currentPickNumber
+  );
+
+  function getPick(overallPickNumber: number) {
+    return picks.find(
+      (pick) => pick.overallPickNumber === overallPickNumber
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -25,11 +43,12 @@ export default function DraftBoard({ teams, rounds }: DraftBoardProps) {
         </p>
 
         <h2 className="text-4xl font-bold mt-2">
-          {currentSlot?.teamName}
+          {currentSlot?.teamName ?? "Draft Complete"}
         </h2>
 
         <p className="text-gray-400 mt-2">
-          Pick {currentSlot?.overallPickNumber} • Round {currentSlot?.round}
+          Pick {currentSlot?.overallPickNumber ?? "-"} • Round{" "}
+          {currentSlot?.round ?? "-"}
         </p>
       </section>
 
@@ -58,28 +77,46 @@ export default function DraftBoard({ teams, rounds }: DraftBoardProps) {
                       Round {round}
                     </td>
 
-                    {roundSlots.map((slot) => (
-                      <td
-                        key={slot.overallPickNumber}
-                        className={`border border-gray-700 p-3 min-w-[150px] h-24 align-top ${
-                          slot.overallPickNumber === currentSlot?.overallPickNumber
-                            ? "bg-blue-950"
-                            : ""
-                        }`}
-                      >
-                        <div className="text-xs text-gray-400">
-                          Pick {slot.overallPickNumber}
-                        </div>
+                    {roundSlots.map((slot) => {
+                      const pick = getPick(slot.overallPickNumber);
+                      const isCurrent =
+                        slot.overallPickNumber === currentPickNumber;
 
-                        <div className="font-semibold">
-                          {slot.teamName}
-                        </div>
+                      return (
+                        <td
+                          key={slot.overallPickNumber}
+                          onClick={() =>
+                            onSlotClick(slot.overallPickNumber)
+                          }
+                          className={`border border-gray-700 p-3 min-w-[170px] h-28 align-top cursor-pointer ${
+                            isCurrent ? "bg-blue-950" : ""
+                          }`}
+                        >
+                          <div className="text-xs text-gray-400">
+                            Pick {slot.overallPickNumber}
+                          </div>
 
-                        <div className="text-xs text-gray-500 mt-2">
-                          Empty
-                        </div>
-                      </td>
-                    ))}
+                          <div className="font-semibold">
+                            {slot.teamName}
+                          </div>
+
+                          {pick ? (
+                            <div className="mt-2">
+                              <div className="font-bold">
+                                {pick.playerName}
+                              </div>
+                              <div className="text-xs text-gray-400">
+                                {pick.position} - {pick.nflTeam}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 mt-2">
+                              Empty
+                            </div>
+                          )}
+                        </td>
+                      );
+                    })}
                   </tr>
                 );
               })}

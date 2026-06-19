@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import PickModal from "@/components/PickModal";
 import { getDraftConfig, getDraftTeams } from "@/lib/storage";
 import DraftBoard from "@/components/DraftBoard";
+import type { DraftPick } from "@/types/pick";
 
 export default function DraftBoardPage() {
   const [draftName, setDraftName] = useState("");
@@ -11,6 +12,9 @@ export default function DraftBoardPage() {
   const [teams, setTeams] = useState<string[]>([]);
   
   const [showPickModal, setShowPickModal] = useState(false);
+
+  const [picks, setPicks] = useState<DraftPick[]>([]);
+  const [selectedPick, setSelectedPick] = useState<number | null>(null);
 
   useEffect(() => {
     const config = getDraftConfig();
@@ -42,22 +46,44 @@ export default function DraftBoardPage() {
 >
   Test Pick Modal
 </button>
-        <DraftBoard teams={teams} rounds={rounds} />
+        <DraftBoard
+  teams={teams}
+  rounds={rounds}
+  picks={picks}
+  onSlotClick={(overallPickNumber) => {
+    setSelectedPick(overallPickNumber);
+    setShowPickModal(true);
+  }}
+/>
       </div>
-       {showPickModal && (
-    <PickModal
-      onClose={() => setShowPickModal(false)}
-      onSave={(playerName, position, nflTeam) => {
-        console.log({
-          playerName,
-          position,
-          nflTeam,
-        });
 
-        setShowPickModal(false);
-      }}
-    />
-  )}
+       {showPickModal && selectedPick && (
+  <PickModal
+    onClose={() => {
+      setShowPickModal(false);
+      setSelectedPick(null);
+    }}
+    onSave={(playerName, position, nflTeam) => {
+      const newPick: DraftPick = {
+        overallPickNumber: selectedPick,
+        playerName,
+        position,
+        nflTeam,
+        draftedBy: "",
+      };
+
+      setPicks((current) => [
+        ...current.filter(
+          (pick) => pick.overallPickNumber !== selectedPick
+        ),
+        newPick,
+      ]);
+
+      setShowPickModal(false);
+      setSelectedPick(null);
+    }}
+  />
+)}
     </main>
   );
 }
