@@ -8,6 +8,11 @@ import type { DraftPick } from "@/types/pick";
 import type { DraftSetup } from "@/lib/draftApi";
 import { getDraftSetup } from "@/lib/draftApi";
 import { getDraftState, saveDraftState } from "@/lib/draftStorage";
+import { getTeamOnClock } from "@/lib/draftLogic";
+import {
+  getParticipantAccessState,
+  getParticipantForUser,
+} from "@/lib/participantLogic";
 
 interface DraftRoomProps {
   draftId: string | null;
@@ -77,6 +82,35 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
   }
 
   const teamNames = setup.teams.map((team) => team.name);
+  const currentParticipant = getParticipantForUser(
+    setup.participants,
+    setup.currentUserId
+  );
+  const accessState = getParticipantAccessState(currentParticipant);
+  const teamOnClock = getTeamOnClock(
+    setup.teams,
+    picks.length + 1,
+    setup.draft.rounds
+  );
+  const canMakePick =
+    accessState.kind === "assigned" &&
+    accessState.teamId === teamOnClock?.id;
+  const canUndoPick = currentParticipant?.role === "commissioner";
+
+  let participantMessage: string;
+
+  if (accessState.kind === "assigned") {
+    const assignedTeam = setup.teams.find(
+      (team) => team.id === accessState.teamId
+    );
+    participantMessage = `You control ${assignedTeam?.name ?? "an assigned team"}.`;
+  } else if (accessState.kind === "viewer") {
+    participantMessage = "You are viewing this draft and cannot make picks.";
+  } else if (accessState.kind === "unassigned") {
+    participantMessage = "You are joined but have not been assigned a team.";
+  } else {
+    participantMessage = "You are not a participant in this draft.";
+  }
 
   return (
     <main className="p-8">
@@ -86,18 +120,17 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
         {teamNames.length} Teams | {setup.draft.rounds} Rounds
       </p>
 
-      <div className="overflow-auto">
-        <button
-          className="bg-green-600 px-4 py-2 rounded mb-4"
-          onClick={() => setShowPickModal(true)}
-        >
-          Test Pick Modal
-        </button>
+      <p className="mb-6 border border-gray-700 rounded p-3">
+        {participantMessage}
+      </p>
 
+      <div className="overflow-auto">
         <DraftBoard
           teams={teamNames}
           rounds={setup.draft.rounds}
           picks={picks}
+          canMakePick={canMakePick}
+          canUndoPick={canUndoPick}
           onSlotClick={(overallPickNumber) => {
             setSelectedPick(overallPickNumber);
             setShowPickModal(true);

@@ -7,6 +7,8 @@ export type PlayerPosition = "QB" | "RB" | "WR" | "TE" | "K" | "DST" | "FLEX" | 
 export interface Draft {
   id: string;
   name: string;
+  joinCode: string;
+  commissionerUserId: string;
   teamCount: number;
   rounds: number;
   currentPick: number;
@@ -43,4 +45,15 @@ export interface DraftSlot {
   teamId: string;
   teamName: string;
   pick?: Pick;
+}
+
+export interface DraftParticipant {
+  id: string;
+  draftId: string;
+  userId: string;
+  teamId: string | null;
+  displayName: string;
+  role: DraftRole;
+  createdAt: string;
+  updatedAt: string;
 }

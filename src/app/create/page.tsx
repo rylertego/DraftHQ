@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useState } from "react";
 import { createDraft } from "@/lib/draftApi";
 
@@ -97,6 +98,13 @@ export default function CreateDraftPage() {
         >
           {isCreating ? "Creating..." : "Create Draft"}
         </button>
+
+        <p className="text-sm text-gray-400">
+          Have a code?{" "}
+          <Link className="text-blue-400 underline" href="/join">
+            Join an existing draft
+          </Link>
+        </p>
       </div>
     </main>
   );
