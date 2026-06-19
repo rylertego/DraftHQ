@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { getDraftConfig, getDraftTeams } from "@/lib/storage";
+import DraftBoard from "@/components/DraftBoard";
 
 export default function DraftBoardPage() {
   const [draftName, setDraftName] = useState("");
@@ -31,45 +32,11 @@ export default function DraftBoardPage() {
       </p>
 
       <div className="overflow-auto">
-        <table className="border-collapse border border-gray-700">
-          <thead>
-            <tr>
-              <th className="border border-gray-700 p-2">
-                Round
-              </th>
+        <DraftBoard
+  teams={teams}
+  rounds={rounds}
+/>
 
-              {teams.map((team) => (
-                <th
-                  key={team}
-                  className="border border-gray-700 p-2 min-w-[150px]"
-                >
-                  {team}
-                </th>
-              ))}
-            </tr>
-          </thead>
-
-          <tbody>
-            {Array.from(
-              { length: rounds },
-              (_, roundIndex) => (
-                <tr key={roundIndex}>
-                  <td className="border border-gray-700 p-2 font-bold">
-                    {roundIndex + 1}
-                  </td>
-
-                  {teams.map((team) => (
-                    <td
-                      key={`${roundIndex}-${team}`}
-                      className="border border-gray-700 p-4 h-16"
-                    >
-                    </td>
-                  ))}
-                </tr>
-              )
-            )}
-          </tbody>
-        </table>
       </div>
     </main>
   );
