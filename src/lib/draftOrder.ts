@@ -1,4 +1,5 @@
 import type { DraftSlot, Team } from "@/types/draft";
+import { getSnakeDraftPosition } from "@/lib/draftLogic";
 
 export function generateSnakeDraftOrder(
   teams: Team[],
@@ -7,20 +8,31 @@ export function generateSnakeDraftOrder(
   const slots: DraftSlot[] = [];
 
   for (let round = 1; round <= rounds; round++) {
-    const isEvenRound = round % 2 === 0;
-    const roundTeams = isEvenRound ? [...teams].reverse() : teams;
+    for (let pickNumber = 1; pickNumber <= teams.length; pickNumber++) {
+      const draftPosition = getSnakeDraftPosition(
+        round,
+        pickNumber,
+        teams.length
+      );
+      const team = teams.find(
+        (candidate) => candidate.draftPosition === draftPosition
+      );
 
-    roundTeams.forEach((team, index) => {
-      const overallPickNumber = (round - 1) * teams.length + index + 1;
+      if (!team) {
+        throw new Error(`Missing team at draft position ${draftPosition}.`);
+      }
+
+      const overallPickNumber =
+        (round - 1) * teams.length + pickNumber;
 
       slots.push({
         round,
-        pickNumber: index + 1,
+        pickNumber,
         overallPickNumber,
         teamId: team.id,
         teamName: team.name,
       });
-    });
+    }
   }
 
   return slots;

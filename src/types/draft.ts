@@ -1,6 +1,6 @@
 export type DraftStatus = "setup" | "active" | "paused" | "complete";
 
-export type DraftRole = "commissioner" | "viewer";
+export type DraftRole = "commissioner" | "owner" | "viewer";
 
 export type PlayerPosition = "QB" | "RB" | "WR" | "TE" | "K" | "DST" | "FLEX" | "UNKNOWN";
 
