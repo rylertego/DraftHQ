@@ -32,10 +32,7 @@ export default function DraftBoardPage() {
       </p>
 
       <div className="overflow-auto">
-        <DraftBoard
-  teams={teams}
-  rounds={rounds}
-/>
+        <DraftBoard teams={teams} rounds={rounds} />
 
       </div>
     </main>
