@@ -1,5 +1,5 @@
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
-import type { Pick, Team } from "@/types/draft";
+import type { DraftStatus, Pick, Team } from "@/types/draft";
 import RecentPicks from "./RecentPicks";
 
 interface DraftBoardProps {
@@ -7,6 +7,7 @@ interface DraftBoardProps {
   rounds: number;
   picks: Pick[];
   currentPickNumber: number;
+  draftStatus: DraftStatus;
   canMakePick: boolean;
   canUndoPick: boolean;
   onSlotClick: () => void;
@@ -18,6 +19,7 @@ export default function DraftBoard({
   rounds,
   picks,
   currentPickNumber,
+  draftStatus,
   canMakePick,
   canUndoPick,
   onSlotClick,
@@ -132,7 +134,11 @@ export default function DraftBoard({
                               {isSelectable
                                 ? "Click to draft"
                                 : isCurrent
-                                  ? "Waiting for team owner"
+                                  ? draftStatus === "active"
+                                    ? "Waiting for team owner"
+                                    : draftStatus === "setup"
+                                      ? "Draft has not started"
+                                      : "Draft is paused"
                                   : "Waiting"}
                             </div>
                           )}

@@ -110,10 +110,10 @@ describe("getPickEligibility", () => {
     ).toEqual({ eligible: true });
   });
 
-  it("allows the first valid pick while the draft is in setup", () => {
+  it("rejects picks before the commissioner starts the draft", () => {
     expect(
       getPickEligibility({ ...eligibleInput, status: "setup" })
-    ).toEqual({ eligible: true });
+    ).toEqual({ eligible: false, reason: "draft_not_started" });
   });
 
   it.each([

@@ -1,6 +1,7 @@
 import type { DraftRole, DraftStatus, Team } from "@/types/draft";
 
 export type PickEligibilityReason =
+  | "draft_not_started"
   | "draft_paused"
   | "draft_complete"
   | "invalid_state"
@@ -123,6 +124,10 @@ export function getPickEligibility(
 
   if (status === "paused") {
     return { eligible: false, reason: "draft_paused" };
+  }
+
+  if (status === "setup") {
+    return { eligible: false, reason: "draft_not_started" };
   }
 
   let teamOnClock: Team | null;

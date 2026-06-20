@@ -21,6 +21,9 @@ interface DraftRow {
   rounds: number;
   current_pick: number;
   status: DraftStatus;
+  pick_seconds: number;
+  pick_deadline_at: string | null;
+  paused_remaining_seconds: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -119,6 +122,9 @@ function mapDraft(row: DraftRow): Draft {
     rounds: row.rounds,
     currentPick: row.current_pick,
     status: row.status,
+    pickSeconds: row.pick_seconds,
+    pickDeadlineAt: row.pick_deadline_at,
+    pausedRemainingSeconds: row.paused_remaining_seconds,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -226,7 +232,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,team_count,rounds,current_pick,status,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
@@ -429,6 +435,45 @@ export async function undoPick(draftId: string) {
 
   const { error } = await supabase.rpc("undo_pick", {
     p_draft_id: draftId,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
+async function runDraftLifecycleRpc(
+  name: "start_draft" | "pause_draft" | "resume_draft",
+  draftId: string
+) {
+  await ensureAnonymousUser();
+  const { error } = await supabase.rpc(name, { p_draft_id: draftId });
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function startDraft(draftId: string) {
+  return runDraftLifecycleRpc("start_draft", draftId);
+}
+
+export async function pauseDraft(draftId: string) {
+  return runDraftLifecycleRpc("pause_draft", draftId);
+}
+
+export async function resumeDraft(draftId: string) {
+  return runDraftLifecycleRpc("resume_draft", draftId);
+}
+
+export async function configureDraftTimer(
+  draftId: string,
+  pickSeconds: number
+) {
+  await ensureAnonymousUser();
+  const { error } = await supabase.rpc("configure_draft_timer", {
+    p_draft_id: draftId,
+    p_pick_seconds: pickSeconds,
   });
 
   if (error) {

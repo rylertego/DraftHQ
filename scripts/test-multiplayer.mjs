@@ -29,14 +29,32 @@ const admin = createClient(supabaseUrl, secretKey, {
   },
 });
 
-async function signInAnonymous(client) {
-  const { data, error } = await client.auth.signInAnonymously();
+async function createUserAndSignIn(client, displayName) {
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const email = `multiplayer-${suffix}@example.com`;
+  const password = `Test-${suffix}-Aa!`;
+  const { data: createData, error: createError } =
+    await admin.auth.admin.createUser({
+      email,
+      password,
+      email_confirm: true,
+      user_metadata: { display_name: displayName },
+    });
 
-  if (error || !data.user) {
-    throw error ?? new Error("Anonymous sign-in did not return a user.");
+  if (createError || !createData.user) {
+    throw createError ?? new Error("User creation did not return a user.");
   }
 
-  return data.user;
+  createdUserIds.push(createData.user.id);
+
+  const { data: signInData, error: signInError } =
+    await client.auth.signInWithPassword({ email, password });
+
+  if (signInError || !signInData.user) {
+    throw signInError ?? new Error("Sign-in did not return a user.");
+  }
+
+  return signInData.user;
 }
 
 async function rpc(client, name, args) {
@@ -153,9 +171,11 @@ const subscriptions = [];
 let draftId = null;
 
 try {
-  const commissionerUser = await signInAnonymous(commissioner);
-  const ownerUser = await signInAnonymous(owner);
-  createdUserIds.push(commissionerUser.id, ownerUser.id);
+  const commissionerUser = await createUserAndSignIn(
+    commissioner,
+    "Commissioner Test"
+  );
+  await createUserAndSignIn(owner, "Owner Test");
 
   const draft = await rpc(commissioner, "create_draft", {
     p_name: `Integration Draft ${Date.now()}`,
@@ -202,6 +222,10 @@ try {
     p_participant_id: ownerParticipant.id,
     p_team_id: teams[1].id,
   });
+  await rpc(commissioner, "configure_draft_timer", {
+    p_draft_id: draftId,
+    p_pick_seconds: 30,
+  });
 
   const players = await selectRows(
     commissioner
@@ -228,6 +252,60 @@ try {
     commissionerRealtime.subscribed,
     ownerRealtime.subscribed,
   ]);
+
+  await expectRpcError(
+    owner,
+    "start_draft",
+    { p_draft_id: draftId },
+    "42501"
+  );
+  await expectRpcError(
+    commissioner,
+    "make_pick",
+    { p_draft_id: draftId, p_player_id: players[0].id },
+    "P0001"
+  );
+  await rpc(commissioner, "start_draft", { p_draft_id: draftId });
+
+  const startedDraft = await selectRows(
+    commissioner
+      .from("drafts")
+      .select("status,pick_seconds,pick_deadline_at")
+      .eq("id", draftId)
+      .single(),
+    "started draft"
+  );
+  assert.equal(startedDraft.status, "active");
+  assert.equal(startedDraft.pick_seconds, 30);
+  assert.ok(startedDraft.pick_deadline_at, "Started draft has no deadline.");
+
+  await expectRpcError(
+    owner,
+    "pause_draft",
+    { p_draft_id: draftId },
+    "42501"
+  );
+  await rpc(commissioner, "pause_draft", { p_draft_id: draftId });
+  await expectRpcError(
+    commissioner,
+    "make_pick",
+    { p_draft_id: draftId, p_player_id: players[0].id },
+    "P0001"
+  );
+
+  const pausedDraft = await selectRows(
+    commissioner
+      .from("drafts")
+      .select("status,pick_deadline_at,paused_remaining_seconds")
+      .eq("id", draftId)
+      .single(),
+    "paused draft"
+  );
+  assert.equal(pausedDraft.status, "paused");
+  assert.equal(pausedDraft.pick_deadline_at, null);
+  assert.ok(pausedDraft.paused_remaining_seconds <= 30);
+
+  await rpc(commissioner, "resume_draft", { p_draft_id: draftId });
 
   await expectRpcError(
     owner,
@@ -355,6 +433,8 @@ try {
     JSON.stringify(
       {
         authorizationChecks: "passed",
+        lifecycleChecks: "passed",
+        timerChecks: "passed",
         duplicatePlayerCheck: "passed",
         picks: "4 inserted, 1 undone",
         realtime: {

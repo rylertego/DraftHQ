@@ -13,6 +13,9 @@ export interface Draft {
   rounds: number;
   currentPick: number;
   status: DraftStatus;
+  pickSeconds: number;
+  pickDeadlineAt: string | null;
+  pausedRemainingSeconds: number | null;
   createdAt: string;
   updatedAt: string;
 }
