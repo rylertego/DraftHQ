@@ -230,6 +230,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   const isCommissioner =
     setup.currentUserId === setup.draft.commissionerUserId;
+  const canManageAssignments =
+    setup.draft.status === "setup" || setup.draft.status === "paused";
 
   return (
     <main className="max-w-2xl mx-auto p-8 space-y-8">
@@ -368,6 +370,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             </div>
 
             <div className="space-y-3">
+              {!canManageAssignments && (
+                <p className="text-sm text-yellow-400">
+                  Pause the draft before changing team assignments.
+                </p>
+              )}
               {setup.participants.map((participant) => {
                 const unavailableTeamIds = getAssignedTeamIds(
                   setup.participants,
@@ -392,7 +399,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       aria-label={`Team for ${participant.displayName}`}
                       className="border rounded p-2 bg-gray-900"
                       value={participant.teamId ?? ""}
-                      disabled={assigningParticipantId === participant.id}
+                      disabled={
+                        !canManageAssignments ||
+                        assigningParticipantId === participant.id
+                      }
                       onChange={(event) =>
                         updateAssignment(participant.id, event.target.value)
                       }

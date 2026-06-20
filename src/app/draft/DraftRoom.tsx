@@ -5,7 +5,9 @@ import { useRouter } from "next/navigation";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftTimer from "@/components/DraftTimer";
+import CommissionerParticipantManager from "@/components/CommissionerParticipantManager";
 import {
+  commissionerMakePick,
   configureDraftTimer,
   makePick,
   pauseDraft,
@@ -13,6 +15,7 @@ import {
   startDraft,
   undoPick,
 } from "@/lib/draftApi";
+import { createDraftResultsCsv } from "@/lib/draftExport";
 import { getTeamOnClock } from "@/lib/draftLogic";
 import {
   getParticipantAccessState,
@@ -34,12 +37,14 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     refresh,
     lastSyncedAt,
     isRefreshing,
+    onlineUserIds,
   } = useRealtimeDraftRoom(draftId);
   const [showPickModal, setShowPickModal] = useState(false);
   const [isMakingPick, setIsMakingPick] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
   const [isControllingDraft, setIsControllingDraft] = useState(false);
   const [actionError, setActionError] = useState("");
+  const [pickMode, setPickMode] = useState<"owner" | "commissioner">("owner");
 
   useEffect(() => {
     if (!draftId) {
@@ -63,9 +68,14 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     setIsMakingPick(true);
 
     try {
-      await makePick(draftId, playerId);
+      if (pickMode === "commissioner") {
+        await commissionerMakePick(draftId, playerId);
+      } else {
+        await makePick(draftId, playerId);
+      }
       await refresh();
       setShowPickModal(false);
+      setPickMode("owner");
     } catch (pickError) {
       setActionError(
         pickError instanceof Error ? pickError.message : "Unable to make pick."
@@ -77,6 +87,10 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
 
   async function handleUndoPick() {
     if (!draftId) {
+      return;
+    }
+
+    if (!window.confirm("Undo the latest pick and put that team back on the clock?")) {
       return;
     }
 
@@ -93,6 +107,20 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     } finally {
       setIsUndoing(false);
     }
+  }
+
+  function downloadResults() {
+    const csv = createDraftResultsCsv(snapshot?.teams ?? [], snapshot?.picks ?? []);
+    const blobUrl = URL.createObjectURL(
+      new Blob([csv], { type: "text/csv;charset=utf-8" })
+    );
+    const link = document.createElement("a");
+    link.href = blobUrl;
+    link.download = `${snapshot?.draft.name ?? "draft"}-results.csv`
+      .toLowerCase()
+      .replace(/[^a-z0-9.-]+/g, "-");
+    link.click();
+    URL.revokeObjectURL(blobUrl);
   }
 
   async function handleDraftControl(action: () => Promise<void>) {
@@ -226,6 +254,24 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
         <p className="mb-4 text-red-500">{actionError || error}</p>
       )}
 
+      {snapshot.draft.status === "complete" && (
+        <section className="mb-6 flex flex-col gap-3 rounded-lg border border-green-700 bg-green-950/30 p-4 sm:flex-row sm:items-center">
+          <div className="flex-1">
+            <h2 className="text-xl font-bold">Draft Complete</h2>
+            <p className="text-sm text-gray-300">
+              All {snapshot.picks.length} picks are saved in DraftHQ.
+            </p>
+          </div>
+          <button
+            type="button"
+            className="rounded bg-green-700 px-4 py-2 font-semibold"
+            onClick={downloadResults}
+          >
+            Export Results
+          </button>
+        </section>
+      )}
+
       <div className="mb-6 grid gap-4 md:grid-cols-[220px_1fr]">
         <DraftTimer draft={snapshot.draft} />
 
@@ -300,6 +346,19 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
                   Resume Draft
                 </button>
               )}
+              {snapshot.draft.status === "active" && teamOnClock && (
+                <button
+                  type="button"
+                  disabled={isControllingDraft || status !== "connected"}
+                  className="rounded bg-blue-700 px-4 py-2 disabled:opacity-40"
+                  onClick={() => {
+                    setPickMode("commissioner");
+                    setShowPickModal(true);
+                  }}
+                >
+                  Recovery Pick for {teamOnClock.name}
+                </button>
+              )}
             </div>
             {!allTeamsAssigned && snapshot.draft.status === "setup" && (
               <p className="mt-3 text-sm text-yellow-400">
@@ -309,6 +368,19 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           </section>
         )}
       </div>
+
+      {isCommissioner && (
+        <div className="mb-6">
+          <CommissionerParticipantManager
+            draftId={draftId as string}
+            status={snapshot.draft.status}
+            participants={snapshot.participants}
+            teams={snapshot.teams}
+            onlineUserIds={onlineUserIds}
+            onChanged={refresh}
+          />
+        </div>
+      )}
 
       <div className="overflow-auto">
         <DraftBoard
@@ -321,6 +393,7 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           canUndoPick={canUndoPick && !isUndoing}
           onSlotClick={() => {
             setActionError("");
+            setPickMode("owner");
             setShowPickModal(true);
           }}
           onUndoPick={handleUndoPick}
@@ -334,6 +407,7 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
             className="w-full rounded bg-blue-600 px-4 py-3 font-bold text-white"
             onClick={() => {
               setActionError("");
+              setPickMode("owner");
               setShowPickModal(true);
             }}
           >
@@ -356,12 +430,18 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
 
       {showPickModal && (
         <PickModal
+          title={
+            pickMode === "commissioner"
+              ? `Recovery Pick for ${teamOnClock?.name ?? "Team"}`
+              : "Select Draft Pick"
+          }
           players={availablePlayers}
           isSaving={isMakingPick}
           error={actionError}
           onClose={() => {
             if (!isMakingPick) {
               setShowPickModal(false);
+              setPickMode("owner");
               setActionError("");
             }
           }}

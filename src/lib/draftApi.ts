@@ -430,6 +430,35 @@ export async function makePick(draftId: string, playerId: string) {
   }
 }
 
+export async function commissionerMakePick(draftId: string, playerId: string) {
+  await ensureAnonymousUser();
+
+  const { error } = await supabase.rpc("commissioner_make_pick", {
+    p_draft_id: draftId,
+    p_player_id: playerId,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
+export async function removeDraftParticipant(
+  draftId: string,
+  participantId: string
+) {
+  await ensureAnonymousUser();
+
+  const { error } = await supabase.rpc("remove_draft_participant", {
+    p_draft_id: draftId,
+    p_participant_id: participantId,
+  });
+
+  if (error) {
+    throw error;
+  }
+}
+
 export async function undoPick(draftId: string) {
   await ensureAnonymousUser();
 

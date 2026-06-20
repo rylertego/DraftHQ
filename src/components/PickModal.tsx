@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import type { Player } from "@/types/draft";
 
 interface PickModalProps {
+  title?: string;
   players: Player[];
   isSaving: boolean;
   error: string;
@@ -12,6 +13,7 @@ interface PickModalProps {
 }
 
 export default function PickModal({
+  title = "Select Draft Pick",
   players,
   isSaving,
   error,
@@ -51,7 +53,7 @@ export default function PickModal({
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4">
       <div className="flex h-[100dvh] w-full flex-col bg-gray-900 p-4 sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-lg sm:p-6">
         <div className="flex items-center justify-between gap-4">
-          <h2 className="text-xl font-bold">Select Draft Pick</h2>
+          <h2 className="text-xl font-bold">{title}</h2>
           <button
             type="button"
             disabled={isSaving}

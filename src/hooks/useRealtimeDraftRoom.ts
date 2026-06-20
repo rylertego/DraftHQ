@@ -23,6 +23,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
   const [error, setError] = useState("");
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const refreshRef = useRef<() => Promise<void>>(async () => undefined);
   const statusRef = useRef<DraftConnectionStatus>("connecting");
 
@@ -33,6 +34,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
+    let presenceUserId: string | null = null;
     const updateStatus = (nextStatus: DraftConnectionStatus) => {
       statusRef.current = nextStatus;
       setStatus(nextStatus);
@@ -63,17 +65,28 @@ export function useRealtimeDraftRoom(draftId: string | null) {
       }
     });
 
-    const subscribe = () =>
-      subscribeToDraft(
+    const subscribe = () => {
+      if (!presenceUserId) {
+        return () => undefined;
+      }
+
+      return subscribeToDraft(
         draftId,
+        presenceUserId,
         () => void requestRefresh(),
+        setOnlineUserIds,
         updateStatus
       );
+    };
 
     const recover = async () => {
       if (!navigator.onLine) {
         updateStatus("disconnected");
         return;
+      }
+
+      if (!presenceUserId) {
+        presenceUserId = (await ensureAnonymousUser()).id;
       }
 
       if (statusRef.current !== "connected") {
@@ -108,7 +121,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
     async function initialize() {
       try {
-        await ensureAnonymousUser();
+        presenceUserId = (await ensureAnonymousUser()).id;
 
         if (cancelled) {
           return;
@@ -139,5 +152,13 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
   const refresh = useCallback(() => refreshRef.current(), []);
 
-  return { snapshot, status, error, refresh, lastSyncedAt, isRefreshing };
+  return {
+    snapshot,
+    status,
+    error,
+    refresh,
+    lastSyncedAt,
+    isRefreshing,
+    onlineUserIds,
+  };
 }

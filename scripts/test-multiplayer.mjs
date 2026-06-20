@@ -168,6 +168,7 @@ async function waitFor(predicate, description, timeoutMs = 30000) {
 
 const commissioner = createPublicClient();
 const owner = createPublicClient();
+const replacement = createPublicClient();
 const createdUserIds = [];
 const subscriptions = [];
 let draftId = null;
@@ -178,6 +179,7 @@ try {
     "Commissioner Test"
   );
   await createUserAndSignIn(owner, "Owner Test");
+  await createUserAndSignIn(replacement, "Replacement Test");
 
   const draft = await rpc(commissioner, "create_draft", {
     p_name: `Integration Draft ${Date.now()}`,
@@ -191,6 +193,10 @@ try {
   const ownerParticipant = await rpc(owner, "join_draft", {
     p_join_code: draft.join_code,
     p_display_name: "Owner Test",
+  });
+  const replacementParticipant = await rpc(replacement, "join_draft", {
+    p_join_code: draft.join_code,
+    p_display_name: "Replacement Test",
   });
   assert.equal(ownerParticipant.draft_id, draftId);
 
@@ -269,6 +275,17 @@ try {
   );
   await rpc(commissioner, "start_draft", { p_draft_id: draftId });
 
+  await expectRpcError(
+    commissioner,
+    "assign_team",
+    {
+      p_draft_id: draftId,
+      p_participant_id: ownerParticipant.id,
+      p_team_id: teams[1].id,
+    },
+    "P0001"
+  );
+
   const startedDraft = await selectRows(
     commissioner
       .from("drafts")
@@ -288,6 +305,19 @@ try {
     "42501"
   );
   await rpc(commissioner, "pause_draft", { p_draft_id: draftId });
+  await expectRpcError(
+    owner,
+    "remove_draft_participant",
+    {
+      p_draft_id: draftId,
+      p_participant_id: replacementParticipant.id,
+    },
+    "42501"
+  );
+  await rpc(commissioner, "remove_draft_participant", {
+    p_draft_id: draftId,
+    p_participant_id: replacementParticipant.id,
+  });
   await expectRpcError(
     commissioner,
     "make_pick",
@@ -322,8 +352,8 @@ try {
   });
 
   await expectRpcError(
-    commissioner,
-    "make_pick",
+    owner,
+    "commissioner_make_pick",
     { p_draft_id: draftId, p_player_id: players[1].id },
     "42501"
   );
@@ -334,7 +364,7 @@ try {
     "23505"
   );
 
-  await rpc(owner, "make_pick", {
+  await rpc(commissioner, "commissioner_make_pick", {
     p_draft_id: draftId,
     p_player_id: players[1].id,
   });
