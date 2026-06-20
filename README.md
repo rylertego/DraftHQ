@@ -3,10 +3,10 @@
 DraftHQ is a private, invite-only multiplayer fantasy football draft room. It
 uses Next.js, TypeScript, Tailwind CSS, Supabase, and Vitest.
 
-The current target is a reliable draft for a 10-12 person league on September
-5, 2026. The release question is:
+The current target is a reliable live draft for a 10-12 person league by
+September 2, 2026. The release question is:
 
-> Can my league complete its September 5 draft in DraftHQ without needing
+> Can my league complete its September 2 draft in DraftHQ without needing
 > FanDraft?
 
 ## Current Focus
@@ -14,14 +14,16 @@ The current target is a reliable draft for a 10-12 person league on September
 * Supabase-backed multiplayer state
 * Realtime and atomic picks
 * Team ownership and email invitations
-* Player database
-* Commissioner controls
-* Sleeper import
-* Draft-day reliability across phones and laptops
+* Searchable player database
+* Draft timer
+* Commissioner controls and undo
+* Persistence and recovery
+* Mobile draft-day reliability
 
-Spotify, YouTube, walk-up songs, customization, broadcast presentation,
-animations, and AI are documented future phases and are not part of the current
-implementation scope.
+Sleeper import, league colors and logo, team logos, and basic themes are
+high-priority stretch goals. Spotify, YouTube, walk-up songs, sounds, broadcast
+polish, animations, and AI are lower-priority roadmap items and must not block
+the required workflow.
 
 ## Local Development
 

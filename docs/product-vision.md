@@ -6,21 +6,21 @@ DraftHQ is a multiplayer fantasy football draft room built for a reliable,
 shared draft-night experience across phones, laptops, and a presentation
 screen.
 
-The immediate goal is not to replace every FanDraft feature. By September 5,
+The immediate goal is not to replace every FanDraft feature. By September 2,
 2026, DraftHQ should be dependable enough for a private 10-12 person fantasy
-football league to complete its real draft without needing FanDraft.
+football league to run its live draft without needing FanDraft.
 
 ## Initial Audience
 
 DraftHQ will begin as a private, invite-only product for the creator's league.
 Public registration, broad league discovery, monetization, and multi-tenant
-growth are outside the September 5 milestone.
+growth are outside the September 2 milestone.
 
 Starting privately allows development and testing to focus on draft correctness,
 realtime reliability, and the needs of one known league before considering a
 public launch.
 
-## September 5 Product
+## September 2 Product
 
 The core product is a multiplayer fantasy draft room with:
 
@@ -32,15 +32,16 @@ The core product is a multiplayer fantasy draft room with:
 * Enforced on-the-clock permissions
 * A reliable player database
 * Drafted-player protection
+* Searchable player drafting
 * Snake draft ordering
-* Commissioner controls, including undo
+* Draft timer
+* Commissioner controls, including undo pick
 * Reconnection and draft persistence
-* Usable phone, laptop, and shared-screen layouts
-* Sleeper league import for essential league setup data
+* Usable phone and laptop layouts
 
 The milestone question is:
 
-> Can my league complete its September 5 draft in DraftHQ without needing
+> Can my league complete its September 2 draft in DraftHQ without needing
 > FanDraft?
 
 ## Current Priorities
@@ -52,11 +53,32 @@ Work should be prioritized in this order:
 3. Team ownership and invite flows
 4. Player database quality
 5. Commissioner controls and recovery tools
-6. Sleeper import
-7. Draft-day usability and operational testing
+6. Draft timer and mobile usability
+7. Draft-day operational testing
 
-Features that do not directly improve the September 5 draft should not displace
+Features that do not directly improve the September 2 draft should not displace
 these priorities.
+
+## September 2 Stretch Goals
+
+High-priority stretch goals, attempted only after the required draft workflow is
+reliable:
+
+* Sleeper import
+* League logo
+* League colors
+* Team logos
+* Basic draft room themes
+
+Lower-priority stretch goals:
+
+* Spotify integration
+* YouTube integration
+* Walk-up songs
+* Pick announcement sounds
+* Broadcast and TV mode polish
+
+Music, themes, animations, and AI must never block the required draft workflow.
 
 ## Long-Term Vision
 
@@ -76,7 +98,7 @@ Long-term capabilities may include:
 * Presentation themes and animations
 * AI-assisted draft features
 
-These are future phases, not requirements for the September 5 release.
+These are roadmap items, not requirements for the September 2 release.
 
 ## League Customization
 
