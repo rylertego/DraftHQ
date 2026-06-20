@@ -19,6 +19,7 @@ import {
   getParticipantForUser,
 } from "@/lib/participantLogic";
 import { useRealtimeDraftRoom } from "@/hooks/useRealtimeDraftRoom";
+import { formatLastSyncedAt } from "@/lib/draftRecovery";
 
 interface DraftRoomProps {
   draftId: string | null;
@@ -26,7 +27,14 @@ interface DraftRoomProps {
 
 export default function DraftRoom({ draftId }: DraftRoomProps) {
   const router = useRouter();
-  const { snapshot, status, error, refresh } = useRealtimeDraftRoom(draftId);
+  const {
+    snapshot,
+    status,
+    error,
+    refresh,
+    lastSyncedAt,
+    isRefreshing,
+  } = useRealtimeDraftRoom(draftId);
   const [showPickModal, setShowPickModal] = useState(false);
   const [isMakingPick, setIsMakingPick] = useState(false);
   const [isUndoing, setIsUndoing] = useState(false);
@@ -41,6 +49,13 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
 
   async function handleMakePick(playerId: string) {
     if (!draftId) {
+      return;
+    }
+
+    if (status !== "connected") {
+      setActionError(
+        "Drafting is disabled until the room reconnects and refreshes."
+      );
       return;
     }
 
@@ -119,6 +134,7 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
   );
   const draftAcceptsPicks = snapshot.draft.status === "active";
   const canMakePick =
+    status === "connected" &&
     draftAcceptsPicks &&
     accessState.kind === "assigned" &&
     accessState.teamId === teamOnClock?.id;
@@ -157,9 +173,11 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
   }
 
   return (
-    <main className="p-8">
-      <div className="flex items-start justify-between gap-4 mb-2">
-        <h1 className="text-4xl font-bold">{snapshot.draft.name}</h1>
+    <main className="p-4 pb-28 sm:p-8 sm:pb-8">
+      <div className="mb-2 flex items-start justify-between gap-4">
+        <h1 className="text-2xl font-bold sm:text-4xl">
+          {snapshot.draft.name}
+        </h1>
         <span
           className={`text-sm capitalize ${
             status === "connected" ? "text-green-400" : "text-yellow-400"
@@ -176,6 +194,33 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
       <p className="mb-6 border border-gray-700 rounded p-3">
         {participantMessage}
       </p>
+
+      {status !== "connected" && (
+        <section
+          role="status"
+          className="mb-4 flex flex-col gap-3 rounded border border-yellow-700 bg-yellow-950/40 p-3 sm:flex-row sm:items-center"
+        >
+          <div className="flex-1">
+            <p className="font-semibold">
+              {status === "connecting"
+                ? "Refreshing draft state..."
+                : "Draft room connection interrupted"}
+            </p>
+            <p className="text-sm text-gray-300">
+              Picks are disabled to prevent stale submissions. {" "}
+              {formatLastSyncedAt(lastSyncedAt)}.
+            </p>
+          </div>
+          <button
+            type="button"
+            disabled={isRefreshing}
+            className="rounded bg-yellow-700 px-4 py-2 font-semibold disabled:opacity-50"
+            onClick={() => void refresh()}
+          >
+            {isRefreshing ? "Refreshing..." : "Retry Now"}
+          </button>
+        </section>
+      )}
 
       {(error || actionError) && (
         <p className="mb-4 text-red-500">{actionError || error}</p>
@@ -280,6 +325,33 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           }}
           onUndoPick={handleUndoPick}
         />
+      </div>
+
+      <div className="fixed inset-x-0 bottom-0 z-40 border-t border-gray-700 bg-gray-950/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
+        {canMakePick ? (
+          <button
+            type="button"
+            className="w-full rounded bg-blue-600 px-4 py-3 font-bold text-white"
+            onClick={() => {
+              setActionError("");
+              setShowPickModal(true);
+            }}
+          >
+            Make Pick for {teamOnClock?.name}
+          </button>
+        ) : (
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs uppercase tracking-wide text-gray-400">
+                On the clock
+              </p>
+              <p className="font-semibold">
+                {teamOnClock?.name ?? "Draft complete"}
+              </p>
+            </div>
+            <span className="text-sm capitalize text-gray-400">{status}</span>
+          </div>
+        )}
       </div>
 
       {showPickModal && (

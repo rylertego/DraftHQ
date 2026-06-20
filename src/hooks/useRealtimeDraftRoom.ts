@@ -11,13 +11,20 @@ import {
 } from "@/lib/draftRealtime";
 import { createSnapshotRefreshQueue } from "@/lib/refreshQueue";
 import { ensureAnonymousUser } from "@/lib/supabase";
+import {
+  getDraftRecoveryError,
+  shouldRefreshDraftOnVisibility,
+} from "@/lib/draftRecovery";
 
 export function useRealtimeDraftRoom(draftId: string | null) {
   const [snapshot, setSnapshot] = useState<DraftRoomSnapshot | null>(null);
   const [status, setStatus] =
     useState<DraftConnectionStatus>("connecting");
   const [error, setError] = useState("");
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const refreshRef = useRef<() => Promise<void>>(async () => undefined);
+  const statusRef = useRef<DraftConnectionStatus>("connecting");
 
   useEffect(() => {
     if (!draftId) {
@@ -26,27 +33,78 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
     let cancelled = false;
     let unsubscribe: () => void = () => undefined;
+    const updateStatus = (nextStatus: DraftConnectionStatus) => {
+      statusRef.current = nextStatus;
+      setStatus(nextStatus);
+    };
 
     const requestRefresh = createSnapshotRefreshQueue(async () => {
+      if (!cancelled) {
+        setIsRefreshing(true);
+      }
+
       try {
         const nextSnapshot = await getDraftRoomSnapshot(draftId);
 
         if (!cancelled) {
           setSnapshot(nextSnapshot);
+          setLastSyncedAt(Date.now());
           setError("");
         }
       } catch (refreshError) {
         if (!cancelled) {
-          setError(
-            refreshError instanceof Error
-              ? refreshError.message
-              : "Unable to refresh the draft room."
-          );
+          updateStatus(navigator.onLine ? "error" : "disconnected");
+          setError(getDraftRecoveryError(refreshError));
+        }
+      } finally {
+        if (!cancelled) {
+          setIsRefreshing(false);
         }
       }
     });
 
-    refreshRef.current = requestRefresh;
+    const subscribe = () =>
+      subscribeToDraft(
+        draftId,
+        () => void requestRefresh(),
+        updateStatus
+      );
+
+    const recover = async () => {
+      if (!navigator.onLine) {
+        updateStatus("disconnected");
+        return;
+      }
+
+      if (statusRef.current !== "connected") {
+        updateStatus("connecting");
+        unsubscribe();
+        unsubscribe = subscribe();
+      }
+
+      await requestRefresh();
+    };
+
+    refreshRef.current = recover;
+
+    const handleVisibilityChange = () => {
+      if (
+        shouldRefreshDraftOnVisibility(
+          document.visibilityState,
+          navigator.onLine
+        )
+      ) {
+        void recover();
+      }
+    };
+
+    const handleOffline = () => updateStatus("disconnected");
+    const handleRecovery = () => void recover();
+
+    window.addEventListener("online", handleRecovery);
+    window.addEventListener("offline", handleOffline);
+    window.addEventListener("focus", handleRecovery);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
 
     async function initialize() {
       try {
@@ -56,20 +114,12 @@ export function useRealtimeDraftRoom(draftId: string | null) {
           return;
         }
 
-        unsubscribe = subscribeToDraft(
-          draftId as string,
-          () => void requestRefresh(),
-          setStatus
-        );
+        unsubscribe = subscribe();
         await requestRefresh();
       } catch (initializeError) {
         if (!cancelled) {
-          setStatus("error");
-          setError(
-            initializeError instanceof Error
-              ? initializeError.message
-              : "Unable to connect to the draft room."
-          );
+          updateStatus("error");
+          setError(getDraftRecoveryError(initializeError));
         }
       }
     }
@@ -79,11 +129,15 @@ export function useRealtimeDraftRoom(draftId: string | null) {
     return () => {
       cancelled = true;
       unsubscribe();
+      window.removeEventListener("online", handleRecovery);
+      window.removeEventListener("offline", handleOffline);
+      window.removeEventListener("focus", handleRecovery);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
       refreshRef.current = async () => undefined;
     };
   }, [draftId]);
 
   const refresh = useCallback(() => refreshRef.current(), []);
 
-  return { snapshot, status, error, refresh };
+  return { snapshot, status, error, refresh, lastSyncedAt, isRefreshing };
 }

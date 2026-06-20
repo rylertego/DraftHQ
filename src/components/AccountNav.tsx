@@ -43,11 +43,11 @@ export default function AccountNav() {
 
   return (
     <header className="border-b border-gray-800 bg-black/30">
-      <nav className="mx-auto flex max-w-6xl items-center gap-4 px-6 py-4">
+      <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
         <Link className="mr-auto font-bold" href="/create">
-          Fantasy Draft Room
+          DraftHQ
         </Link>
-        <Link className="text-sm text-gray-300" href="/join">
+        <Link className="hidden text-sm text-gray-300 sm:block" href="/join">
           Join Draft
         </Link>
         {hasAccount ? (
@@ -68,7 +68,8 @@ export default function AccountNav() {
               className="rounded bg-blue-600 px-3 py-1.5 text-sm text-white"
               href="/signup"
             >
-              Create Account
+              <span className="sm:hidden">Sign Up</span>
+              <span className="hidden sm:inline">Create Account</span>
             </Link>
           </>
         )}

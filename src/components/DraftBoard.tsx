@@ -46,12 +46,12 @@ export default function DraftBoard({
   return (
     <div className="space-y-8">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <section className="lg:col-span-2 border border-gray-700 rounded-lg p-6 bg-gray-950">
+        <section className="rounded-lg border border-gray-700 bg-gray-950 p-4 sm:p-6 lg:col-span-2">
           <p className="text-sm uppercase tracking-wide text-gray-400">
             On the Clock
           </p>
 
-          <h2 className="text-4xl font-bold mt-2">
+          <h2 className="mt-2 text-2xl font-bold sm:text-4xl">
             {currentSlot?.teamName ?? "Draft Complete"}
           </h2>
 
@@ -75,7 +75,7 @@ export default function DraftBoard({
       <section>
         <h2 className="text-2xl font-bold mb-4">Draft Board</h2>
 
-        <div className="overflow-auto">
+        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded border border-gray-700 [touch-action:pan-x_pan-y]">
           <table className="border-collapse border border-gray-700">
             <tbody>
               {Array.from({ length: rounds }, (_, roundIndex) => {
@@ -92,7 +92,7 @@ export default function DraftBoard({
 
                 return (
                   <tr key={round}>
-                    <td className="border border-gray-700 p-3 font-bold whitespace-nowrap bg-gray-900">
+                    <td className="sticky left-0 z-10 whitespace-nowrap border border-gray-700 bg-gray-900 p-3 font-bold">
                       Round {round}
                     </td>
 
