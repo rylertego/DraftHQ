@@ -10,6 +10,7 @@ import type {
   Team,
 } from "@/types/draft";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
+import { getMyProfile } from "@/lib/profileApi";
 
 interface DraftRow {
   id: string;
@@ -201,13 +202,13 @@ export async function createDraft(input: {
   teamCount: number;
   rounds: number;
 }) {
-  await ensureAnonymousUser();
+  const { profile } = await getMyProfile();
 
   const { data, error } = await supabase.rpc("create_draft", {
     p_name: input.name,
     p_team_count: input.teamCount,
     p_rounds: input.rounds,
-    p_display_name: "Commissioner",
+    p_display_name: profile.displayName,
   });
 
   if (error) {

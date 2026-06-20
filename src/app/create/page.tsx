@@ -2,8 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createDraft } from "@/lib/draftApi";
+import { supabase } from "@/lib/supabase";
 
 export default function CreateDraftPage() {
   const router = useRouter();
@@ -13,6 +14,35 @@ export default function CreateDraftPage() {
   const [rounds, setRounds] = useState(15);
   const [error, setError] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [isCheckingAccount, setIsCheckingAccount] = useState(true);
+  const [hasAccount, setHasAccount] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      if (active) {
+        setHasAccount(
+          Boolean(data.session?.user && !data.session.user.is_anonymous)
+        );
+        setIsCheckingAccount(false);
+      }
+    });
+
+    const { data: listener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (active) {
+          setHasAccount(Boolean(session?.user && !session.user.is_anonymous));
+          setIsCheckingAccount(false);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      listener.subscription.unsubscribe();
+    };
+  }, []);
 
   async function handleCreateDraft() {
     if (!draftName.trim()) {
@@ -55,57 +85,85 @@ export default function CreateDraftPage() {
     <main className="max-w-2xl mx-auto p-8">
       <h1 className="text-3xl font-bold mb-6">Create Draft</h1>
 
-      <div className="space-y-4">
-        <div>
-          <label className="block mb-2">Draft Name</label>
-          <input
-            className="border rounded p-2 w-full"
-            value={draftName}
-            onChange={(e) => setDraftName(e.target.value)}
-          />
+      {isCheckingAccount ? (
+        <p className="text-gray-400">Checking your account...</p>
+      ) : !hasAccount ? (
+        <section className="rounded border border-gray-700 p-6">
+          <h2 className="mb-2 text-xl font-bold">
+            Commissioner account required
+          </h2>
+          <p className="mb-4 text-gray-400">
+            Create an account or log in to create and manage a draft. Owners
+            can still join drafts without creating an account first.
+          </p>
+          <div className="flex gap-3">
+            <Link
+              className="rounded bg-blue-600 px-4 py-2 text-white"
+              href="/signup"
+            >
+              Create Account
+            </Link>
+            <Link
+              className="rounded bg-gray-700 px-4 py-2 text-white"
+              href="/login"
+            >
+              Log In
+            </Link>
+          </div>
+        </section>
+      ) : (
+        <div className="space-y-4">
+          <div>
+            <label className="block mb-2">Draft Name</label>
+            <input
+              className="border rounded p-2 w-full"
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2">Number of Teams</label>
+            <input
+              type="number"
+              min={2}
+              max={20}
+              className="border rounded p-2 w-full"
+              value={teamCount}
+              onChange={(e) => setTeamCount(Number(e.target.value))}
+            />
+          </div>
+
+          <div>
+            <label className="block mb-2">Number of Rounds</label>
+            <input
+              type="number"
+              min={1}
+              max={30}
+              className="border rounded p-2 w-full"
+              value={rounds}
+              onChange={(e) => setRounds(Number(e.target.value))}
+            />
+          </div>
+
+          {error && <p className="text-red-500">{error}</p>}
+
+          <button
+            onClick={handleCreateDraft}
+            disabled={isCreating}
+            className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded"
+          >
+            {isCreating ? "Creating..." : "Create Draft"}
+          </button>
+
+          <p className="text-sm text-gray-400">
+            Have a code?{" "}
+            <Link className="text-blue-400 underline" href="/join">
+              Join an existing draft
+            </Link>
+          </p>
         </div>
-
-        <div>
-          <label className="block mb-2">Number of Teams</label>
-          <input
-            type="number"
-            min={2}
-            max={20}
-            className="border rounded p-2 w-full"
-            value={teamCount}
-            onChange={(e) => setTeamCount(Number(e.target.value))}
-          />
-        </div>
-
-        <div>
-          <label className="block mb-2">Number of Rounds</label>
-          <input
-            type="number"
-            min={1}
-            max={30}
-            className="border rounded p-2 w-full"
-            value={rounds}
-            onChange={(e) => setRounds(Number(e.target.value))}
-          />
-        </div>
-
-        {error && <p className="text-red-500">{error}</p>}
-
-        <button
-          onClick={handleCreateDraft}
-          disabled={isCreating}
-          className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded"
-        >
-          {isCreating ? "Creating..." : "Create Draft"}
-        </button>
-
-        <p className="text-sm text-gray-400">
-          Have a code?{" "}
-          <Link className="text-blue-400 underline" href="/join">
-            Join an existing draft
-          </Link>
-        </p>
-      </div>
+      )}
     </main>
   );
 }
