@@ -3,6 +3,7 @@ import { normalizeEmail } from "@/lib/email";
 
 interface InvitationRequest {
   email?: unknown;
+  teamId?: unknown;
 }
 
 interface InvitationRouteContext {
@@ -40,9 +41,17 @@ export async function POST(
   }
 
   const email = normalizeEmail(body.email);
+  const teamId = typeof body.teamId === "string" ? body.teamId : "";
 
   if (!email) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
+  }
+
+  const uuidPattern =
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  if (!uuidPattern.test(teamId)) {
+    return Response.json({ error: "Select a valid team." }, { status: 400 });
   }
 
   const { draftId } = await params;
@@ -65,6 +74,59 @@ export async function POST(
       { error: "Only the commissioner can invite owners." },
       { status: 403 }
     );
+  }
+
+  const [
+    { data: team, error: teamError },
+    { data: teamParticipant, error: teamParticipantError },
+    { data: reservedInvitation, error: reservedInvitationError },
+  ] = await Promise.all([
+      supabaseAdmin
+        .from("teams")
+        .select("id")
+        .eq("id", teamId)
+        .eq("draft_id", draftId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("draft_participants")
+        .select("id")
+        .eq("draft_id", draftId)
+        .eq("team_id", teamId)
+        .maybeSingle(),
+      supabaseAdmin
+        .from("draft_invitations")
+        .select("email")
+        .eq("draft_id", draftId)
+        .eq("team_id", teamId)
+        .eq("status", "pending")
+        .neq("email", email)
+        .maybeSingle(),
+    ]);
+
+  if (teamError) {
+    return Response.json({ error: teamError.message }, { status: 500 });
+  }
+
+  if (teamParticipantError) {
+    return Response.json(
+      { error: teamParticipantError.message },
+      { status: 500 }
+    );
+  }
+
+  if (reservedInvitationError) {
+    return Response.json(
+      { error: reservedInvitationError.message },
+      { status: 500 }
+    );
+  }
+
+  if (!team) {
+    return Response.json({ error: "Team not found in this draft." }, { status: 404 });
+  }
+
+  if (teamParticipant || reservedInvitation) {
+    return Response.json({ error: "That team is already assigned." }, { status: 409 });
   }
 
   const { data: existingInvitation, error: existingInvitationError } =
@@ -98,6 +160,7 @@ export async function POST(
       data: {
         draft_id: draftId,
         join_code: draft.join_code,
+        team_id: teamId,
       },
     });
 
@@ -111,6 +174,7 @@ export async function POST(
       {
         draft_id: draftId,
         email,
+        team_id: teamId,
         invited_by_user_id: userData.user.id,
         participant_id: null,
         status: "pending",
@@ -119,7 +183,7 @@ export async function POST(
       },
       { onConflict: "draft_id,email" }
     )
-    .select("id,draft_id,email,status,participant_id,invited_at,accepted_at")
+    .select("id,draft_id,email,team_id,status,participant_id,invited_at,accepted_at")
     .single();
 
   if (invitationError) {

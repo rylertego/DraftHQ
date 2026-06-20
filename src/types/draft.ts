@@ -76,6 +76,7 @@ export interface DraftInvitation {
   id: string;
   draftId: string;
   email: string;
+  teamId: string | null;
   status: "pending" | "accepted";
   participantId: string | null;
   invitedAt: string;

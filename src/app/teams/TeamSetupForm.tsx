@@ -28,6 +28,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   >(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteTeamId, setInviteTeamId] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState("");
 
@@ -149,7 +150,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
-    if (!draftId || !setup || !inviteEmail.trim()) {
+    if (!draftId || !setup || !inviteEmail.trim() || !inviteTeamId) {
       return;
     }
 
@@ -157,7 +158,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setIsInviting(true);
 
     try {
-      const invitation = await inviteOwner(draftId, inviteEmail.trim());
+      const invitation = await inviteOwner(
+        draftId,
+        inviteEmail.trim(),
+        inviteTeamId
+      );
       const existingIndex = setup.invitations.findIndex(
         (current) => current.id === invitation.id
       );
@@ -170,6 +175,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
       setSetup({ ...setup, invitations });
       setInviteEmail("");
+      setInviteTeamId("");
     } catch (inviteError) {
       setError(
         inviteError instanceof Error
@@ -269,7 +275,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         <section className="space-y-6">
           <div>
             <h2 className="text-xl font-bold mb-3">Invite Owners</h2>
-            <form className="flex gap-2" onSubmit={sendEmailInvitation}>
+            <form
+              className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
+              onSubmit={sendEmailInvitation}
+            >
               <input
                 type="email"
                 required
@@ -279,6 +288,36 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 value={inviteEmail}
                 onChange={(event) => setInviteEmail(event.target.value)}
               />
+              <select
+                required
+                aria-label="Team for invited owner"
+                className="border rounded p-2 bg-gray-900"
+                value={inviteTeamId}
+                onChange={(event) => setInviteTeamId(event.target.value)}
+              >
+                <option value="">Select team</option>
+                {teams.map((team) => {
+                  const isUnavailable =
+                    setup.participants.some(
+                      (participant) => participant.teamId === team.id
+                    ) ||
+                    setup.invitations.some(
+                      (invitation) =>
+                        invitation.status === "pending" &&
+                        invitation.teamId === team.id
+                    );
+
+                  return (
+                    <option
+                      key={team.id}
+                      value={team.id}
+                      disabled={isUnavailable}
+                    >
+                      {team.name}
+                    </option>
+                  );
+                })}
+              </select>
               <button
                 type="submit"
                 disabled={isInviting}
@@ -295,7 +334,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     key={invitation.id}
                     className="border border-gray-700 rounded p-2 flex justify-between gap-3"
                   >
-                    <span>{invitation.email}</span>
+                    <span>
+                      {invitation.email}
+                      {invitation.teamId && (
+                        <span className="text-gray-400">
+                          {" "}
+                          - {teams.find(
+                            (team) => team.id === invitation.teamId
+                          )?.name}
+                        </span>
+                      )}
+                    </span>
                     <span className="text-sm text-gray-400 capitalize">
                       {invitation.status}
                     </span>

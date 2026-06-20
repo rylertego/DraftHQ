@@ -39,6 +39,7 @@ interface InvitationRow {
   id: string;
   draft_id: string;
   email: string;
+  team_id: string | null;
   status: "pending" | "accepted";
   participant_id: string | null;
   invited_at: string;
@@ -140,6 +141,7 @@ function mapInvitation(row: InvitationRow): DraftInvitation {
     id: row.id,
     draftId: row.draft_id,
     email: row.email,
+    teamId: row.team_id,
     status: row.status,
     participantId: row.participant_id,
     invitedAt: row.invited_at,
@@ -242,7 +244,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("draft_invitations")
       .select(
-        "id,draft_id,email,status,participant_id,invited_at,accepted_at"
+        "id,draft_id,email,team_id,status,participant_id,invited_at,accepted_at"
       )
       .eq("draft_id", draftId)
       .order("invited_at"),
@@ -277,7 +279,11 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
   };
 }
 
-export async function inviteOwner(draftId: string, email: string) {
+export async function inviteOwner(
+  draftId: string,
+  email: string,
+  teamId: string
+) {
   await ensureAnonymousUser();
   const { data: sessionData, error: sessionError } =
     await supabase.auth.getSession();
@@ -298,7 +304,7 @@ export async function inviteOwner(draftId: string, email: string) {
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, teamId }),
   });
   const payload = (await response.json()) as {
     invitation?: InvitationRow;

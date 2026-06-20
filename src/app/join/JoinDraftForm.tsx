@@ -1,9 +1,10 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { joinDraft } from "@/lib/draftApi";
 import { normalizeJoinCode } from "@/lib/participantLogic";
+import { supabase } from "@/lib/supabase";
 
 interface JoinDraftFormProps {
   initialJoinCode?: string;
@@ -17,6 +18,30 @@ export default function JoinDraftForm({
   const [displayName, setDisplayName] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [error, setError] = useState("");
+  const [signedInEmail, setSignedInEmail] = useState<string | null>(null);
+
+  useEffect(() => {
+    let active = true;
+
+    void supabase.auth.getUser().then(({ data }) => {
+      if (active && data.user?.email) {
+        setSignedInEmail(data.user.email);
+      }
+    });
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (active) {
+          setSignedInEmail(session?.user.email ?? null);
+        }
+      }
+    );
+
+    return () => {
+      active = false;
+      authListener.subscription.unsubscribe();
+    };
+  }, []);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -52,6 +77,13 @@ export default function JoinDraftForm({
   return (
     <main className="max-w-md mx-auto p-8">
       <h1 className="text-3xl font-bold mb-6">Join Draft</h1>
+
+      {signedInEmail && (
+        <p className="mb-4 text-sm text-gray-400">
+          Invitation accepted for {signedInEmail}. Your assigned team will be
+          claimed when you join.
+        </p>
+      )}
 
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
