@@ -50,9 +50,11 @@ async function createUserAndSignIn(client, displayName) {
   const { data: signInData, error: signInError } =
     await client.auth.signInWithPassword({ email, password });
 
-  if (signInError || !signInData.user) {
-    throw signInError ?? new Error("Sign-in did not return a user.");
+  if (signInError || !signInData.user || !signInData.session) {
+    throw signInError ?? new Error("Sign-in did not return a session.");
   }
+
+  await client.realtime.setAuth(signInData.session.access_token);
 
   return signInData.user;
 }
