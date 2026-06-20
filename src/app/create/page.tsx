@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createDraft } from "@/lib/draftApi";
 import { supabase } from "@/lib/supabase";
+import SleeperImportForm from "@/components/SleeperImportForm";
 
 export default function CreateDraftPage() {
   const router = useRouter();
@@ -112,7 +113,16 @@ export default function CreateDraftPage() {
           </div>
         </section>
       ) : (
-        <div className="space-y-4">
+        <div className="space-y-6">
+          <SleeperImportForm />
+
+          <div className="flex items-center gap-3 text-sm text-gray-500">
+            <span className="h-px flex-1 bg-gray-800" />
+            Or create manually
+            <span className="h-px flex-1 bg-gray-800" />
+          </div>
+
+          <div className="space-y-4">
           <div>
             <label className="block mb-2">Draft Name</label>
             <input
@@ -162,6 +172,7 @@ export default function CreateDraftPage() {
               Join an existing draft
             </Link>
           </p>
+          </div>
         </div>
       )}
     </main>

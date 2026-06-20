@@ -16,6 +16,8 @@ export interface Draft {
   pickSeconds: number;
   pickDeadlineAt: string | null;
   pausedRemainingSeconds: number | null;
+  sleeperLeagueId: string | null;
+  sleeperDraftId: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -26,6 +28,8 @@ export interface Team {
   name: string;
   draftPosition: number;
   logoUrl?: string;
+  sleeperRosterId?: number;
+  sleeperOwnerUserId?: string;
 }
 
 export interface Player {

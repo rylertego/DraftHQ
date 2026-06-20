@@ -11,6 +11,7 @@ import type {
 } from "@/types/draft";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
+import type { SleeperLeaguePreview } from "@/lib/sleeper";
 
 interface DraftRow {
   id: string;
@@ -24,6 +25,8 @@ interface DraftRow {
   pick_seconds: number;
   pick_deadline_at: string | null;
   paused_remaining_seconds: number | null;
+  sleeper_league_id: string | null;
+  sleeper_draft_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -56,6 +59,8 @@ interface TeamRow {
   name: string;
   draft_position: number;
   logo_url: string | null;
+  sleeper_roster_id: number | null;
+  sleeper_owner_user_id: string | null;
 }
 
 interface PlayerRow {
@@ -125,6 +130,8 @@ function mapDraft(row: DraftRow): Draft {
     pickSeconds: row.pick_seconds,
     pickDeadlineAt: row.pick_deadline_at,
     pausedRemainingSeconds: row.paused_remaining_seconds,
+    sleeperLeagueId: row.sleeper_league_id,
+    sleeperDraftId: row.sleeper_draft_id,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -163,6 +170,8 @@ function mapTeam(row: TeamRow): Team {
     name: row.name,
     draftPosition: row.draft_position,
     logoUrl: row.logo_url ?? undefined,
+    sleeperRosterId: row.sleeper_roster_id ?? undefined,
+    sleeperOwnerUserId: row.sleeper_owner_user_id ?? undefined,
   };
 }
 
@@ -224,6 +233,60 @@ export async function createDraft(input: {
   return mapDraft(getSingleRow<DraftRow>(data, "the created draft"));
 }
 
+export async function getSleeperLeaguePreview(leagueId: string) {
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) {
+    throw new Error("Authentication session is missing.");
+  }
+
+  const response = await fetch(`/api/sleeper/leagues/${leagueId}/preview`, {
+    headers: { Authorization: `Bearer ${accessToken}` },
+  });
+  const payload = (await response.json()) as {
+    preview?: SleeperLeaguePreview;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.preview) {
+    throw new Error(payload.error ?? "Unable to preview the Sleeper league.");
+  }
+
+  return payload.preview;
+}
+
+export async function createSleeperDraft(input: {
+  name: string;
+  rounds: number;
+  preview: SleeperLeaguePreview;
+}) {
+  const { profile } = await getMyProfile();
+  const { data, error } = await supabase.rpc("create_sleeper_draft", {
+    p_name: input.name,
+    p_rounds: input.rounds,
+    p_display_name: profile.displayName,
+    p_sleeper_league_id: input.preview.leagueId,
+    p_sleeper_draft_id: input.preview.draftId,
+    p_team_names: input.preview.teams.map((team) => team.teamName),
+    p_sleeper_roster_ids: input.preview.teams.map((team) => team.rosterId),
+    p_sleeper_owner_user_ids: input.preview.teams.map(
+      (team) => team.ownerUserId ?? ""
+    ),
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return mapDraft(getSingleRow<DraftRow>(data, "the imported draft"));
+}
+
 export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
   const currentUser = await ensureAnonymousUser();
 
@@ -232,13 +295,13 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,sleeper_league_id,sleeper_draft_id,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
     supabase
       .from("teams")
-      .select("id,draft_id,name,draft_position,logo_url")
+      .select("id,draft_id,name,draft_position,logo_url,sleeper_roster_id,sleeper_owner_user_id")
       .eq("draft_id", draftId)
       .order("draft_position"),
     supabase
