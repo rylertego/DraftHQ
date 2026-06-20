@@ -1,5 +1,6 @@
 import type {
   Draft,
+  DraftInvitation,
   DraftParticipant,
   DraftRole,
   DraftStatus,
@@ -32,6 +33,16 @@ interface ParticipantRow {
   role: DraftRole;
   created_at: string;
   updated_at: string;
+}
+
+interface InvitationRow {
+  id: string;
+  draft_id: string;
+  email: string;
+  status: "pending" | "accepted";
+  participant_id: string | null;
+  invited_at: string;
+  accepted_at: string | null;
 }
 
 interface TeamRow {
@@ -77,6 +88,7 @@ export interface DraftSetup {
   draft: Draft;
   teams: Team[];
   participants: DraftParticipant[];
+  invitations: DraftInvitation[];
   currentUserId: string;
 }
 
@@ -120,6 +132,18 @@ function mapParticipant(row: ParticipantRow): DraftParticipant {
     role: row.role,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
+  };
+}
+
+function mapInvitation(row: InvitationRow): DraftInvitation {
+  return {
+    id: row.id,
+    draftId: row.draft_id,
+    email: row.email,
+    status: row.status,
+    participantId: row.participant_id,
+    invitedAt: row.invited_at,
+    acceptedAt: row.accepted_at,
   };
 }
 
@@ -194,7 +218,8 @@ export async function createDraft(input: {
 export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
   const currentUser = await ensureAnonymousUser();
 
-  const [draftResult, teamsResult, participantsResult] = await Promise.all([
+  const [draftResult, teamsResult, participantsResult, invitationsResult] =
+    await Promise.all([
     supabase
       .from("drafts")
       .select(
@@ -214,7 +239,14 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
       )
       .eq("draft_id", draftId)
       .order("created_at"),
-  ]);
+    supabase
+      .from("draft_invitations")
+      .select(
+        "id,draft_id,email,status,participant_id,invited_at,accepted_at"
+      )
+      .eq("draft_id", draftId)
+      .order("invited_at"),
+    ]);
 
   if (draftResult.error) {
     throw draftResult.error;
@@ -228,14 +260,56 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     throw participantsResult.error;
   }
 
+  if (invitationsResult.error) {
+    throw invitationsResult.error;
+  }
+
   return {
     draft: mapDraft(draftResult.data as DraftRow),
     teams: (teamsResult.data as TeamRow[]).map(mapTeam),
     participants: (participantsResult.data as ParticipantRow[]).map(
       mapParticipant
     ),
+    invitations: (invitationsResult.data as InvitationRow[]).map(
+      mapInvitation
+    ),
     currentUserId: currentUser.id,
   };
+}
+
+export async function inviteOwner(draftId: string, email: string) {
+  await ensureAnonymousUser();
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error("Authentication session is missing.");
+  }
+
+  const response = await fetch(`/api/drafts/${draftId}/invitations`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ email }),
+  });
+  const payload = (await response.json()) as {
+    invitation?: InvitationRow;
+    error?: string;
+  };
+
+  if (!response.ok || !payload.invitation) {
+    throw new Error(payload.error ?? "Unable to invite owner.");
+  }
+
+  return mapInvitation(payload.invitation);
 }
 
 export async function renameTeams(draftId: string, teamNames: string[]) {

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   assignTeam,
   getDraftSetup,
+  inviteOwner,
   renameTeams,
   type DraftSetup,
 } from "@/lib/draftApi";
@@ -26,6 +27,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     string | null
   >(null);
   const [copyStatus, setCopyStatus] = useState("");
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [isInviting, setIsInviting] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -143,6 +146,41 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     }
   }
 
+  async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (!draftId || !setup || !inviteEmail.trim()) {
+      return;
+    }
+
+    setError("");
+    setIsInviting(true);
+
+    try {
+      const invitation = await inviteOwner(draftId, inviteEmail.trim());
+      const existingIndex = setup.invitations.findIndex(
+        (current) => current.id === invitation.id
+      );
+      const invitations =
+        existingIndex === -1
+          ? [...setup.invitations, invitation]
+          : setup.invitations.map((current) =>
+              current.id === invitation.id ? invitation : current
+            );
+
+      setSetup({ ...setup, invitations });
+      setInviteEmail("");
+    } catch (inviteError) {
+      setError(
+        inviteError instanceof Error
+          ? inviteError.message
+          : "Unable to send invitation."
+      );
+    } finally {
+      setIsInviting(false);
+    }
+  }
+
   async function continueToDraft() {
     if (!draftId) {
       return;
@@ -228,61 +266,103 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       </section>
 
       {isCommissioner && (
-        <section>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-xl font-bold">Owners</h2>
-            <button
-              type="button"
-              disabled={isRefreshing}
-              className="bg-gray-700 disabled:opacity-50 px-3 py-1 rounded"
-              onClick={refreshParticipants}
-            >
-              {isRefreshing ? "Refreshing..." : "Refresh Owners"}
-            </button>
+        <section className="space-y-6">
+          <div>
+            <h2 className="text-xl font-bold mb-3">Invite Owners</h2>
+            <form className="flex gap-2" onSubmit={sendEmailInvitation}>
+              <input
+                type="email"
+                required
+                maxLength={320}
+                className="border rounded p-2 flex-1"
+                placeholder="owner@example.com"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+              />
+              <button
+                type="submit"
+                disabled={isInviting}
+                className="bg-blue-600 disabled:opacity-50 px-4 py-2 rounded"
+              >
+                {isInviting ? "Sending..." : "Send Invite"}
+              </button>
+            </form>
+
+            {setup.invitations.length > 0 && (
+              <div className="mt-3 space-y-2">
+                {setup.invitations.map((invitation) => (
+                  <div
+                    key={invitation.id}
+                    className="border border-gray-700 rounded p-2 flex justify-between gap-3"
+                  >
+                    <span>{invitation.email}</span>
+                    <span className="text-sm text-gray-400 capitalize">
+                      {invitation.status}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
-          <div className="space-y-3">
-            {setup.participants.map((participant) => {
-              const unavailableTeamIds = getAssignedTeamIds(
-                setup.participants,
-                participant.id
-              );
+          <div>
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-xl font-bold">Owners</h2>
+              <button
+                type="button"
+                disabled={isRefreshing}
+                className="bg-gray-700 disabled:opacity-50 px-3 py-1 rounded"
+                onClick={refreshParticipants}
+              >
+                {isRefreshing ? "Refreshing..." : "Refresh Owners"}
+              </button>
+            </div>
 
-              return (
-                <div
-                  key={participant.id}
-                  className="border border-gray-700 rounded p-3 flex items-center gap-3"
-                >
-                  <div className="flex-1">
-                    <div className="font-semibold">{participant.displayName}</div>
-                    <div className="text-xs text-gray-400 capitalize">
-                      {participant.role}
-                    </div>
-                  </div>
+            <div className="space-y-3">
+              {setup.participants.map((participant) => {
+                const unavailableTeamIds = getAssignedTeamIds(
+                  setup.participants,
+                  participant.id
+                );
 
-                  <select
-                    aria-label={`Team for ${participant.displayName}`}
-                    className="border rounded p-2 bg-gray-900"
-                    value={participant.teamId ?? ""}
-                    disabled={assigningParticipantId === participant.id}
-                    onChange={(event) =>
-                      updateAssignment(participant.id, event.target.value)
-                    }
+                return (
+                  <div
+                    key={participant.id}
+                    className="border border-gray-700 rounded p-3 flex items-center gap-3"
                   >
-                    <option value="">Unassigned</option>
-                    {teams.map((team) => (
-                      <option
-                        key={team.id}
-                        value={team.id}
-                        disabled={unavailableTeamIds.includes(team.id)}
-                      >
-                        {team.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              );
-            })}
+                    <div className="flex-1">
+                      <div className="font-semibold">
+                        {participant.displayName}
+                      </div>
+                      <div className="text-xs text-gray-400 capitalize">
+                        {participant.role}
+                      </div>
+                    </div>
+
+                    <select
+                      aria-label={`Team for ${participant.displayName}`}
+                      className="border rounded p-2 bg-gray-900"
+                      value={participant.teamId ?? ""}
+                      disabled={assigningParticipantId === participant.id}
+                      onChange={(event) =>
+                        updateAssignment(participant.id, event.target.value)
+                      }
+                    >
+                      <option value="">Unassigned</option>
+                      {teams.map((team) => (
+                        <option
+                          key={team.id}
+                          value={team.id}
+                          disabled={unavailableTeamIds.includes(team.id)}
+                        >
+                          {team.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </section>
       )}

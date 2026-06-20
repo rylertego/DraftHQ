@@ -71,3 +71,13 @@ export interface DraftParticipant {
   createdAt: string;
   updatedAt: string;
 }
+
+export interface DraftInvitation {
+  id: string;
+  draftId: string;
+  email: string;
+  status: "pending" | "accepted";
+  participantId: string | null;
+  invitedAt: string;
+  acceptedAt: string | null;
+}
