@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest",
     "test:multiplayer": "node --env-file=.env.local scripts/test-multiplayer.mjs",
+    "test:full-draft": "node --env-file=.env.local scripts/test-full-draft.mjs",
     "players:import": "node --env-file=.env.local scripts/import-nflverse-players.mjs"
   },
   "dependencies": {
