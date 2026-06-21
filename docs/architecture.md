@@ -101,8 +101,8 @@ before accessing or changing data.
 
 ## Known Technical Debt
 
-- Supabase migration and authoritative RPC behavior are not yet covered by the
-  normal automated test command or a documented clean-database CI workflow.
+- Local migration structure is automatically verified after a clean reset, but
+  authoritative RPC behavior and RLS contracts are not yet automated.
 - Multiplayer and full-draft regression scripts depend on a configured Supabase
   environment and are not yet formal release gates.
 - There is no multi-device browser E2E suite or maintained mobile-device matrix.

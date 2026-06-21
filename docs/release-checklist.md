@@ -24,8 +24,11 @@ npm run test:db:migrations
 ```
 
 `test:db:migrations` resets the local database, applies every migration in
-order, and loads `supabase/seed.sql`. It is destructive to the local Supabase
-database and must never be pointed at a shared or production project.
+order, loads `supabase/seed.sql`, and verifies required tables, RPC signatures,
+Realtime publication membership, seed players, constraints, and indexes. The
+verifier refuses non-loopback database hosts. The reset is destructive to the
+local Supabase database and must never be pointed at a shared or production
+project.
 
 ## Reserved Release Checks
 

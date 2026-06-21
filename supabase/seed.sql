@@ -12,7 +12,9 @@ insert into public.players (
   active
 )
 select
-  md5('drafthq-test-player-' || player_number::text)::uuid,
+  md5(
+    'drafthq-test-player-' || lpad(player_number::text, 3, '0')
+  )::uuid,
   'test',
   'test-player-' || lpad(player_number::text, 3, '0'),
   'Test Player ' || lpad(player_number::text, 3, '0'),
