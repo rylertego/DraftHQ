@@ -352,7 +352,8 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
 export async function inviteOwner(
   draftId: string,
   email: string,
-  teamId: string
+  teamId: string,
+  options: { sendEmail?: boolean } = {}
 ) {
   await ensureAnonymousUser();
   const { data: sessionData, error: sessionError } =
@@ -374,10 +375,15 @@ export async function inviteOwner(
       Authorization: `Bearer ${accessToken}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ email, teamId }),
+    body: JSON.stringify({
+      email,
+      teamId,
+      sendEmail: options.sendEmail ?? true,
+    }),
   });
   const payload = (await response.json()) as {
     invitation?: InvitationRow;
+    warning?: string | null;
     error?: string;
   };
 
@@ -385,7 +391,10 @@ export async function inviteOwner(
     throw new Error(payload.error ?? "Unable to invite owner.");
   }
 
-  return mapInvitation(payload.invitation);
+  return {
+    invitation: mapInvitation(payload.invitation),
+    warning: payload.warning ?? null,
+  };
 }
 
 export async function updateTeamSetup(draftId: string, teams: Team[]) {

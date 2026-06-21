@@ -4,6 +4,7 @@ import { normalizeEmail } from "@/lib/email";
 interface InvitationRequest {
   email?: unknown;
   teamId?: unknown;
+  sendEmail?: unknown;
 }
 
 interface InvitationRouteContext {
@@ -42,6 +43,7 @@ export async function POST(
 
   const email = normalizeEmail(body.email);
   const teamId = typeof body.teamId === "string" ? body.teamId : "";
+  const sendEmail = body.sendEmail !== false;
 
   if (!email) {
     return Response.json({ error: "Enter a valid email address." }, { status: 400 });
@@ -151,23 +153,6 @@ export async function POST(
     );
   }
 
-  const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-  const siteOrigin = configuredSiteUrl ?? new URL(request.url).origin;
-  const redirectTo = new URL(`/join/${draft.join_code}`, siteOrigin).toString();
-  const { error: inviteError } =
-    await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: {
-        draft_id: draftId,
-        join_code: draft.join_code,
-        team_id: teamId,
-      },
-    });
-
-  if (inviteError) {
-    return Response.json({ error: inviteError.message }, { status: 400 });
-  }
-
   const { data: invitation, error: invitationError } = await supabaseAdmin
     .from("draft_invitations")
     .upsert(
@@ -190,5 +175,30 @@ export async function POST(
     return Response.json({ error: invitationError.message }, { status: 500 });
   }
 
-  return Response.json({ invitation }, { status: 201 });
+  let inviteError: { message: string } | null = null;
+
+  if (sendEmail) {
+    const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+    const siteOrigin = configuredSiteUrl ?? new URL(request.url).origin;
+    const redirectTo = new URL(`/join/${draft.join_code}`, siteOrigin).toString();
+    const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
+      redirectTo,
+      data: {
+        draft_id: draftId,
+        join_code: draft.join_code,
+        team_id: teamId,
+      },
+    });
+    inviteError = inviteResult.error;
+  }
+
+  return Response.json(
+    {
+      invitation,
+      warning: inviteError
+        ? `The team was reserved, but email delivery failed: ${inviteError.message}`
+        : null,
+    },
+    { status: 201 }
+  );
 }

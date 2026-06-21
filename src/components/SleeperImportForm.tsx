@@ -151,7 +151,14 @@ export default function SleeperImportForm() {
         }
 
         try {
-          await inviteOwner(draft.id, email, setup.teams[index].id);
+          const result = await inviteOwner(
+            draft.id,
+            email,
+            setup.teams[index].id
+          );
+          if (result.warning) {
+            invitationErrors.push(`${team.managerName}: ${result.warning}`);
+          }
         } catch (inviteError) {
           invitationErrors.push(
             `${team.managerName}: ${

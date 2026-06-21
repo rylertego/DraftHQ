@@ -10,8 +10,9 @@ import {
   type DraftSetup,
 } from "@/lib/draftApi";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
+import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
-import type { Team } from "@/types/draft";
+import type { DraftInvitation, Team } from "@/types/draft";
 
 interface TeamSetupFormProps {
   draftId: string | null;
@@ -154,6 +155,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const submitter = (event.nativeEvent as SubmitEvent).submitter;
+    const sendEmail = submitter?.getAttribute("data-delivery") !== "manual";
 
     if (!draftId || !setup || !inviteEmail.trim() || !inviteTeamId) {
       return;
@@ -163,11 +166,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setIsInviting(true);
 
     try {
-      const invitation = await inviteOwner(
+      const result = await inviteOwner(
         draftId,
         inviteEmail.trim(),
-        inviteTeamId
+        inviteTeamId,
+        { sendEmail }
       );
+      const invitation = result.invitation;
+      const invitedTeam = teams.find((team) => team.id === invitation.teamId);
       const existingIndex = setup.invitations.findIndex(
         (current) => current.id === invitation.id
       );
@@ -181,6 +187,15 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       setSetup({ ...setup, invitations });
       setInviteEmail("");
       setInviteTeamId("");
+      if (!sendEmail && invitedTeam) {
+        await copyOwnerInviteDetails(invitation, invitedTeam);
+      } else {
+        setCopyStatus(
+          result.warning
+            ? `${result.warning} Use Copy Invite below to share it manually.`
+            : "Invitation reserved and email requested."
+        );
+      }
     } catch (inviteError) {
       setError(
         inviteError instanceof Error
@@ -189,6 +204,43 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       );
     } finally {
       setIsInviting(false);
+    }
+  }
+
+  async function copyOwnerInvite(invitationId: string) {
+    const invitation = setup?.invitations.find(
+      (current) => current.id === invitationId
+    );
+    const team = teams.find((current) => current.id === invitation?.teamId);
+
+    if (!setup || !invitation || !team) {
+      return;
+    }
+
+    await copyOwnerInviteDetails(invitation, team);
+  }
+
+  async function copyOwnerInviteDetails(
+    invitation: DraftInvitation,
+    team: Team
+  ) {
+    if (!setup) {
+      return;
+    }
+
+    const joinUrl = `${window.location.origin}/join/${setup.draft.joinCode}`;
+    const message = buildOwnerInvitationMessage({
+      draftName: setup.draft.name,
+      teamName: team.name,
+      email: invitation.email,
+      joinUrl,
+    });
+
+    try {
+      await navigator.clipboard.writeText(message);
+      setCopyStatus(`Invite for ${invitation.email} copied.`);
+    } catch {
+      setCopyStatus(message);
     }
   }
 
@@ -349,10 +401,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               </select>
               <button
                 type="submit"
+                data-delivery="email"
                 disabled={isInviting}
                 className="bg-blue-600 disabled:opacity-50 px-4 py-2 rounded"
               >
                 {isInviting ? "Sending..." : "Send Invite"}
+              </button>
+              <button
+                type="submit"
+                data-delivery="manual"
+                disabled={isInviting}
+                className="rounded bg-gray-700 px-4 py-2 disabled:opacity-50 sm:col-start-3"
+              >
+                Reserve & Copy
               </button>
             </form>
 
@@ -374,9 +435,20 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         </span>
                       )}
                     </span>
-                    <span className="text-sm text-gray-400 capitalize">
-                      {invitation.status}
-                    </span>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-400 capitalize">
+                        {invitation.status}
+                      </span>
+                      {invitation.status === "pending" && invitation.teamId && (
+                        <button
+                          type="button"
+                          className="rounded bg-gray-700 px-2 py-1 text-sm"
+                          onClick={() => copyOwnerInvite(invitation.id)}
+                        >
+                          Copy Invite
+                        </button>
+                      )}
+                    </div>
                   </div>
                 ))}
               </div>
