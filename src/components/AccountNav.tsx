@@ -44,7 +44,7 @@ export default function AccountNav() {
   return (
     <header className="border-b border-gray-800 bg-black/30">
       <nav className="mx-auto flex max-w-6xl items-center gap-2 px-4 py-3 sm:gap-4 sm:px-6 sm:py-4">
-        <Link className="mr-auto font-bold" href="/create">
+        <Link className="mr-auto font-bold" href="/">
           DraftHQ
         </Link>
         <Link className="hidden text-sm text-gray-300 sm:block" href="/join">

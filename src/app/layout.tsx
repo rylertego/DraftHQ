@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Fantasy Draft Room",
+  title: "DraftHQ",
   description: "A real-time fantasy football draft-night experience.",
 };
 
