@@ -18,6 +18,32 @@ interface TeamSetupFormProps {
   draftId: string | null;
 }
 
+async function copyText(text: string) {
+  try {
+    if (navigator.clipboard) {
+      await navigator.clipboard.writeText(text);
+      return true;
+    }
+  } catch {
+    // LAN development over HTTP may block the secure Clipboard API.
+  }
+
+  const textArea = document.createElement("textarea");
+  textArea.value = text;
+  textArea.setAttribute("readonly", "");
+  textArea.style.position = "fixed";
+  textArea.style.opacity = "0";
+  document.body.appendChild(textArea);
+  textArea.select();
+  textArea.setSelectionRange(0, text.length);
+
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textArea);
+  }
+}
+
 export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const router = useRouter();
   const [setup, setSetup] = useState<DraftSetup | null>(null);
@@ -145,11 +171,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
     const joinUrl = `${window.location.origin}/join/${setup.draft.joinCode}`;
 
-    try {
-      await navigator.clipboard.writeText(joinUrl);
+    if (await copyText(joinUrl)) {
       setCopyStatus("Join link copied.");
-    } catch {
-      setCopyStatus(`Share this link: ${joinUrl}`);
+    } else {
+      setCopyStatus(`Clipboard unavailable. Copy manually:\n${joinUrl}`);
     }
   }
 
@@ -236,11 +261,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       joinUrl,
     });
 
-    try {
-      await navigator.clipboard.writeText(message);
+    if (await copyText(message)) {
       setCopyStatus(`Invite for ${invitation.email} copied.`);
-    } catch {
-      setCopyStatus(message);
+    } else {
+      setCopyStatus(`Clipboard unavailable. Copy manually:\n${message}`);
     }
   }
 
@@ -309,7 +333,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             Copy Join Link
           </button>
         </div>
-        {copyStatus && <p className="text-sm text-gray-400 mt-2">{copyStatus}</p>}
+        {copyStatus && (
+          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-400 select-all">
+            {copyStatus}
+          </p>
+        )}
       </section>
 
       <section>
