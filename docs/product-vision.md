@@ -1,135 +1,395 @@
-# DraftHQ Product Vision
+# DraftHQ - Product Vision
 
-## Product Goal
+## Mission
 
-DraftHQ is a multiplayer fantasy football draft room built for a reliable,
-shared draft-night experience across phones, laptops, and a presentation
-screen.
+DraftHQ is a fantasy sports draft and league experience platform that combines the functionality of league providers such as Sleeper with the presentation quality of FanDraft.
 
-The immediate goal is not to replace every FanDraft feature. By September 2,
-2026, DraftHQ should be dependable enough for a private 10-12 person fantasy
-football league to run its live draft without needing FanDraft.
+The goal is to make fantasy draft night feel like a live sports broadcast while giving every league its own identity, history, and home.
 
-## Initial Audience
+DraftHQ is not intended to replace Sleeper, ESPN, Yahoo, or other fantasy providers.
 
-DraftHQ will begin as a private, invite-only product for the creator's league.
-Public registration, broad league discovery, monetization, and multi-tenant
-growth are outside the September 2 milestone.
+Instead:
 
-Starting privately allows development and testing to focus on draft correctness,
-realtime reliability, and the needs of one known league before considering a
-public launch.
+* Sleeper manages the fantasy league.
+* DraftHQ manages the draft experience, league identity, history, and presentation.
 
-## September 2 Product
+---
 
-The core product is a multiplayer fantasy draft room with:
+# Core Principles
 
-* Supabase-backed shared draft state
-* Realtime picks across connected devices
-* Commissioner-created drafts
-* Invite-only owner access
-* Team ownership and assignment
-* Enforced on-the-clock permissions
-* A reliable player database
-* Drafted-player protection
-* Searchable player drafting
-* Snake draft ordering
+## 1. Draft Correctness First
+
+Nothing is more important than draft integrity.
+
+DraftHQ must guarantee:
+
+* Correct draft order
+* Correct snake draft logic
+* No duplicate player selections
+* Realtime synchronization
+* Team ownership enforcement
+* Reliable commissioner controls
+* Draft recovery after refresh or reconnect
+
+Reliability always takes priority over visual features.
+
+---
+
+## 2. Every League Should Feel Unique
+
+When a commissioner creates a league, it should feel like a dedicated home for that league.
+
+Every league should have its own:
+
+* Name
+* Logo
+* Colors
+* Banner
+* Theme
+* History
+* Records
+* Owners
+* Draft archive
+
+The goal is for leagues to feel like communities rather than temporary draft rooms.
+
+---
+
+## 3. Draft Night Should Feel Like an Event
+
+DraftHQ should feel closer to:
+
+* NFL Draft
+* NBA Draft
+* Live sports broadcasts
+
+And less like:
+
+* Spreadsheets
+* Generic fantasy tools
+* Administrative software
+
+The draft should feel exciting.
+
+---
+
+# MVP (Current Goal)
+
+Target: League-ready by September 2
+
+## Draft Creation
+
+* Create draft
+* Configure teams
+* Configure rounds
+* Generate join code
+* Invite owners
+
+## Multiplayer Drafting
+
+* Realtime synchronization
+* Mobile support
+* Desktop support
+* Team assignment
+* Ownership validation
+* Draft persistence
+
+## Draft Experience
+
+* Draft board
+* Current pick display
+* Recent picks
+* Searchable player database
 * Draft timer
-* Commissioner controls, including undo pick
-* Reconnection and draft persistence
-* Usable phone and laptop layouts
+* Commissioner controls
+* Undo pick
 
-The milestone question is:
+## Sleeper Integration
 
-> Can my league complete its September 2 draft in DraftHQ without needing
-> FanDraft?
+* Import league
+* Import teams
+* Import managers
+* Import draft order
+* Import settings
 
-## Current Priorities
+---
 
-Work should be prioritized in this order:
+# League Identity
 
-1. Supabase multiplayer reliability
-2. Draft correctness and realtime picks
-3. Team ownership and invite flows
-4. Player database quality
-5. Commissioner controls and recovery tools
-6. Draft timer and mobile usability
-7. Draft-day operational testing
+Every league should have its own customizable profile.
 
-Features that do not directly improve the September 2 draft should not displace
-these priorities.
+## League Branding
 
-## September 2 Stretch Goals
+Commissioners can configure:
 
-High-priority stretch goals, attempted only after the required draft workflow is
-reliable:
-
-* Sleeper import
+* League name
 * League logo
-* League colors
-* Team logos
-* Basic draft room themes
+* League banner
+* Primary color
+* Secondary color
+* Accent color
+* League description
+* Established year
 
-Lower-priority stretch goals:
+## League Themes
 
-* Spotify integration
-* YouTube integration
+Future support:
+
+* Classic
+* Broadcast
+* Dark
+* Modern
+* Custom theme presets
+
+All league pages inherit league branding.
+
+---
+
+# Team Identity
+
+Each owner can personalize their team.
+
+## Team Profile
+
+Owners can edit:
+
+* Team name
+* Team logo
+* Team banner
+* Team colors
+* Team description
+* Owner photo
+* Text-to-speech name
 * Walk-up songs
-* Pick announcement sounds
-* Broadcast and TV mode polish
+* Pre-draft notes
 
-Music, themes, animations, and AI must never block the required draft workflow.
+## Permissions
 
-## Long-Term Vision
+Owner may edit:
 
-After the private-league milestone is reliable, DraftHQ can grow into a custom
-draft-night platform that feels more like a live sports broadcast than a
-spreadsheet.
+* Their own team profile
 
-Long-term capabilities may include:
+Commissioner may edit:
 
-* Sleeper integration and synchronization
-* Spotify integration
-* YouTube integration
-* Team walk-up songs
-* League-specific customization
-* Team customization
-* Broadcast and TV draft modes
-* Presentation themes and animations
-* AI-assisted draft features
+* Any team
+* Team assignments
+* Draft settings
+* Autodraft settings
 
-These are roadmap items, not requirements for the September 2 release.
+---
 
-## League Customization
+# League Pages
 
-Future league-level customization should support:
+Every league eventually receives a dedicated league hub.
 
-* League logo
-* Custom colors
-* Background image
-* Draft room theme
-* League landing page
+## Home
 
-## Team Customization
+League overview.
 
-Future team-level customization should support:
+Includes:
 
+* League branding
+* Upcoming drafts
+* Recent champions
+* League announcements
+
+## Owners
+
+League member directory.
+
+Includes:
+
+* Owner profiles
+* Team information
+* League statistics
+
+## History
+
+Historical league information.
+
+Includes:
+
+* Champions
+* Runner-ups
+* Draft archives
+* Historical standings
+
+## Records
+
+League record book.
+
+Examples:
+
+* Most championships
+* Most points scored
+* Longest win streak
+* Highest scoring week
+* Most playoff appearances
+
+## Hall of Fame
+
+Recognition page for league legends.
+
+---
+
+# Draft Presentation
+
+The draft room should eventually support full presentation features.
+
+## Draft Room Branding
+
+* League colors
+* Team colors
+* Team logos
+* League banner
+* Draft overlays
+
+## Broadcast Mode
+
+Dedicated TV display.
+
+Features:
+
+* Full-screen board
+* Draft ticker
+* Current pick graphics
+* Team spotlight
+* Round transitions
+
+## On-The-Clock Experience
+
+* Team spotlight
 * Team logo
 * Team colors
-* Team banner
-* Walk-up song
+* Walk-up music
+* Pick timer
+* Owner profile
 
-League and team customization should remain separate from permanent user
-profiles so the same owner can have a different identity in each league.
+---
 
-## Product Principles
+# Audio Features
 
-* Reliability before spectacle
-* PostgreSQL-enforced draft correctness
-* Realtime behavior that survives reconnects and multiple devices
-* Commissioner recovery controls for live-draft problems
-* Original DraftHQ branding and presentation
-* Small, testable phases rather than a full FanDraft clone at launch
+## Team Songs
 
-Music, themes, animations, AI, and advanced presentation work begin only after
-the core private-league draft is dependable.
+Owners can configure:
+
+* Walk-up songs
+* Draft music
+* Team playlists
+
+Options:
+
+* Play during pick
+* Play during pre-draft
+* Cycle by round
+
+## Sound Effects
+
+Custom sounds for:
+
+* Draft start
+* Pick submitted
+* Pick revealed
+* Timer warning
+* Timer expiration
+* Trade announcement
+
+## Voice Reactions
+
+Configurable:
+
+* Positive reactions
+* Negative reactions
+* Announcer voice
+
+Text-to-speech support for:
+
+* Team names
+* Pick announcements
+
+---
+
+# Video Features
+
+## Pick Presentation
+
+Optional:
+
+* "The Pick Is In" sequence
+* Pick reveal animations
+* Team spotlight animations
+
+## Player Videos
+
+Support:
+
+* Player highlight videos
+* YouTube integration
+* League-configured player media
+
+---
+
+# Reports
+
+DraftHQ should generate downloadable reports.
+
+## Draft Reports
+
+* Draft summary
+* Draft roster report
+* Pick history
+* Trade log
+* Available player report
+
+## Analytics
+
+* Draft grades
+* Biggest steals
+* Biggest reaches
+* Fastest drafter
+* Slowest drafter
+* Position trends
+
+## Historical Reports
+
+* Year-over-year drafts
+* Owner trends
+* League history
+
+---
+
+# Future Draft Types
+
+## Supported Formats
+
+* Snake Draft
+* Auction Draft
+* Hybrid Draft
+
+## League Types
+
+* Redraft
+* Keeper
+* Dynasty
+* IDP
+
+---
+
+# Long-Term Vision
+
+DraftHQ should become the place where fantasy leagues live.
+
+A league should be able to:
+
+1. Import from Sleeper.
+2. Customize league branding.
+3. Customize team identities.
+4. Conduct live drafts.
+5. View historical records.
+6. Browse league history.
+7. Run broadcast-style draft events.
+8. Preserve league culture year after year.
+
+The goal is not to replace Sleeper.
+
+The goal is to become the best draft-night and league-identity platform available.
