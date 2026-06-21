@@ -7,6 +7,8 @@ import { createDraft } from "@/lib/draftApi";
 import { supabase } from "@/lib/supabase";
 import SleeperImportForm from "@/components/SleeperImportForm";
 
+const ACCOUNT_CHECK_TIMEOUT_MS = 3_000;
+
 export default function CreateDraftPage() {
   const router = useRouter();
 
@@ -20,27 +22,42 @@ export default function CreateDraftPage() {
 
   useEffect(() => {
     let active = true;
-
-    void supabase.auth.getSession().then(({ data }) => {
+    const finishAccountCheck = (hasPersistentAccount: boolean) => {
       if (active) {
-        setHasAccount(
-          Boolean(data.session?.user && !data.session.user.is_anonymous)
-        );
+        setHasAccount(hasPersistentAccount);
         setIsCheckingAccount(false);
       }
-    });
+    };
+    const timeoutId = window.setTimeout(
+      () => finishAccountCheck(false),
+      ACCOUNT_CHECK_TIMEOUT_MS
+    );
+
+    void supabase.auth
+      .getSession()
+      .then(({ data }) => {
+        window.clearTimeout(timeoutId);
+        finishAccountCheck(
+          Boolean(data.session?.user && !data.session.user.is_anonymous)
+        );
+      })
+      .catch(() => {
+        window.clearTimeout(timeoutId);
+        finishAccountCheck(false);
+      });
 
     const { data: listener } = supabase.auth.onAuthStateChange(
       (_event, session) => {
-        if (active) {
-          setHasAccount(Boolean(session?.user && !session.user.is_anonymous));
-          setIsCheckingAccount(false);
-        }
+        window.clearTimeout(timeoutId);
+        finishAccountCheck(
+          Boolean(session?.user && !session.user.is_anonymous)
+        );
       }
     );
 
     return () => {
       active = false;
+      window.clearTimeout(timeoutId);
       listener.subscription.unsubscribe();
     };
   }, []);
