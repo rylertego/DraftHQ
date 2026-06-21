@@ -8,6 +8,14 @@
     "start": "next start",
     "lint": "eslint",
     "test": "vitest",
+    "supabase:start": "supabase start",
+    "supabase:stop": "supabase stop",
+    "db:reset": "supabase db reset",
+    "test:db:migrations": "npm run db:reset",
+    "test:db:contracts": "node scripts/test-placeholder.mjs database-contracts",
+    "test:integration": "node scripts/test-placeholder.mjs integration",
+    "test:e2e": "node scripts/test-placeholder.mjs e2e",
+    "verify:release": "node scripts/test-placeholder.mjs release-verification",
     "test:multiplayer": "node --env-file=.env.local scripts/test-multiplayer.mjs",
     "test:full-draft": "node --env-file=.env.local scripts/test-full-draft.mjs",
     "players:import": "node --env-file=.env.local scripts/import-nflverse-players.mjs"
@@ -26,6 +34,7 @@
     "csv-parse": "^7.0.0",
     "eslint": "^9",
     "eslint-config-next": "16.2.9",
+    "supabase": "^2.107.0",
     "tailwindcss": "^4",
     "typescript": "^5",
     "vitest": "^4.1.9"
