@@ -9,7 +9,8 @@ export interface DraftClockState {
 
 export function getDraftClockSeconds(
   draft: DraftClockState,
-  nowMs = Date.now()
+  nowMs = Date.now(),
+  serverTimeOffsetMs = 0
 ) {
   if (draft.status === "complete") {
     return 0;
@@ -33,7 +34,22 @@ export function getDraftClockSeconds(
     return 0;
   }
 
-  return Math.max(0, Math.ceil((deadlineMs - nowMs) / 1000));
+  return Math.max(
+    0,
+    Math.ceil((deadlineMs - (nowMs + serverTimeOffsetMs)) / 1000)
+  );
+}
+
+export function isDraftClockExpired(
+  draft: DraftClockState,
+  nowMs = Date.now(),
+  serverTimeOffsetMs = 0
+) {
+  return (
+    draft.status === "active" &&
+    Boolean(draft.pickDeadlineAt) &&
+    getDraftClockSeconds(draft, nowMs, serverTimeOffsetMs) === 0
+  );
 }
 
 export function formatDraftClock(totalSeconds: number) {

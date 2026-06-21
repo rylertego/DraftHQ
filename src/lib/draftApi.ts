@@ -105,6 +105,7 @@ export interface DraftSetup {
 export interface DraftRoomSnapshot extends DraftSetup {
   picks: Pick[];
   players: Player[];
+  serverTimeOffsetMs: number;
 }
 
 function getSingleRow<T>(data: unknown, description: string): T {
@@ -457,23 +458,44 @@ export async function getDraftRoomSnapshot(
 ): Promise<DraftRoomSnapshot> {
   await ensureAnonymousUser();
 
-  const [setup, picksResult, playersResult] = await Promise.all([
-    getDraftSetup(draftId),
-    supabase
-      .from("picks")
-      .select(
-        "id,draft_id,team_id,player_id,participant_id,round,pick_number,overall_pick_number,created_at,players(full_name,position,nfl_team)"
-      )
-      .eq("draft_id", draftId)
-      .order("overall_pick_number"),
-    supabase
-      .from("players")
-      .select(
-        "id,source,external_id,full_name,position,nfl_team,active,created_at,updated_at"
-      )
-      .eq("active", true)
-      .order("full_name"),
-  ]);
+  const serverTimePromise = (async () => {
+    const startedAt = Date.now();
+    const { data, error } = await supabase.rpc("get_draft_server_time", {
+      p_draft_id: draftId,
+    });
+    const completedAt = Date.now();
+
+    if (error) {
+      throw error;
+    }
+
+    const serverTimeMs = Date.parse(data as string);
+    if (!Number.isFinite(serverTimeMs)) {
+      throw new Error("Supabase returned an invalid draft server time.");
+    }
+
+    return serverTimeMs - (startedAt + completedAt) / 2;
+  })();
+
+  const [setup, picksResult, playersResult, serverTimeOffsetMs] =
+    await Promise.all([
+      getDraftSetup(draftId),
+      supabase
+        .from("picks")
+        .select(
+          "id,draft_id,team_id,player_id,participant_id,round,pick_number,overall_pick_number,created_at,players(full_name,position,nfl_team)"
+        )
+        .eq("draft_id", draftId)
+        .order("overall_pick_number"),
+      supabase
+        .from("players")
+        .select(
+          "id,source,external_id,full_name,position,nfl_team,active,created_at,updated_at"
+        )
+        .eq("active", true)
+        .order("full_name"),
+      serverTimePromise,
+    ]);
 
   if (picksResult.error) {
     throw picksResult.error;
@@ -487,6 +509,7 @@ export async function getDraftRoomSnapshot(
     ...setup,
     picks: (picksResult.data as unknown as PickRow[]).map(mapPick),
     players: (playersResult.data as PlayerRow[]).map(mapPlayer),
+    serverTimeOffsetMs,
   };
 }
 
@@ -565,11 +588,13 @@ async function runDraftLifecycleRpc(
   draftId: string
 ) {
   await ensureAnonymousUser();
-  const { error } = await supabase.rpc(name, { p_draft_id: draftId });
+  const { data, error } = await supabase.rpc(name, { p_draft_id: draftId });
 
   if (error) {
     throw error;
   }
+
+  return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
 }
 
 export async function startDraft(draftId: string) {
@@ -589,7 +614,7 @@ export async function configureDraftTimer(
   pickSeconds: number
 ) {
   await ensureAnonymousUser();
-  const { error } = await supabase.rpc("configure_draft_timer", {
+  const { data, error } = await supabase.rpc("configure_draft_timer", {
     p_draft_id: draftId,
     p_pick_seconds: pickSeconds,
   });
@@ -597,4 +622,6 @@ export async function configureDraftTimer(
   if (error) {
     throw error;
   }
+
+  return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
 }

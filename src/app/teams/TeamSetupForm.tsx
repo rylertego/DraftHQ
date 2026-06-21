@@ -11,7 +11,9 @@ import {
 } from "@/lib/draftApi";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
+import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
+import { supabase } from "@/lib/supabase";
 import type { DraftInvitation, Team } from "@/types/draft";
 
 interface TeamSetupFormProps {
@@ -97,6 +99,96 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       cancelled = true;
     };
   }, [draftId, router]);
+
+  useEffect(() => {
+    if (!draftId) {
+      return;
+    }
+
+    let active = true;
+    let refreshInFlight = false;
+    let refreshQueued = false;
+
+    const refreshSetup = async () => {
+      if (refreshInFlight) {
+        refreshQueued = true;
+        return;
+      }
+
+      refreshInFlight = true;
+      do {
+        refreshQueued = false;
+        try {
+          const refreshedSetup = await getDraftSetup(draftId);
+          if (active) {
+            setSetup(refreshedSetup);
+            setError("");
+          }
+        } catch (refreshError) {
+          if (active) {
+            setError(
+              refreshError instanceof Error
+                ? refreshError.message
+                : "Unable to refresh owners."
+            );
+          }
+        }
+      } while (active && refreshQueued);
+      refreshInFlight = false;
+    };
+
+    const channel = supabase
+      .channel(`team-setup:${draftId}`)
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "draft_participants",
+          filter: `draft_id=eq.${draftId}`,
+        },
+        () => void refreshSetup()
+      )
+      .on(
+        "postgres_changes",
+        {
+          event: "*",
+          schema: "public",
+          table: "draft_invitations",
+          filter: `draft_id=eq.${draftId}`,
+        },
+        () => void refreshSetup()
+      )
+      .subscribe((status) => {
+        if (status === "SUBSCRIBED") {
+          void refreshSetup();
+        }
+      });
+
+    const refreshWhenVisible = () => {
+      if (
+        shouldRefreshDraftOnVisibility(
+          document.visibilityState,
+          navigator.onLine
+        )
+      ) {
+        void refreshSetup();
+      }
+    };
+    const pollId = window.setInterval(refreshWhenVisible, 10_000);
+    window.addEventListener("online", refreshWhenVisible);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+
+    return () => {
+      active = false;
+      window.clearInterval(pollId);
+      window.removeEventListener("online", refreshWhenVisible);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      void supabase.removeChannel(channel);
+    };
+  }, [draftId]);
 
   function updateTeam(teamId: string, value: string) {
     setTeams((current) =>

@@ -16,7 +16,12 @@ import {
   undoPick,
 } from "@/lib/draftApi";
 import { createDraftResultsCsv } from "@/lib/draftExport";
-import { getTeamOnClock } from "@/lib/draftLogic";
+import {
+  getPickNumberInRound,
+  getRoundForPick,
+  getTeamOnClock,
+} from "@/lib/draftLogic";
+import type { Draft } from "@/types/draft";
 import {
   getParticipantAccessState,
   getParticipantForUser,
@@ -38,6 +43,7 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     lastSyncedAt,
     isRefreshing,
     onlineUserIds,
+    applyDraftUpdate,
   } = useRealtimeDraftRoom(draftId);
   const [showPickModal, setShowPickModal] = useState(false);
   const [isMakingPick, setIsMakingPick] = useState(false);
@@ -123,12 +129,13 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     URL.revokeObjectURL(blobUrl);
   }
 
-  async function handleDraftControl(action: () => Promise<void>) {
+  async function handleDraftControl(action: () => Promise<Draft>) {
     setActionError("");
     setIsControllingDraft(true);
 
     try {
-      await action();
+      const updatedDraft = await action();
+      applyDraftUpdate(updatedDraft);
       await refresh();
     } catch (controlError) {
       setActionError(
@@ -184,6 +191,15 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
   const availablePlayers = snapshot.players.filter(
     (player) => !draftedPlayerIds.has(player.id)
   );
+  const currentRound = teamOnClock
+    ? getRoundForPick(snapshot.draft.currentPick, snapshot.draft.teamCount)
+    : null;
+  const currentPickInRound = teamOnClock
+    ? getPickNumberInRound(
+        snapshot.draft.currentPick,
+        snapshot.draft.teamCount
+      )
+    : null;
 
   let participantMessage: string;
 
@@ -222,6 +238,30 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
       <p className="mb-6 border border-gray-700 rounded p-3">
         {participantMessage}
       </p>
+
+      {teamOnClock && snapshot.draft.status !== "complete" && (
+        <section
+          aria-live="polite"
+          className={`mb-6 rounded-xl border p-4 sm:p-5 ${
+            canMakePick
+              ? "border-green-500 bg-green-950/40"
+              : "border-blue-700 bg-blue-950/30"
+          }`}
+        >
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-gray-300">
+            {canMakePick ? "Your pick" : "On the clock"}
+          </p>
+          <div className="mt-1 flex flex-wrap items-end justify-between gap-3">
+            <h2 className="text-3xl font-bold sm:text-4xl">
+              {teamOnClock.name}
+            </h2>
+            <p className="text-sm text-gray-300">
+              Overall {snapshot.draft.currentPick} | Round {currentRound}, Pick{" "}
+              {currentPickInRound}
+            </p>
+          </div>
+        </section>
+      )}
 
       {status !== "connected" && (
         <section
@@ -273,7 +313,10 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
       )}
 
       <div className="mb-6 grid gap-4 md:grid-cols-[220px_1fr]">
-        <DraftTimer draft={snapshot.draft} />
+        <DraftTimer
+          draft={snapshot.draft}
+          serverTimeOffsetMs={snapshot.serverTimeOffsetMs}
+        />
 
         {isCommissioner && (
           <section className="rounded-lg border border-gray-700 p-4">

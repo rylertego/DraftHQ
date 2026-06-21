@@ -12,6 +12,7 @@ import {
 } from "@/lib/draftRealtime";
 import { createSnapshotRefreshQueue } from "@/lib/refreshQueue";
 import { ensureAnonymousUser } from "@/lib/supabase";
+import type { Draft } from "@/types/draft";
 import {
   getDraftRecoveryError,
   hasDraftRevisionChanged,
@@ -186,6 +187,11 @@ export function useRealtimeDraftRoom(draftId: string | null) {
   }, [draftId]);
 
   const refresh = useCallback(() => refreshRef.current(), []);
+  const applyDraftUpdate = useCallback((draft: Draft) => {
+    revisionRef.current = draft.updatedAt;
+    setSnapshot((current) => (current ? { ...current, draft } : current));
+    setLastSyncedAt(Date.now());
+  }, []);
 
   return {
     snapshot,
@@ -195,5 +201,6 @@ export function useRealtimeDraftRoom(draftId: string | null) {
     lastSyncedAt,
     isRefreshing,
     onlineUserIds,
+    applyDraftUpdate,
   };
 }

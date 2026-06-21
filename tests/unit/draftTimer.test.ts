@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import { formatDraftClock, getDraftClockSeconds } from "@/lib/draftTimer";
+import {
+  formatDraftClock,
+  getDraftClockSeconds,
+  isDraftClockExpired,
+} from "@/lib/draftTimer";
 
 describe("getDraftClockSeconds", () => {
   const activeClock = {
@@ -21,6 +25,16 @@ describe("getDraftClockSeconds", () => {
     ).toBe(0);
   });
 
+  it("calibrates a device clock against the server offset", () => {
+    expect(
+      getDraftClockSeconds(
+        activeClock,
+        Date.parse("2026-06-20T12:00:40Z"),
+        5_000
+      )
+    ).toBe(45);
+  });
+
   it("uses the stored pause remainder", () => {
     expect(
       getDraftClockSeconds({
@@ -40,6 +54,33 @@ describe("getDraftClockSeconds", () => {
         pickDeadlineAt: null,
       })
     ).toBe(90);
+  });
+});
+
+describe("isDraftClockExpired", () => {
+  it("uses a soft expiration while the draft remains active", () => {
+    expect(
+      isDraftClockExpired(
+        {
+          status: "active",
+          pickSeconds: 30,
+          pickDeadlineAt: "2026-06-20T12:00:30.000Z",
+          pausedRemainingSeconds: null,
+        },
+        Date.parse("2026-06-20T12:00:31Z")
+      )
+    ).toBe(true);
+  });
+
+  it("does not call a paused clock expired", () => {
+    expect(
+      isDraftClockExpired({
+        status: "paused",
+        pickSeconds: 30,
+        pickDeadlineAt: null,
+        pausedRemainingSeconds: 0,
+      })
+    ).toBe(false);
   });
 });
 
