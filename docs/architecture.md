@@ -101,8 +101,13 @@ before accessing or changing data.
 
 ## Known Technical Debt
 
-- Local migration structure is automatically verified after a clean reset, but
-  authoritative RPC behavior and RLS contracts are not yet automated.
+- Local migration structure and the main authoritative RPC contracts are
+  automatically verified after a clean reset. Full table-level RLS contracts
+  are not yet automated.
+- A clean local project using Supabase's current non-auto-exposure default does
+  not grant `service_role` direct access to application tables. Server routes
+  currently assume that access and need an explicit privilege contract before
+  the deployment setup can be considered portable.
 - Multiplayer and full-draft regression scripts depend on a configured Supabase
   environment and are not yet formal release gates.
 - There is no multi-device browser E2E suite or maintained mobile-device matrix.

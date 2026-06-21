@@ -21,6 +21,7 @@ npm test -- --run
 npm run lint
 npm run build
 npm run test:db:migrations
+npm run test:db:contracts
 ```
 
 `test:db:migrations` resets the local database, applies every migration in
@@ -30,6 +31,9 @@ verifier refuses non-loopback database hosts. The reset is destructive to the
 local Supabase database and must never be pointed at a shared or production
 project.
 
+The database contract command performs a clean migration reset and then runs
+the authoritative RPC contract suite against isolated local users and drafts.
+
 ## Reserved Release Checks
 
 The following commands are intentionally non-passing placeholders. They exit
@@ -37,7 +41,6 @@ with code 2 so an unimplemented suite cannot be mistaken for a successful
 release gate.
 
 ```powershell
-npm run test:db:contracts
 npm run test:integration
 npm run test:e2e
 npm run verify:release

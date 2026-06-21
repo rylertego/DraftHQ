@@ -1,19 +1,7 @@
-import { spawnSync } from "node:child_process";
-import path from "node:path";
-import process from "node:process";
-import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { getLocalSupabaseEnvironment } from "./local-supabase-env.mjs";
 
 const { Client } = pg;
-const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
-const repositoryRoot = path.resolve(scriptDirectory, "..");
-const cliPath = path.join(
-  repositoryRoot,
-  "node_modules",
-  "supabase",
-  "dist",
-  "supabase.js"
-);
 
 const requiredTables = [
   "draft_invitations",
@@ -68,38 +56,6 @@ const requiredIndexes = [
   "teams_sleeper_roster_id_idx",
 ];
 
-function readLocalDatabaseUrl() {
-  const status = spawnSync(process.execPath, [cliPath, "status", "-o", "env"], {
-    cwd: repositoryRoot,
-    encoding: "utf8",
-  });
-
-  if (status.status !== 0) {
-    const details = (status.stderr || status.stdout).trim();
-    throw new Error(
-      `Unable to read local Supabase status. Start it with npm run supabase:start.${
-        details ? `\n${details}` : ""
-      }`
-    );
-  }
-
-  const match = status.stdout.match(/^DB_URL=(?:"([^"]+)"|'([^']+)'|(.+))$/m);
-  const databaseUrl = match?.[1] ?? match?.[2] ?? match?.[3]?.trim();
-
-  if (!databaseUrl) {
-    throw new Error("Supabase status did not return DB_URL.");
-  }
-
-  const parsedUrl = new URL(databaseUrl);
-  if (!new Set(["127.0.0.1", "localhost", "::1"]).has(parsedUrl.hostname)) {
-    throw new Error(
-      `Refusing to verify a non-local database host: ${parsedUrl.hostname}`
-    );
-  }
-
-  return databaseUrl;
-}
-
 function findMissing(actualValues, requiredValues) {
   const actual = new Set(actualValues);
   return requiredValues.filter((value) => !actual.has(value));
@@ -117,7 +73,8 @@ function requireValues(label, actualValues, requiredValues, failures) {
 }
 
 async function verifyMigrations() {
-  const client = new Client({ connectionString: readLocalDatabaseUrl() });
+  const environment = getLocalSupabaseEnvironment();
+  const client = new Client({ connectionString: environment.DB_URL });
   const failures = [];
 
   await client.connect();
