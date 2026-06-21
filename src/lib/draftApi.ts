@@ -388,12 +388,13 @@ export async function inviteOwner(
   return mapInvitation(payload.invitation);
 }
 
-export async function renameTeams(draftId: string, teamNames: string[]) {
+export async function updateTeamSetup(draftId: string, teams: Team[]) {
   await ensureAnonymousUser();
 
-  const { data, error } = await supabase.rpc("rename_teams", {
+  const { data, error } = await supabase.rpc("update_team_setup", {
     p_draft_id: draftId,
-    p_team_names: teamNames,
+    p_team_ids: teams.map((team) => team.id),
+    p_team_names: teams.map((team) => team.name.trim()),
   });
 
   if (error) {

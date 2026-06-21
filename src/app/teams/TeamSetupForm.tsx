@@ -6,10 +6,11 @@ import {
   assignTeam,
   getDraftSetup,
   inviteOwner,
-  renameTeams,
+  updateTeamSetup,
   type DraftSetup,
 } from "@/lib/draftApi";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
+import { moveDraftTeam } from "@/lib/teamSetupLogic";
 import type { Team } from "@/types/draft";
 
 interface TeamSetupFormProps {
@@ -76,6 +77,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         team.id === teamId ? { ...team, name: value } : team
       )
     );
+  }
+
+  function moveTeam(index: number, offset: -1 | 1) {
+    setTeams((current) => moveDraftTeam(current, index, offset));
   }
 
   async function refreshParticipants() {
@@ -201,10 +206,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setIsSaving(true);
 
     try {
-      await renameTeams(
-        draftId,
-        teams.map((team) => team.name.trim())
-      );
+      await updateTeamSetup(draftId, teams);
       router.push(`/draft?draftId=${draftId}`);
     } catch (saveError) {
       setError(
@@ -261,14 +263,39 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       <section>
         <h2 className="text-xl font-bold mb-3">Teams</h2>
         <div className="space-y-3">
-          {teams.map((team) => (
-            <input
-              key={team.id}
-              disabled={!isCommissioner}
-              className="border rounded p-2 w-full disabled:opacity-60"
-              value={team.name}
-              onChange={(event) => updateTeam(team.id, event.target.value)}
-            />
+          {teams.map((team, index) => (
+            <div key={team.id} className="flex items-center gap-2">
+              <span className="w-8 text-center font-bold">{index + 1}</span>
+              <input
+                aria-label={`Team ${index + 1} name`}
+                disabled={!isCommissioner}
+                className="min-w-0 flex-1 rounded border p-2 disabled:opacity-60"
+                value={team.name}
+                onChange={(event) => updateTeam(team.id, event.target.value)}
+              />
+              {isCommissioner && (
+                <>
+                  <button
+                    type="button"
+                    aria-label={`Move ${team.name} up`}
+                    disabled={index === 0}
+                    className="rounded bg-gray-700 px-3 py-2 disabled:opacity-30"
+                    onClick={() => moveTeam(index, -1)}
+                  >
+                    Up
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${team.name} down`}
+                    disabled={index === teams.length - 1}
+                    className="rounded bg-gray-700 px-3 py-2 disabled:opacity-30"
+                    onClick={() => moveTeam(index, 1)}
+                  >
+                    Down
+                  </button>
+                </>
+              )}
+            </div>
           ))}
         </div>
       </section>
