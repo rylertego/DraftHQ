@@ -490,6 +490,22 @@ export async function getDraftRoomSnapshot(
   };
 }
 
+export async function getDraftRevision(draftId: string) {
+  await ensureAnonymousUser();
+
+  const { data, error } = await supabase
+    .from("drafts")
+    .select("updated_at")
+    .eq("id", draftId)
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  return data.updated_at;
+}
+
 export async function makePick(draftId: string, playerId: string) {
   await ensureAnonymousUser();
 

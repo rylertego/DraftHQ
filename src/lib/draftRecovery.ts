@@ -5,6 +5,13 @@ export function shouldRefreshDraftOnVisibility(
   return visibilityState === "visible" && isOnline;
 }
 
+export function hasDraftRevisionChanged(
+  currentRevision: string | null,
+  latestRevision: string
+) {
+  return currentRevision !== null && currentRevision !== latestRevision;
+}
+
 export function formatLastSyncedAt(lastSyncedAt: number | null) {
   if (!lastSyncedAt) {
     return "Waiting for first sync";

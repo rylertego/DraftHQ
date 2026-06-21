@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
+  getDraftRevision,
   getDraftRoomSnapshot,
   type DraftRoomSnapshot,
 } from "@/lib/draftApi";
@@ -13,8 +14,11 @@ import { createSnapshotRefreshQueue } from "@/lib/refreshQueue";
 import { ensureAnonymousUser } from "@/lib/supabase";
 import {
   getDraftRecoveryError,
+  hasDraftRevisionChanged,
   shouldRefreshDraftOnVisibility,
 } from "@/lib/draftRecovery";
+
+const DRAFT_REVISION_POLL_MS = 10_000;
 
 export function useRealtimeDraftRoom(draftId: string | null) {
   const [snapshot, setSnapshot] = useState<DraftRoomSnapshot | null>(null);
@@ -26,6 +30,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
   const refreshRef = useRef<() => Promise<void>>(async () => undefined);
   const statusRef = useRef<DraftConnectionStatus>("connecting");
+  const revisionRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!draftId) {
@@ -50,6 +55,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
         if (!cancelled) {
           setSnapshot(nextSnapshot);
+          revisionRef.current = nextSnapshot.draft.updatedAt;
           setLastSyncedAt(Date.now());
           setError("");
         }
@@ -113,6 +119,34 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
     const handleOffline = () => updateStatus("disconnected");
     const handleRecovery = () => void recover();
+    let revisionCheckInFlight = false;
+    const revisionPollId = window.setInterval(() => {
+      if (
+        cancelled ||
+        revisionCheckInFlight ||
+        !shouldRefreshDraftOnVisibility(
+          document.visibilityState,
+          navigator.onLine
+        )
+      ) {
+        return;
+      }
+
+      revisionCheckInFlight = true;
+      void getDraftRevision(draftId)
+        .then((latestRevision) => {
+          if (
+            !cancelled &&
+            hasDraftRevisionChanged(revisionRef.current, latestRevision)
+          ) {
+            return requestRefresh();
+          }
+        })
+        .catch(() => undefined)
+        .finally(() => {
+          revisionCheckInFlight = false;
+        });
+    }, DRAFT_REVISION_POLL_MS);
 
     window.addEventListener("online", handleRecovery);
     window.addEventListener("offline", handleOffline);
@@ -146,6 +180,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("focus", handleRecovery);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.clearInterval(revisionPollId);
       refreshRef.current = async () => undefined;
     };
   }, [draftId]);

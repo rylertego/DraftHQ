@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   getDraftRecoveryError,
+  hasDraftRevisionChanged,
   shouldRefreshDraftOnVisibility,
 } from "@/lib/draftRecovery";
 
@@ -14,6 +15,17 @@ describe("shouldRefreshDraftOnVisibility", () => {
     ["visible" as const, false],
   ])("does not refresh for visibility %s and online %s", (state, online) => {
     expect(shouldRefreshDraftOnVisibility(state, online)).toBe(false);
+  });
+});
+
+describe("hasDraftRevisionChanged", () => {
+  it("detects a newer authoritative draft revision", () => {
+    expect(hasDraftRevisionChanged("revision-1", "revision-2")).toBe(true);
+  });
+
+  it("does not poll-refresh before initial sync or for the same revision", () => {
+    expect(hasDraftRevisionChanged(null, "revision-1")).toBe(false);
+    expect(hasDraftRevisionChanged("revision-1", "revision-1")).toBe(false);
   });
 });
 
