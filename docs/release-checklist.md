@@ -22,6 +22,8 @@ npm run lint
 npm run build
 npm run test:db:migrations
 npm run test:db:contracts
+npm run test:integration
+npm run test:e2e
 ```
 
 `test:db:migrations` resets the local database, applies every migration in
@@ -35,23 +37,21 @@ The database contract command performs a clean migration reset and then runs
 the authoritative RPC, RLS, and concurrency contract suites against isolated
 local users and drafts.
 
-## Reserved Release Checks
-
-The following commands are intentionally non-passing placeholders. They exit
-with code 2 so an unimplemented suite cannot be mistaken for a successful
-release gate.
-
-```powershell
-npm run test:integration
-npm run verify:release
-```
-
-Later Milestone 4A phases will replace these placeholders with integration and
-aggregate release verification commands.
+`npm run test:integration` exercises the Supabase JS client layer against local
+Supabase. It covers Realtime delivery (pick inserts and draft updates reach all
+subscribers), client reconnect recovery (new channel after disconnect receives
+subsequent events), timer state integrity (pick_deadline_at set on start,
+cleared on pause, reset on resume), and stale expected_pick rejection (P0001
+leaves current_pick and pick count unchanged).
 
 `npm run test:e2e` starts local Supabase and a separately isolated Next.js dev
-server, then runs the Chromium Playwright suite. Failed tests retain a trace,
-screenshot, and video under the ignored test artifact directories.
+server, then runs the lifecycle suite in desktop Chromium and a Pixel 7 mobile
+profile. Failed tests retain a trace, screenshot, and video under the ignored
+test artifact directories.
+
+`npm run verify:release` is the fail-fast aggregate release gate. It runs unit
+tests, lint, the production build, database contracts, integration tests, and
+the desktop/mobile Playwright suite.
 
 ## Database Readiness
 

@@ -17,9 +17,9 @@
     "test:db:rls": "node scripts/test-rls-contracts.mjs",
     "test:db:concurrency": "node scripts/test-concurrency-contracts.mjs",
     "test:db:contracts": "npm run test:db:migrations && npm run test:db:rpcs && npm run test:db:rls && npm run test:db:concurrency",
-    "test:integration": "node scripts/test-placeholder.mjs integration",
+    "test:integration": "node scripts/test-integration.mjs",
     "test:e2e": "supabase start && playwright test",
-    "verify:release": "node scripts/test-placeholder.mjs release-verification",
+    "verify:release": "npm run test -- --run && npm run lint && npm run build && npm run test:db:contracts && npm run test:integration && npm run test:e2e",
     "test:multiplayer": "node --env-file=.env.local scripts/test-multiplayer.mjs",
     "test:full-draft": "node --env-file=.env.local scripts/test-full-draft.mjs",
     "players:import": "node --env-file=.env.local scripts/import-nflverse-players.mjs"
