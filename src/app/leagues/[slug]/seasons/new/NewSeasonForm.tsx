@@ -23,16 +23,18 @@ interface ProviderCard {
   label: string;
   description: string;
   available: boolean;
+  logoDomain: string;
+  logoColor: string;
 }
 
 const PROVIDERS: ProviderCard[] = [
-  { id: "sleeper", label: "Sleeper", description: "Enter your Sleeper league ID.", available: true },
-  { id: "espn", label: "ESPN", description: "Enter your ESPN league ID and season year.", available: true },
-  { id: "fleaflicker", label: "Fleaflicker", description: "Enter your Fleaflicker league ID.", available: true },
-  { id: "mfl", label: "MyFantasyLeague", description: "Enter your MFL league ID and year.", available: true },
-  { id: "yahoo", label: "Yahoo", description: "Connect with Yahoo OAuth.", available: true },
-  { id: "coming-soon", label: "CBS Fantasy", description: "Coming soon.", available: false },
-  { id: "coming-soon", label: "Fantrax", description: "Coming soon.", available: false },
+  { id: "sleeper", label: "Sleeper", description: "Enter your Sleeper league ID.", available: true, logoDomain: "sleeper.com", logoColor: "#1a1f2e" },
+  { id: "espn", label: "ESPN", description: "Enter your ESPN league ID and season year.", available: true, logoDomain: "espn.com", logoColor: "#cc0000" },
+  { id: "fleaflicker", label: "Fleaflicker", description: "Enter your Fleaflicker league ID.", available: true, logoDomain: "fleaflicker.com", logoColor: "#1a6b2a" },
+  { id: "mfl", label: "MyFantasyLeague", description: "Enter your MFL league ID and year.", available: true, logoDomain: "myfantasyleague.com", logoColor: "#003366" },
+  { id: "yahoo", label: "Yahoo Fantasy", description: "Connect with Yahoo OAuth.", available: true, logoDomain: "yahoo.com", logoColor: "#6001d2" },
+  { id: "coming-soon", label: "CBS Sports", description: "Coming soon.", available: false, logoDomain: "cbssports.com", logoColor: "#003087" },
+  { id: "coming-soon", label: "Fantrax", description: "Coming soon.", available: false, logoDomain: "fantrax.com", logoColor: "#e8272f" },
 ];
 
 export default function NewSeasonForm({ slug }: { slug: string }) {
@@ -144,8 +146,11 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
                     : "border-gray-800 opacity-40 cursor-not-allowed",
                 ].join(" ")}
               >
-                <p className="font-semibold">{provider.label}</p>
-                <p className="mt-1 text-sm text-gray-400">{provider.description}</p>
+                <div className="mb-3 flex items-center gap-3">
+                  <ProviderLogo domain={provider.logoDomain} label={provider.label} color={provider.logoColor} />
+                  <p className="font-semibold">{provider.label}</p>
+                </div>
+                <p className="text-sm text-gray-400">{provider.description}</p>
               </button>
             ))}
           </div>
@@ -220,6 +225,26 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         </button>
       </form>
     </main>
+  );
+}
+
+function ProviderLogo({ domain, label, color }: { domain: string; label: string; color: string }) {
+  return (
+    <span
+      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg"
+      style={{ backgroundColor: color }}
+    >
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
+        alt={label}
+        width={32}
+        height={32}
+        onError={(e) => {
+          (e.currentTarget as HTMLImageElement).style.display = "none";
+        }}
+      />
+    </span>
   );
 }
 
