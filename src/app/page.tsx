@@ -1,6 +1,18 @@
+"use client";
+
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { supabase } from "@/lib/supabase";
 
 export default function HomePage() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  useEffect(() => {
+    void supabase.auth.getUser().then(({ data }) => {
+      setIsLoggedIn(!!data.user && !data.user.is_anonymous);
+    });
+  }, []);
+
   return (
     <main className="mx-auto flex w-full max-w-5xl flex-1 items-center px-4 py-12 sm:px-6 sm:py-20">
       <div className="w-full rounded-2xl border border-gray-800 bg-gray-950 p-6 shadow-2xl sm:p-10">
@@ -32,14 +44,16 @@ export default function HomePage() {
           <section className="rounded-xl border border-gray-700 p-5">
             <h2 className="text-xl font-bold">Running the league?</h2>
             <p className="mt-2 text-sm leading-6 text-gray-300">
-              Log in to create, import, configure, and control your draft room.
+              {isLoggedIn
+                ? "Create a draft, manage your league, or view your dashboard."
+                : "Log in to create, import, configure, and control your draft room."}
             </p>
             <div className="mt-5 grid grid-cols-2 gap-3">
               <Link
                 className="rounded bg-gray-700 px-4 py-3 text-center font-semibold text-white"
-                href="/login"
+                href={isLoggedIn ? "/dashboard" : "/login"}
               >
-                Log In
+                {isLoggedIn ? "Dashboard" : "Log In"}
               </Link>
               <Link
                 className="rounded bg-green-700 px-4 py-3 text-center font-semibold text-white"
