@@ -19,6 +19,7 @@ const server = spawn(
       NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: environment.ANON_KEY,
       NEXT_PUBLIC_SITE_URL: "http://127.0.0.1:3100",
       SUPABASE_SECRET_KEY: environment.SERVICE_ROLE_KEY,
+      NEXT_DISABLE_DEV_INDICATORS: "1",
       NEXT_DIST_DIR: ".next-e2e",
     },
     stdio: "inherit",

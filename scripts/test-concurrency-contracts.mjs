@@ -284,7 +284,15 @@ async function runContracts() {
     },
   ]);
   assert.equal(successCount(slotResults), 1);
-  assertFailureCodes(slotResults, ["P0001"]);
+  // When the commissioner wins the lock first the owner's expected_pick becomes stale (P0001).
+  // When the owner wins the lock first they are correctly rejected by the on-the-clock check
+  // before current_pick advances (42501). Both are valid safe rejections.
+  const slotFailures = slotResults.filter((r) => r.error).map((r) => r.error.code);
+  assert.equal(slotFailures.length, 1, "Expected exactly one failure from competing slot submissions.");
+  assert.ok(
+    slotFailures[0] === "P0001" || slotFailures[0] === "42501",
+    `Expected P0001 (stale pick) or 42501 (not on the clock), got ${slotFailures[0]}`
+  );
   assert.equal((await assertDraftInvariants(slotFixture.draft.id)).picks.length, 1);
   console.log("PASS competing slot submissions commit one pick");
 

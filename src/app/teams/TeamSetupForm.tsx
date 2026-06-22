@@ -472,6 +472,29 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         </div>
       </section>
 
+      {error && <p className="text-red-500">{error}</p>}
+
+      {isCommissioner ? (
+        <button
+          type="button"
+          onClick={continueToDraft}
+          disabled={
+            isSaving || assigningParticipantId !== null || teams.length === 0
+          }
+          className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded"
+        >
+          {isSaving ? "Saving..." : "Continue"}
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={() => router.push(`/draft?draftId=${draftId}`)}
+          className="bg-blue-600 text-white px-4 py-2 rounded"
+        >
+          Open Draft
+        </button>
+      )}
+
       {isCommissioner && (
         <section className="space-y-6">
           <div>
@@ -643,25 +666,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             </div>
           </div>
         </section>
-      )}
-
-      {error && <p className="text-red-500">{error}</p>}
-
-      {isCommissioner ? (
-        <button
-          onClick={continueToDraft}
-          disabled={isSaving || teams.length === 0}
-          className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded"
-        >
-          {isSaving ? "Saving..." : "Continue"}
-        </button>
-      ) : (
-        <button
-          onClick={() => router.push(`/draft?draftId=${draftId}`)}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Open Draft
-        </button>
       )}
     </main>
   );

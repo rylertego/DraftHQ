@@ -37,6 +37,24 @@ async function login(page, identity) {
   await expect(page).toHaveURL(/\/create$/);
 }
 
+function getProjectContextOptions(testInfo) {
+  const {
+    viewport,
+    userAgent,
+    deviceScaleFactor,
+    isMobile,
+    hasTouch,
+  } = testInfo.project.use;
+
+  return {
+    viewport,
+    userAgent,
+    deviceScaleFactor,
+    isMobile,
+    hasTouch,
+  };
+}
+
 async function draftPlayer(page, playerName) {
   await page.getByText("Click to draft", { exact: true }).click();
   await page
@@ -53,13 +71,14 @@ async function draftPlayer(page, playerName) {
 
 test("commissioner and owner complete the recoverable draft lifecycle", async ({
   browser,
-}) => {
+}, testInfo) => {
   test.setTimeout(120_000);
   const commissioner = await createIdentity("E2E Commissioner");
   const owner = await createIdentity("E2E Owner");
   const database = new Client({ connectionString: environment.DB_URL });
-  const commissionerContext = await browser.newContext();
-  const ownerContext = await browser.newContext();
+  const contextOptions = getProjectContextOptions(testInfo);
+  const commissionerContext = await browser.newContext(contextOptions);
+  const ownerContext = await browser.newContext(contextOptions);
   let draftId = null;
 
   try {
