@@ -116,7 +116,9 @@ before accessing or changing data.
   elevated routes must extend and test that privilege contract deliberately.
 - Multiplayer and full-draft regression scripts depend on a configured Supabase
   environment and are not yet formal release gates.
-- There is no multi-device browser E2E suite or maintained mobile-device matrix.
+- Browser E2E currently covers one isolated commissioner/owner Chromium smoke
+  journey. Draft lifecycle, reconnect, mobile viewport, and maintained device
+  matrix coverage remain to be added.
 - Operational telemetry, alerting, and commissioner recovery runbooks are not
   yet defined.
 - Room reconciliation reloads broad snapshots, including the active player

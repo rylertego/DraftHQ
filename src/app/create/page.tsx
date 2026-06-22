@@ -141,8 +141,11 @@ export default function CreateDraftPage() {
 
           <div className="space-y-4">
           <div>
-            <label className="block mb-2">Draft Name</label>
+            <label className="block mb-2" htmlFor="draft-name">
+              Draft Name
+            </label>
             <input
+              id="draft-name"
               className="border rounded p-2 w-full"
               value={draftName}
               onChange={(e) => setDraftName(e.target.value)}
@@ -150,8 +153,11 @@ export default function CreateDraftPage() {
           </div>
 
           <div>
-            <label className="block mb-2">Number of Teams</label>
+            <label className="block mb-2" htmlFor="team-count">
+              Number of Teams
+            </label>
             <input
+              id="team-count"
               type="number"
               min={2}
               max={20}
@@ -162,8 +168,11 @@ export default function CreateDraftPage() {
           </div>
 
           <div>
-            <label className="block mb-2">Number of Rounds</label>
+            <label className="block mb-2" htmlFor="round-count">
+              Number of Rounds
+            </label>
             <input
+              id="round-count"
               type="number"
               min={1}
               max={30}

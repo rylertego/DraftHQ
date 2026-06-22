@@ -43,12 +43,15 @@ release gate.
 
 ```powershell
 npm run test:integration
-npm run test:e2e
 npm run verify:release
 ```
 
-Later Milestone 4A phases will replace these placeholders with pgTAP, Supabase
-integration, Playwright, and aggregate release verification commands.
+Later Milestone 4A phases will replace these placeholders with integration and
+aggregate release verification commands.
+
+`npm run test:e2e` starts local Supabase and a separately isolated Next.js dev
+server, then runs the Chromium Playwright suite. Failed tests retain a trace,
+screenshot, and video under the ignored test artifact directories.
 
 ## Database Readiness
 
@@ -63,7 +66,7 @@ integration, Playwright, and aggregate release verification commands.
 ## Application Readiness
 
 - Unit tests, lint, TypeScript compilation, and production build pass.
-- Critical browser journeys pass when the E2E suite is implemented.
+- The Chromium commissioner/owner smoke journey passes locally.
 - No service-role or secret key is present in browser configuration or output.
 - Hosted `service_role` table grants have been audited for privileges inherited
   from earlier project defaults.
