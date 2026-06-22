@@ -4,8 +4,10 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createDraft } from "@/lib/draftApi";
+import { getMyCommissionerLeagues } from "@/lib/leagueApi";
 import { supabase } from "@/lib/supabase";
 import SleeperImportForm from "@/components/SleeperImportForm";
+import type { League } from "@/types/league";
 
 const ACCOUNT_CHECK_TIMEOUT_MS = 3_000;
 
@@ -19,6 +21,8 @@ export default function CreateDraftPage() {
   const [isCreating, setIsCreating] = useState(false);
   const [isCheckingAccount, setIsCheckingAccount] = useState(true);
   const [hasAccount, setHasAccount] = useState(false);
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [leagueId, setLeagueId] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -62,6 +66,29 @@ export default function CreateDraftPage() {
     };
   }, []);
 
+  useEffect(() => {
+    if (isCheckingAccount || !hasAccount) return;
+
+    let active = true;
+    void getMyCommissionerLeagues()
+      .then((availableLeagues) => {
+        if (active) setLeagues(availableLeagues);
+      })
+      .catch((leagueError) => {
+        if (active) {
+          setError(
+            leagueError instanceof Error
+              ? leagueError.message
+              : "Unable to load your leagues."
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [hasAccount, isCheckingAccount]);
+
   async function handleCreateDraft() {
     if (!draftName.trim()) {
       setError("Draft name is required.");
@@ -86,6 +113,7 @@ export default function CreateDraftPage() {
         name: draftName.trim(),
         teamCount,
         rounds,
+        leagueId: leagueId || undefined,
       });
 
       router.push(`/teams?draftId=${draft.id}`);
@@ -140,6 +168,28 @@ export default function CreateDraftPage() {
           </div>
 
           <div className="space-y-4">
+          <div>
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <label htmlFor="draft-league">League (optional)</label>
+              <Link className="text-sm text-blue-400 underline" href="/leagues/new">
+                Create a league
+              </Link>
+            </div>
+            <select
+              id="draft-league"
+              className="w-full rounded border bg-gray-900 p-2"
+              value={leagueId}
+              onChange={(event) => setLeagueId(event.target.value)}
+            >
+              <option value="">Standalone draft</option>
+              {leagues.map((league) => (
+                <option key={league.id} value={league.id}>
+                  {league.name}
+                </option>
+              ))}
+            </select>
+          </div>
+
           <div>
             <label className="block mb-2" htmlFor="draft-name">
               Draft Name
