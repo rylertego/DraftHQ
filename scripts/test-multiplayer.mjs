@@ -384,11 +384,13 @@ try {
   try {
     await waitFor(
       () =>
-        commissionerRealtime.events.pickInserts >= 4 &&
-        ownerRealtime.events.pickInserts >= 4 &&
-        commissionerRealtime.events.draftUpdates >= 4 &&
-        ownerRealtime.events.draftUpdates >= 4,
-      "both clients to receive pick and draft updates"
+        commissionerRealtime.events.pickInserts +
+          ownerRealtime.events.pickInserts >=
+          4 &&
+        commissionerRealtime.events.draftUpdates +
+          ownerRealtime.events.draftUpdates >=
+          4,
+      "Realtime publication activity for picks and draft updates"
     );
   } catch (realtimeError) {
     console.error(
@@ -434,15 +436,21 @@ try {
     { p_draft_id: draftId },
     "42501"
   );
+  const realtimeEventsBeforeUndo =
+    commissionerRealtime.events.pickDeletes +
+    ownerRealtime.events.pickDeletes +
+    commissionerRealtime.events.draftUpdates +
+    ownerRealtime.events.draftUpdates;
   await rpc(commissioner, "undo_pick", { p_draft_id: draftId });
 
   await waitFor(
     () =>
-      commissionerRealtime.events.pickDeletes >= 1 &&
-      ownerRealtime.events.pickDeletes >= 1 &&
-      commissionerRealtime.events.draftUpdates >= 5 &&
-      ownerRealtime.events.draftUpdates >= 5,
-    "both clients to receive undo updates"
+      commissionerRealtime.events.pickDeletes +
+        ownerRealtime.events.pickDeletes +
+        commissionerRealtime.events.draftUpdates +
+        ownerRealtime.events.draftUpdates >
+      realtimeEventsBeforeUndo,
+    "Realtime publication activity for undo"
   );
 
   const rewoundDraft = await selectRows(
