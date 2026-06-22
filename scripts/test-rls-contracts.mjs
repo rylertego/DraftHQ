@@ -21,6 +21,7 @@ const createdUserIds = [];
 let draftId = null;
 let leagueId = null;
 let leagueDraftId = null;
+let seasonDraftId = null;
 let databaseConnected = false;
 
 function createPublicClient() {
@@ -208,6 +209,143 @@ async function runContracts() {
   );
   assert.equal(memberDraftError?.code, "42501");
   console.log("PASS league RLS and linked-draft authorization");
+
+  const season = await rpc(commissioner, "create_league_season_draft", {
+    p_league_id: leagueId,
+    p_year: 2026,
+    p_season_name: "2026 Contract Season",
+    p_draft_name: "2026 Contract Draft",
+    p_team_count: 2,
+    p_rounds: 1,
+    p_display_name: "commissioner",
+  });
+  seasonDraftId = season.draft_id;
+  assert.ok(season.id && seasonDraftId, "Season RPC returned no linked draft.");
+
+  await expectRows(
+    unrelated.from("league_seasons").select("id").eq("id", season.id),
+    1,
+    "league member season visibility"
+  );
+  await expectRows(
+    unrelated
+      .from("league_team_seasons")
+      .select("id")
+      .eq("league_season_id", season.id),
+    2,
+    "league member team-season visibility"
+  );
+  await expectRows(
+    unrelated.from("drafts").select("id").eq("id", seasonDraftId),
+    1,
+    "league member linked-draft visibility"
+  );
+  await expectRows(
+    owner.from("league_seasons").select("id").eq("id", season.id),
+    0,
+    "non-member season visibility"
+  );
+
+  await expectPermissionDenied(
+    unrelated.from("league_seasons").insert({
+      league_id: leagueId,
+      year: 2027,
+      name: "Forbidden Season",
+    }),
+    "ordinary member direct season insert"
+  );
+
+  const draftCountBeforeDuplicate = await database.query(
+    "select count(*)::integer as count from public.drafts where league_id = $1",
+    [leagueId]
+  );
+  const { error: duplicateSeasonError } = await commissioner.rpc(
+    "create_league_season_draft",
+    {
+      p_league_id: leagueId,
+      p_year: 2026,
+      p_season_name: "Duplicate Season",
+      p_draft_name: "Orphan Candidate",
+      p_team_count: 2,
+      p_rounds: 1,
+      p_display_name: "commissioner",
+    }
+  );
+  assert.equal(duplicateSeasonError?.code, "23505");
+  const draftCountAfterDuplicate = await database.query(
+    "select count(*)::integer as count from public.drafts where league_id = $1",
+    [leagueId]
+  );
+  assert.equal(
+    draftCountAfterDuplicate.rows[0].count,
+    draftCountBeforeDuplicate.rows[0].count,
+    "Rejected season creation left an orphaned draft."
+  );
+
+  const seasonCommissionerParticipant = await database.query(
+    `select id from public.draft_participants
+      where draft_id = $1 and user_id = $2`,
+    [seasonDraftId, commissionerUser.id]
+  );
+  const seasonDraftTeam = await database.query(
+    `select id from public.teams
+      where draft_id = $1 order by draft_position limit 1`,
+    [seasonDraftId]
+  );
+  await rpc(commissioner, "assign_team", {
+    p_draft_id: seasonDraftId,
+    p_participant_id: seasonCommissionerParticipant.rows[0].id,
+    p_team_id: seasonDraftTeam.rows[0].id,
+  });
+  const seasonOwner = await database.query(
+    `select owner_user_id from public.league_team_seasons
+      where draft_team_id = $1`,
+    [seasonDraftTeam.rows[0].id]
+  );
+  assert.equal(seasonOwner.rows[0].owner_user_id, commissionerUser.id);
+
+  const seasonDraft = await database.query(
+    "select join_code from public.drafts where id = $1",
+    [seasonDraftId]
+  );
+  const seasonMemberParticipant = await rpc(unrelated, "join_draft", {
+    p_join_code: seasonDraft.rows[0].join_code,
+    p_display_name: "unrelated",
+  });
+  const seasonTeams = await database.query(
+    `select id from public.teams
+      where draft_id = $1 order by draft_position`,
+    [seasonDraftId]
+  );
+  await rpc(commissioner, "assign_team", {
+    p_draft_id: seasonDraftId,
+    p_participant_id: seasonMemberParticipant.id,
+    p_team_id: seasonTeams.rows[1].id,
+  });
+  await rpc(commissioner, "update_team_setup", {
+    p_draft_id: seasonDraftId,
+    p_team_ids: seasonTeams.rows.map((team) => team.id),
+    p_team_names: ["Persistent Alpha", "Persistent Bravo"],
+  });
+  const persistentTeam = await database.query(
+    `select league_team.name
+      from public.league_teams as league_team
+      join public.league_team_seasons as team_season
+        on team_season.league_team_id = league_team.id
+      where team_season.draft_team_id = $1`,
+    [seasonTeams.rows[0].id]
+  );
+  assert.equal(persistentTeam.rows[0].name, "Persistent Alpha");
+
+  await rpc(commissioner, "start_draft", { p_draft_id: seasonDraftId });
+  const draftingSeason = await database.query(
+    "select status from public.league_seasons where id = $1",
+    [season.id]
+  );
+  assert.equal(draftingSeason.rows[0].status, "drafting");
+  console.log(
+    "PASS season RLS, atomic creation, ownership, identity, and status synchronization"
+  );
 
   const draft = await rpc(commissioner, "create_draft", {
     p_name: "RLS Contract Draft",
@@ -436,7 +574,11 @@ try {
   if (leagueDraftId && databaseConnected) {
     await database.query("delete from public.drafts where id = $1", [leagueDraftId]);
   }
+  if (seasonDraftId && databaseConnected) {
+    await database.query("delete from public.drafts where id = $1", [seasonDraftId]);
+  }
   if (leagueId && databaseConnected) {
+    await database.query("delete from public.league_seasons where league_id = $1", [leagueId]);
     await database.query("delete from public.leagues where id = $1", [leagueId]);
   }
 
