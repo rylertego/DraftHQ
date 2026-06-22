@@ -11,10 +11,12 @@ import {
   getEspnLeaguePreview,
   getFleaflickerLeaguePreview,
   getMflLeaguePreview,
+  getYahooAuthUrl,
+  getYahooLeaguePreview,
 } from "@/lib/providerApi";
 import type { ProviderLeaguePreview } from "@/lib/providers/types";
 
-type ProviderId = "sleeper" | "espn" | "fleaflicker" | "mfl";
+type ProviderId = "sleeper" | "espn" | "fleaflicker" | "mfl" | "yahoo";
 
 interface ProviderCard {
   id: ProviderId | "coming-soon";
@@ -28,7 +30,7 @@ const PROVIDERS: ProviderCard[] = [
   { id: "espn", label: "ESPN", description: "Enter your ESPN league ID and season year.", available: true },
   { id: "fleaflicker", label: "Fleaflicker", description: "Enter your Fleaflicker league ID.", available: true },
   { id: "mfl", label: "MyFantasyLeague", description: "Enter your MFL league ID and year.", available: true },
-  { id: "coming-soon", label: "Yahoo", description: "Yahoo OAuth — coming soon.", available: false },
+  { id: "yahoo", label: "Yahoo", description: "Connect with Yahoo OAuth.", available: true },
   { id: "coming-soon", label: "CBS Fantasy", description: "Coming soon.", available: false },
   { id: "coming-soon", label: "Fantrax", description: "Coming soon.", available: false },
 ];
@@ -239,13 +241,61 @@ function ProviderCredentialForm({
   const [swid, setSwid] = useState("");
   const [apiKey, setApiKey] = useState("");
   const [showPrivate, setShowPrivate] = useState(false);
+  const [yahooConnected, setYahooConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+
+  async function handleYahooConnect() {
+    setError("");
+    setIsConnecting(true);
+    try {
+      const authUrl = await getYahooAuthUrl();
+      const popup = window.open(authUrl, "yahoo_oauth", "width=600,height=700");
+      if (!popup) {
+        throw new Error("Popup blocked. Allow popups for this site and try again.");
+      }
+      await new Promise<void>((resolve, reject) => {
+        function onMessage(event: MessageEvent) {
+          if (event.origin !== window.location.origin) return;
+          const data = event.data as { type?: string; error?: string | null };
+          if (data.type !== "yahoo_oauth_done") return;
+          window.removeEventListener("message", onMessage);
+          if (data.error) reject(new Error(data.error));
+          else resolve();
+        }
+        window.addEventListener("message", onMessage);
+        // Clean up if popup is closed without completing
+        const interval = setInterval(() => {
+          if (popup.closed) {
+            clearInterval(interval);
+            window.removeEventListener("message", onMessage);
+            reject(new Error("Yahoo authorization window was closed."));
+          }
+        }, 500);
+      });
+      setYahooConnected(true);
+    } catch (connectError) {
+      setError(connectError instanceof Error ? connectError.message : "Yahoo connection failed.");
+    } finally {
+      setIsConnecting(false);
+    }
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const id = leagueId.trim();
-    if (!id || !/^\d+$/.test(id)) {
+
+    if (provider === "yahoo") {
+      if (!yahooConnected) {
+        setError("Connect your Yahoo account first.");
+        return;
+      }
+      if (!id || !/^\d+\.l\.\d+$/.test(id)) {
+        setError('Enter a valid Yahoo league key (e.g. "423.l.123456").');
+        return;
+      }
+    } else if (!id || !/^\d+$/.test(id)) {
       setError("Enter a valid numeric league ID.");
       return;
     }
@@ -271,6 +321,8 @@ function ProviderCredentialForm({
           year,
           apiKey: apiKey.trim() || undefined,
         });
+      } else if (provider === "yahoo") {
+        preview = await getYahooLeaguePreview({ leagueKey: id });
       } else {
         throw new Error("Unknown provider.");
       }
@@ -290,6 +342,7 @@ function ProviderCredentialForm({
     espn: "ESPN",
     fleaflicker: "Fleaflicker",
     mfl: "MyFantasyLeague",
+    yahoo: "Yahoo",
   };
 
   return (
@@ -305,13 +358,13 @@ function ProviderCredentialForm({
       <form className="space-y-4" onSubmit={handleSubmit}>
         <div>
           <label className="mb-2 block text-sm" htmlFor="provider-league-id">
-            League ID
+            {provider === "yahoo" ? "League Key" : "League ID"}
           </label>
           <input
             id="provider-league-id"
             required
-            inputMode="numeric"
-            placeholder="Numeric league ID"
+            inputMode={provider === "yahoo" ? "text" : "numeric"}
+            placeholder={provider === "yahoo" ? "e.g. 423.l.123456" : "Numeric league ID"}
             className="w-full rounded border p-2"
             value={leagueId}
             onChange={(e) => setLeagueId(e.target.value)}
@@ -372,6 +425,21 @@ function ProviderCredentialForm({
               onChange={(e) => setApiKey(e.target.value)}
             />
           </div>
+        )}
+
+        {provider === "yahoo" && !yahooConnected && (
+          <button
+            type="button"
+            disabled={isConnecting}
+            onClick={() => void handleYahooConnect()}
+            className="w-full rounded bg-purple-700 px-4 py-2 font-semibold disabled:opacity-50"
+          >
+            {isConnecting ? "Opening Yahoo..." : "Connect Yahoo Account"}
+          </button>
+        )}
+
+        {provider === "yahoo" && yahooConnected && (
+          <p className="text-sm text-green-400">Yahoo account connected.</p>
         )}
 
         {error && <p className="text-red-500 text-sm">{error}</p>}

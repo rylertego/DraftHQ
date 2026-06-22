@@ -53,3 +53,21 @@ export async function getMflLeaguePreview(input: {
   if (input.apiKey) params.set("apiKey", input.apiKey);
   return fetchPreview(`/api/providers/mfl/preview?${params.toString()}`);
 }
+
+export async function getYahooAuthUrl(): Promise<string> {
+  const token = await getAccessToken();
+  const response = await fetch("/api/providers/yahoo/auth", {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  const body = (await response.json()) as { authUrl?: string; error?: string };
+  if (!response.ok || body.error) throw new Error(body.error ?? "Failed to start Yahoo OAuth.");
+  if (!body.authUrl) throw new Error("No auth URL returned.");
+  return body.authUrl;
+}
+
+export async function getYahooLeaguePreview(input: {
+  leagueKey: string;
+}): Promise<ProviderLeaguePreview> {
+  const params = new URLSearchParams({ leagueKey: input.leagueKey });
+  return fetchPreview(`/api/providers/yahoo/preview?${params.toString()}`);
+}
