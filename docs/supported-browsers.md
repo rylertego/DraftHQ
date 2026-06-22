@@ -70,3 +70,10 @@ Each release candidate should record the device or emulator, operating-system
 version, browser version, orientation, test date, result, and issue links. The
 first complete matrix will be established during the mobile-validation phase of
 Milestone 4A.
+
+## Automated Coverage
+
+Every `npm run test:e2e` run executes the complete commissioner/owner lifecycle
+against desktop Chromium and a Pixel 7 mobile Chromium profile. This is the
+automated baseline; the release matrix still requires real-device checks before
+the September 2 draft.

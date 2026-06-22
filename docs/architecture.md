@@ -116,10 +116,10 @@ before accessing or changing data.
   elevated routes must extend and test that privilege contract deliberately.
 - Multiplayer and full-draft regression scripts depend on a configured Supabase
   environment and are not yet formal release gates.
-- Browser E2E covers an isolated commissioner/owner Chromium journey through
-  create, join, assignment, start, picks, pause/resume, offline reload recovery,
-  undo, snake reversal, and completion. Mobile viewport and maintained device
-  matrix coverage remain to be added.
+- Browser E2E covers an isolated commissioner/owner journey through create,
+  join, assignment, start, picks, pause/resume, offline reload recovery, undo,
+  snake reversal, and completion in desktop Chromium and a Pixel 7 mobile
+  Chromium profile. Broader browser and real-device coverage remain to be added.
 - Operational telemetry, alerting, and commissioner recovery runbooks are not
   yet defined.
 - Room reconciliation reloads broad snapshots, including the active player

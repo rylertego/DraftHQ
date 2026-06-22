@@ -13,6 +13,9 @@ Instead:
 * Sleeper manages the fantasy league.
 * DraftHQ manages the draft experience, league identity, history, and presentation.
 
+The product begins as draft-first and evolves into a league-first platform. The league-first
+architecture is defined in [docs/league-first-architecture.md](league-first-architecture.md).
+
 ---
 
 # Core Principles
@@ -393,3 +396,19 @@ A league should be able to:
 The goal is not to replace Sleeper.
 
 The goal is to become the best draft-night and league-identity platform available.
+
+## League-First Architecture
+
+The transition from draft-first to league-first adds a persistent layer above the existing
+draft model. Leagues, seasons, and franchises persist across years. The draft room is unchanged
+and gains league context when a draft belongs to a season.
+
+Key principles:
+
+* Standalone drafts continue working without any league.
+* League teams and members persist across seasons; draft-scoped records do not.
+* The draft room inherits league branding when league-scoped; otherwise it behaves as today.
+* Broadcast mode, history, records, and Hall of Fame all live within the league workspace.
+
+See [docs/league-first-architecture.md](league-first-architecture.md) for the full data model,
+URL structure, navigation, settings hierarchy, and phased migration plan.
