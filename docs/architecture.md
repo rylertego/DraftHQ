@@ -116,8 +116,9 @@ before accessing or changing data.
   elevated routes must extend and test that privilege contract deliberately.
 - Multiplayer and full-draft regression scripts depend on a configured Supabase
   environment and are not yet formal release gates.
-- Browser E2E currently covers one isolated commissioner/owner Chromium smoke
-  journey. Draft lifecycle, reconnect, mobile viewport, and maintained device
+- Browser E2E covers an isolated commissioner/owner Chromium journey through
+  create, join, assignment, start, picks, pause/resume, offline reload recovery,
+  undo, snake reversal, and completion. Mobile viewport and maintained device
   matrix coverage remain to be added.
 - Operational telemetry, alerting, and commissioner recovery runbooks are not
   yet defined.

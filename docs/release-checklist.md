@@ -66,7 +66,7 @@ screenshot, and video under the ignored test artifact directories.
 ## Application Readiness
 
 - Unit tests, lint, TypeScript compilation, and production build pass.
-- The Chromium commissioner/owner smoke journey passes locally.
+- The Chromium commissioner/owner lifecycle and recovery journey passes locally.
 - No service-role or secret key is present in browser configuration or output.
 - Hosted `service_role` table grants have been audited for privileges inherited
   from earlier project defaults.

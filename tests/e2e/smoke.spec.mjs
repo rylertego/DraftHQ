@@ -37,10 +37,24 @@ async function login(page, identity) {
   await expect(page).toHaveURL(/\/create$/);
 }
 
-test("commissioner creates a room and an owner joins in another context", async ({
+async function draftPlayer(page, playerName) {
+  await page.getByText("Click to draft", { exact: true }).click();
+  await page
+    .getByPlaceholder("Search name, position, or NFL team")
+    .fill(playerName);
+  await page
+    .getByRole("button", { name: new RegExp(`^${playerName}`) })
+    .click();
+  await page.getByRole("button", { name: `Draft ${playerName}` }).click();
+  await expect(
+    page.getByPlaceholder("Search name, position, or NFL team")
+  ).toBeHidden();
+}
+
+test("commissioner and owner complete the recoverable draft lifecycle", async ({
   browser,
 }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(120_000);
   const commissioner = await createIdentity("E2E Commissioner");
   const owner = await createIdentity("E2E Owner");
   const database = new Client({ connectionString: environment.DB_URL });
@@ -56,7 +70,7 @@ test("commissioner creates a room and an owner joins in another context", async 
     await login(commissionerPage, commissioner);
     await commissionerPage.getByLabel("Draft Name").fill("E2E Smoke Draft");
     await commissionerPage.getByLabel("Number of Teams").fill("2");
-    await commissionerPage.getByLabel("Number of Rounds").fill("1");
+    await commissionerPage.getByLabel("Number of Rounds").fill("2");
     await commissionerPage
       .getByRole("button", { name: "Create Draft", exact: true })
       .click();
@@ -92,6 +106,56 @@ test("commissioner creates a room and an owner joins in another context", async 
     await expect(ownerPage.getByText("You control Team 2.")).toBeVisible({
       timeout: 15_000,
     });
+
+    await commissionerPage.getByRole("button", { name: "Start Draft" }).click();
+    await expect(
+      commissionerPage.getByText("Overall 1 | Round 1, Pick 1")
+    ).toBeVisible();
+    await draftPlayer(commissionerPage, "Test Player 001");
+
+    await expect(ownerPage.getByText("Your pick", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await commissionerPage.getByRole("button", { name: "Pause Draft" }).click();
+    await expect(ownerPage.getByText("paused", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+
+    await ownerContext.setOffline(true);
+    await commissionerPage.getByRole("button", { name: "Resume Draft" }).click();
+    await ownerContext.setOffline(false);
+    await ownerPage.reload();
+    await expect(ownerPage.getByText("Your pick", { exact: true })).toBeVisible({
+      timeout: 15_000,
+    });
+    await expect(ownerPage.getByText("Overall 2 | Round 1, Pick 2")).toBeVisible();
+    await draftPlayer(ownerPage, "Test Player 002");
+
+    await expect(
+      commissionerPage.getByText("Overall 3 | Round 2, Pick 1")
+    ).toBeVisible({ timeout: 15_000 });
+    commissionerPage.once("dialog", (dialog) => dialog.accept());
+    await commissionerPage
+      .getByRole("button", { name: "Undo Last Pick" })
+      .click();
+
+    await expect(ownerPage.getByText("Overall 2 | Round 1, Pick 2")).toBeVisible({
+      timeout: 15_000,
+    });
+    await draftPlayer(ownerPage, "Test Player 002");
+    await expect(ownerPage.getByText("Overall 3 | Round 2, Pick 1")).toBeVisible();
+    await draftPlayer(ownerPage, "Test Player 003");
+
+    await expect(
+      commissionerPage.getByText("Overall 4 | Round 2, Pick 2")
+    ).toBeVisible({ timeout: 15_000 });
+    await draftPlayer(commissionerPage, "Test Player 004");
+    await expect(
+      commissionerPage.getByText("All 4 picks are saved in DraftHQ.")
+    ).toBeVisible();
+    await expect(
+      ownerPage.getByText("All 4 picks are saved in DraftHQ.")
+    ).toBeVisible({ timeout: 15_000 });
   } finally {
     await Promise.allSettled([
       commissionerContext.close(),
