@@ -18,6 +18,7 @@ interface DraftRow {
   name: string;
   join_code: string;
   commissioner_user_id: string;
+  league_id: string | null;
   team_count: number;
   rounds: number;
   current_pick: number;
@@ -124,6 +125,7 @@ function mapDraft(row: DraftRow): Draft {
     name: row.name,
     joinCode: row.join_code,
     commissionerUserId: row.commissioner_user_id,
+    leagueId: row.league_id,
     teamCount: row.team_count,
     rounds: row.rounds,
     currentPick: row.current_pick,
@@ -217,15 +219,22 @@ export async function createDraft(input: {
   name: string;
   teamCount: number;
   rounds: number;
+  leagueId?: string;
 }) {
   const { profile } = await getMyProfile();
 
-  const { data, error } = await supabase.rpc("create_draft", {
+  const parameters = {
     p_name: input.name,
     p_team_count: input.teamCount,
     p_rounds: input.rounds,
     p_display_name: profile.displayName,
-  });
+  };
+  const { data, error } = input.leagueId
+    ? await supabase.rpc("create_league_draft", {
+        ...parameters,
+        p_league_id: input.leagueId,
+      })
+    : await supabase.rpc("create_draft", parameters);
 
   if (error) {
     throw error;
@@ -296,7 +305,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,sleeper_league_id,sleeper_draft_id,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,sleeper_league_id,sleeper_draft_id,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),

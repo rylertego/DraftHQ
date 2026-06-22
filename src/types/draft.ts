@@ -9,6 +9,7 @@ export interface Draft {
   name: string;
   joinCode: string;
   commissionerUserId: string;
+  leagueId: string | null;
   teamCount: number;
   rounds: number;
   currentPick: number;
