@@ -61,3 +61,32 @@ export function getLocalSupabaseEnvironment() {
 
   return environment;
 }
+
+export async function waitForLocalSupabaseAuth(
+  environment,
+  timeoutMilliseconds = 30_000
+) {
+  const startedAt = Date.now();
+  let lastError = "Auth health endpoint was unavailable.";
+
+  while (Date.now() - startedAt < timeoutMilliseconds) {
+    try {
+      const response = await fetch(`${environment.API_URL}/auth/v1/health`, {
+        headers: { apikey: environment.ANON_KEY },
+        signal: AbortSignal.timeout(3_000),
+      });
+
+      if (response.ok) {
+        return;
+      }
+
+      lastError = `Auth health returned status ${response.status}.`;
+    } catch (error) {
+      lastError = error instanceof Error ? error.message : String(error);
+    }
+
+    await new Promise((resolve) => setTimeout(resolve, 250));
+  }
+
+  throw new Error(`Local Supabase Auth did not become ready: ${lastError}`);
+}
