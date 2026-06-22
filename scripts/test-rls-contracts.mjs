@@ -19,6 +19,8 @@ const admin = createClient(
 const database = new Client({ connectionString: environment.DB_URL });
 const createdUserIds = [];
 let draftId = null;
+let leagueId = null;
+let leagueDraftId = null;
 let databaseConnected = false;
 
 function createPublicClient() {
@@ -133,6 +135,80 @@ async function runContracts() {
   await createAnonymousUser(anonymousOwner);
   const unrelatedUser = await createUserAndSignIn(unrelated, "unrelated");
 
+  const league = await rpc(commissioner, "create_league", {
+    p_name: "RLS Contract League",
+    p_slug: `rls-contract-${crypto.randomUUID()}`,
+  });
+  leagueId = league.id;
+
+  const { error: addMemberError } = await commissioner
+    .from("league_members")
+    .insert({ league_id: leagueId, user_id: unrelatedUser.id, role: "member" });
+  assert.equal(addMemberError, null, addMemberError?.message);
+
+  await expectRows(
+    commissioner.from("leagues").select("id").eq("id", leagueId),
+    1,
+    "league commissioner visibility"
+  );
+  await expectRows(
+    unrelated.from("leagues").select("id").eq("id", leagueId),
+    1,
+    "league member visibility"
+  );
+  await expectRows(
+    owner.from("leagues").select("id").eq("id", leagueId),
+    0,
+    "non-member league visibility"
+  );
+
+  const { data: memberUpdate, error: memberUpdateError } = await unrelated
+    .from("leagues")
+    .update({ name: "Forbidden member update" })
+    .eq("id", leagueId)
+    .select("id");
+  assert.equal(memberUpdateError, null, memberUpdateError?.message);
+  assert.deepEqual(memberUpdate, []);
+
+  const { data: commissionerUpdate, error: commissionerUpdateError } =
+    await commissioner
+      .from("leagues")
+      .update({ name: "Updated Contract League" })
+      .eq("id", leagueId)
+      .select("name")
+      .single();
+  assert.equal(commissionerUpdateError, null, commissionerUpdateError?.message);
+  assert.equal(commissionerUpdate?.name, "Updated Contract League");
+
+  const { error: anonymousLeagueError } = await anonymousOwner.rpc(
+    "create_league",
+    { p_name: "Anonymous League", p_slug: "anonymous-league" }
+  );
+  assert.equal(anonymousLeagueError?.code, "42501");
+
+  const leagueDraft = await rpc(commissioner, "create_league_draft", {
+    p_name: "League Contract Draft",
+    p_team_count: 2,
+    p_rounds: 1,
+    p_display_name: "commissioner",
+    p_league_id: leagueId,
+  });
+  leagueDraftId = leagueDraft.id;
+  assert.equal(leagueDraft.league_id, leagueId);
+
+  const { error: memberDraftError } = await unrelated.rpc(
+    "create_league_draft",
+    {
+      p_name: "Forbidden League Draft",
+      p_team_count: 2,
+      p_rounds: 1,
+      p_display_name: "unrelated",
+      p_league_id: leagueId,
+    }
+  );
+  assert.equal(memberDraftError?.code, "42501");
+  console.log("PASS league RLS and linked-draft authorization");
+
   const draft = await rpc(commissioner, "create_draft", {
     p_name: "RLS Contract Draft",
     p_team_count: 2,
@@ -140,6 +216,8 @@ async function runContracts() {
     p_display_name: "commissioner",
   });
   draftId = draft.id;
+  assert.equal(draft.league_id, null);
+  console.log("PASS standalone drafts remain unlinked");
 
   const ownerParticipant = await rpc(owner, "join_draft", {
     p_join_code: draft.join_code,
@@ -354,6 +432,12 @@ try {
 } finally {
   if (draftId && databaseConnected) {
     await database.query("delete from public.drafts where id = $1", [draftId]);
+  }
+  if (leagueDraftId && databaseConnected) {
+    await database.query("delete from public.drafts where id = $1", [leagueDraftId]);
+  }
+  if (leagueId && databaseConnected) {
+    await database.query("delete from public.leagues where id = $1", [leagueId]);
   }
 
   await Promise.allSettled(
