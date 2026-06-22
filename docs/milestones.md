@@ -14,7 +14,7 @@ Status: Complete
 Goal: Refresh, reconnect, timer, undo, and wrong-owner protection are stable.
 
 ## Milestone 4A - League-Ready Draft Operations and Mobile RC
-Status: Active
+Status: Complete
 
 Goal: Turn the reliable draft room into a production-ready release candidate
 that is validated across mobile browsers, devices, and realistic full drafts.
@@ -32,7 +32,7 @@ Milestone 4A is a release-readiness milestone. It does not include league
 branding, entertainment features, or league history.
 
 ## Milestone 4B - League Identity Layer
-Status: Planned
+Status: Complete
 
 Goal: Introduce the persistent league data model and surface league branding in the
 draft room and a new league settings area. This is the foundation for all future
@@ -56,7 +56,7 @@ See [docs/league-first-architecture.md](league-first-architecture.md) for the fu
 data model, URL structure, settings hierarchy, and phased migration plan.
 
 ## Milestone 5 - League Workspace
-Status: Future
+Status: Next
 
 Goal: Persistent seasons and a full league workspace. Commissioners can create a
 season, link it to a draft, and access history after the season ends.
