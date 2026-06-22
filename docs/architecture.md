@@ -45,6 +45,11 @@ Database constraints provide additional protection for draft position, unique
 team assignment, overall pick order, and duplicate player selections. Browser
 clients do not receive direct table-write privileges for draft state.
 
+Pick RPCs also require the caller's observed `current_pick`. After locking the
+draft row, PostgreSQL rejects the request if the draft has advanced. This binds
+the submitted intent to one draft slot and prevents queued concurrent requests
+from silently applying to later picks.
+
 ## React Responsibilities
 
 React displays the latest room snapshot, derives presentation state, and
@@ -101,13 +106,14 @@ before accessing or changing data.
 
 ## Known Technical Debt
 
-- Local migration structure and the main authoritative RPC contracts are
-  automatically verified after a clean reset. Full table-level RLS contracts
-  are not yet automated.
-- A clean local project using Supabase's current non-auto-exposure default does
-  not grant `service_role` direct access to application tables. Server routes
-  currently assume that access and need an explicit privilege contract before
-  the deployment setup can be considered portable.
+- Local migration structure, the main authoritative RPC contracts, and current
+  table-level RLS boundaries are automatically verified after a clean reset.
+- Concurrent draft operations are checked for pick, lifecycle, assignment,
+  invitation-claim, setup, and retry invariants against local PostgreSQL.
+- Clean local schemas explicitly grant `service_role` the minimum table access
+  required by the invitation workflow. Existing hosted privileges need a
+  separate audit because grant migrations do not revoke prior access. New
+  elevated routes must extend and test that privilege contract deliberately.
 - Multiplayer and full-draft regression scripts depend on a configured Supabase
   environment and are not yet formal release gates.
 - There is no multi-device browser E2E suite or maintained mobile-device matrix.

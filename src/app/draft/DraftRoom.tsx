@@ -59,7 +59,7 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
   }, [draftId, router]);
 
   async function handleMakePick(playerId: string) {
-    if (!draftId) {
+    if (!draftId || !snapshot) {
       return;
     }
 
@@ -75,9 +75,13 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
 
     try {
       if (pickMode === "commissioner") {
-        await commissionerMakePick(draftId, playerId);
+        await commissionerMakePick(
+          draftId,
+          playerId,
+          snapshot.draft.currentPick
+        );
       } else {
-        await makePick(draftId, playerId);
+        await makePick(draftId, playerId, snapshot.draft.currentPick);
       }
       await refresh();
       setShowPickModal(false);

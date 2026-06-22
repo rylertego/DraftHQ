@@ -166,6 +166,7 @@ try {
     await rpc(clients[teamIndex], "make_pick", {
       p_draft_id: draftId,
       p_player_id: players[overallPickNumber - 1].id,
+      p_expected_pick: overallPickNumber,
     });
   }
 

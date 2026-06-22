@@ -32,7 +32,8 @@ local Supabase database and must never be pointed at a shared or production
 project.
 
 The database contract command performs a clean migration reset and then runs
-the authoritative RPC contract suite against isolated local users and drafts.
+the authoritative RPC, RLS, and concurrency contract suites against isolated
+local users and drafts.
 
 ## Reserved Release Checks
 
@@ -55,6 +56,8 @@ integration, Playwright, and aggregate release verification commands.
 - Deterministic seed loads successfully.
 - Database contract, RLS, and concurrency suites pass when implemented.
 - Migration changes have a documented rollback or forward-fix procedure.
+- The expected-pick RPC migration and matching application build are deployed
+  together because older two-argument pick calls are intentionally rejected.
 - Production backup availability and restoration have been verified.
 
 ## Application Readiness
@@ -62,6 +65,8 @@ integration, Playwright, and aggregate release verification commands.
 - Unit tests, lint, TypeScript compilation, and production build pass.
 - Critical browser journeys pass when the E2E suite is implemented.
 - No service-role or secret key is present in browser configuration or output.
+- Hosted `service_role` table grants have been audited for privileges inherited
+  from earlier project defaults.
 - Environment variables and authentication redirect URLs match the deployment.
 - Player data is current and its import result has been reviewed.
 

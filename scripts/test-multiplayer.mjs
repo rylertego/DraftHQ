@@ -270,7 +270,7 @@ try {
   await expectRpcError(
     commissioner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "P0001"
   );
   await rpc(commissioner, "start_draft", { p_draft_id: draftId });
@@ -321,7 +321,7 @@ try {
   await expectRpcError(
     commissioner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "P0001"
   );
 
@@ -342,39 +342,43 @@ try {
   await expectRpcError(
     owner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "42501"
   );
 
   await rpc(commissioner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[0].id,
+    p_expected_pick: 1,
   });
 
   await expectRpcError(
     owner,
     "commissioner_make_pick",
-    { p_draft_id: draftId, p_player_id: players[1].id },
+    { p_draft_id: draftId, p_player_id: players[1].id, p_expected_pick: 2 },
     "42501"
   );
   await expectRpcError(
     owner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 2 },
     "23505"
   );
 
   await rpc(commissioner, "commissioner_make_pick", {
     p_draft_id: draftId,
     p_player_id: players[1].id,
+    p_expected_pick: 2,
   });
   await rpc(owner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[2].id,
+    p_expected_pick: 3,
   });
   await rpc(commissioner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[3].id,
+    p_expected_pick: 4,
   });
 
   try {

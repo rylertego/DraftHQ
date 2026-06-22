@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import { createClient } from "@supabase/supabase-js";
 import pg from "pg";
-import { getLocalSupabaseEnvironment } from "./local-supabase-env.mjs";
+import {
+  getLocalSupabaseEnvironment,
+  waitForLocalSupabaseAuth,
+} from "./local-supabase-env.mjs";
 
 const { Client } = pg;
 const environment = getLocalSupabaseEnvironment();
@@ -110,6 +113,7 @@ async function expectRejectedWithoutWrites(
 }
 
 async function runContracts() {
+  await waitForLocalSupabaseAuth(environment);
   await database.connect();
   databaseConnected = true;
 
@@ -243,7 +247,7 @@ async function runContracts() {
   await expectRejectedWithoutWrites(
     commissioner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "P0001",
     "pick cannot be made before draft starts"
   );
@@ -257,21 +261,21 @@ async function runContracts() {
   await expectRejectedWithoutWrites(
     owner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "42501",
     "wrong owner cannot make opening pick"
   );
   await expectRejectedWithoutWrites(
     unassigned,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "42501",
     "unassigned owner cannot pick"
   );
   await expectRejectedWithoutWrites(
     unrelated,
     "commissioner_make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 1 },
     "42501",
     "unrelated user cannot make recovery pick"
   );
@@ -279,6 +283,7 @@ async function runContracts() {
   await rpc(commissioner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[0].id,
+    p_expected_pick: 1,
   });
   assert.equal((await readDraftState()).draft.current_pick, 2);
   console.log("PASS assigned commissioner makes opening pick");
@@ -286,26 +291,28 @@ async function runContracts() {
   await expectRejectedWithoutWrites(
     otherOwner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[1].id },
+    { p_draft_id: draftId, p_player_id: players[1].id, p_expected_pick: 2 },
     "42501",
     "out-of-turn owner cannot pick"
   );
   await expectRejectedWithoutWrites(
     owner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[0].id },
+    { p_draft_id: draftId, p_player_id: players[0].id, p_expected_pick: 2 },
     "23505",
     "duplicate player cannot be drafted"
   );
   await rpc(owner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[1].id,
+    p_expected_pick: 2,
   });
   console.log("PASS assigned owner makes allowed pick");
 
   await rpc(commissioner, "commissioner_make_pick", {
     p_draft_id: draftId,
     p_player_id: players[2].id,
+    p_expected_pick: 3,
   });
   console.log("PASS commissioner makes recovery pick");
 
@@ -326,7 +333,7 @@ async function runContracts() {
   await expectRejectedWithoutWrites(
     otherOwner,
     "make_pick",
-    { p_draft_id: draftId, p_player_id: players[3].id },
+    { p_draft_id: draftId, p_player_id: players[3].id, p_expected_pick: 4 },
     "P0001",
     "pick cannot be made while paused"
   );
@@ -347,14 +354,17 @@ async function runContracts() {
   await rpc(otherOwner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[3].id,
+    p_expected_pick: 4,
   });
   await rpc(owner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[4].id,
+    p_expected_pick: 5,
   });
   await rpc(commissioner, "make_pick", {
     p_draft_id: draftId,
     p_player_id: players[5].id,
+    p_expected_pick: 6,
   });
   const completedState = await readDraftState();
   assert.equal(completedState.draft.status, "complete");

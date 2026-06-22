@@ -15,13 +15,13 @@ const requiredTables = [
 
 const requiredFunctions = [
   "assign_team(uuid, uuid, uuid)",
-  "commissioner_make_pick(uuid, uuid)",
+  "commissioner_make_pick(uuid, uuid, integer)",
   "configure_draft_timer(uuid, integer)",
   "create_draft(text, integer, integer, text)",
   "create_sleeper_draft(text, integer, text, text, text, text[], integer[], text[])",
   "get_draft_server_time(uuid)",
   "join_draft(text, text)",
-  "make_pick(uuid, uuid)",
+  "make_pick(uuid, uuid, integer)",
   "pause_draft(uuid)",
   "remove_draft_participant(uuid, uuid)",
   "replace_nflverse_players(jsonb)",

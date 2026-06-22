@@ -529,12 +529,17 @@ export async function getDraftRevision(draftId: string) {
   return data.updated_at;
 }
 
-export async function makePick(draftId: string, playerId: string) {
+export async function makePick(
+  draftId: string,
+  playerId: string,
+  expectedPick: number
+) {
   await ensureAnonymousUser();
 
   const { error } = await supabase.rpc("make_pick", {
     p_draft_id: draftId,
     p_player_id: playerId,
+    p_expected_pick: expectedPick,
   });
 
   if (error) {
@@ -542,12 +547,17 @@ export async function makePick(draftId: string, playerId: string) {
   }
 }
 
-export async function commissionerMakePick(draftId: string, playerId: string) {
+export async function commissionerMakePick(
+  draftId: string,
+  playerId: string,
+  expectedPick: number
+) {
   await ensureAnonymousUser();
 
   const { error } = await supabase.rpc("commissioner_make_pick", {
     p_draft_id: draftId,
     p_player_id: playerId,
+    p_expected_pick: expectedPick,
   });
 
   if (error) {
