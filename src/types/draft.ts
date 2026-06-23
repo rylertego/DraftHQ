@@ -2,6 +2,8 @@ export type DraftStatus = "setup" | "active" | "paused" | "complete";
 
 export type DraftRole = "commissioner" | "owner" | "viewer";
 
+export type TimerBehavior = "nothing" | "skip" | "auto_draft";
+
 export type PlayerPosition = "QB" | "RB" | "WR" | "TE" | "K" | "DST" | "FLEX" | "UNKNOWN";
 
 export interface Draft {
@@ -17,6 +19,10 @@ export interface Draft {
   pickSeconds: number;
   pickDeadlineAt: string | null;
   pausedRemainingSeconds: number | null;
+  timerBehavior: TimerBehavior;
+  clockExtensionSeconds: number;
+  maxClockExtensions: number;
+  clockExtensionsUsed: number;
   sleeperLeagueId: string | null;
   sleeperDraftId: string | null;
   createdAt: string;

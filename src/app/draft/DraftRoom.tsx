@@ -1,20 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftTimer from "@/components/DraftTimer";
+import ClockSettings from "@/components/ClockSettings";
 import CommissionerParticipantManager from "@/components/CommissionerParticipantManager";
 import {
   commissionerMakePick,
   configureDraftTimer,
+  expireCurrentPick,
+  extendClock,
   makePick,
   pauseDraft,
   resumeDraft,
   startDraft,
   undoPick,
 } from "@/lib/draftApi";
+import type { TimerBehavior } from "@/types/draft";
 import { createDraftResultsCsv } from "@/lib/draftExport";
 import {
   getPickNumberInRound,
@@ -51,6 +55,7 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
   const [isControllingDraft, setIsControllingDraft] = useState(false);
   const [actionError, setActionError] = useState("");
   const [pickMode, setPickMode] = useState<"owner" | "commissioner">("owner");
+  const [isExpiringPick, setIsExpiringPick] = useState(false);
 
   useEffect(() => {
     if (!draftId) {
@@ -150,6 +155,58 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     } finally {
       setIsControllingDraft(false);
     }
+  }
+
+  const handleTimerExpired = useCallback(() => {
+    if (!draftId || !snapshot || isExpiringPick) return;
+    if (status !== "connected") return;
+    if (snapshot.currentUserId !== snapshot.draft.commissionerUserId) return;
+
+    const expectedPick = snapshot.draft.currentPick;
+    setIsExpiringPick(true);
+
+    void expireCurrentPick(draftId, expectedPick)
+      .then((updatedDraft) => {
+        applyDraftUpdate(updatedDraft);
+        return refresh();
+      })
+      .catch((err: unknown) => {
+        setActionError(
+          err instanceof Error ? err.message : "Unable to expire pick."
+        );
+      })
+      .finally(() => {
+        setIsExpiringPick(false);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [draftId, snapshot?.draft.currentPick, snapshot?.currentUserId, snapshot?.draft.commissionerUserId, isExpiringPick, status]);
+
+  async function handleExtendClock() {
+    if (!draftId || !snapshot) return;
+    try {
+      const updatedDraft = await extendClock(draftId, snapshot.draft.currentPick);
+      applyDraftUpdate(updatedDraft);
+    } catch (err) {
+      setActionError(
+        err instanceof Error ? err.message : "Unable to extend clock."
+      );
+    }
+  }
+
+  async function handleSaveClockSettings(settings: {
+    pickSeconds: number;
+    timerBehavior: TimerBehavior;
+    clockExtensionSeconds: number;
+    maxClockExtensions: number;
+  }) {
+    if (!draftId) return;
+    await handleDraftControl(() =>
+      configureDraftTimer(draftId, settings.pickSeconds, {
+        timerBehavior: settings.timerBehavior,
+        clockExtensionSeconds: settings.clockExtensionSeconds,
+        maxClockExtensions: settings.maxClockExtensions,
+      })
+    );
   }
 
   if (error && !snapshot) {
@@ -320,43 +377,15 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
         <DraftTimer
           draft={snapshot.draft}
           serverTimeOffsetMs={snapshot.serverTimeOffsetMs}
+          canExtend={canMakePick || isCommissioner}
+          onExpired={handleTimerExpired}
+          onExtend={() => void handleExtendClock()}
         />
 
         {isCommissioner && (
           <section className="rounded-lg border border-gray-700 p-4">
             <h2 className="font-bold">Commissioner Controls</h2>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              <label className="text-sm" htmlFor="pick-timer">
-                Pick time
-              </label>
-              <select
-                id="pick-timer"
-                className="rounded border bg-gray-900 p-2"
-                value={snapshot.draft.pickSeconds}
-                disabled={
-                  isControllingDraft ||
-                  !["setup", "paused"].includes(snapshot.draft.status)
-                }
-                onChange={(event) =>
-                  void handleDraftControl(() =>
-                    configureDraftTimer(
-                      draftId as string,
-                      Number(event.target.value)
-                    )
-                  )
-                }
-              >
-                {[30, 45, 60, 90, 120, 180].map((seconds) => (
-                  <option key={seconds} value={seconds}>
-                    {seconds % 60 === 0
-                      ? `${seconds / 60} ${
-                          seconds === 60 ? "minute" : "minutes"
-                        }`
-                      : `${seconds} seconds`}
-                  </option>
-                ))}
-              </select>
-
               {snapshot.draft.status === "setup" && (
                 <button
                   type="button"
@@ -406,6 +435,9 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
                   Recovery Pick for {teamOnClock.name}
                 </button>
               )}
+              {isExpiringPick && (
+                <span className="text-sm text-gray-400">Advancing pick...</span>
+              )}
             </div>
             {!allTeamsAssigned && snapshot.draft.status === "setup" && (
               <p className="mt-3 text-sm text-yellow-400">
@@ -415,6 +447,16 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           </section>
         )}
       </div>
+
+      {isCommissioner && ["setup", "paused"].includes(snapshot.draft.status) && (
+        <div className="mb-6">
+          <ClockSettings
+            draft={snapshot.draft}
+            disabled={isControllingDraft}
+            onSave={(settings) => void handleSaveClockSettings(settings)}
+          />
+        </div>
+      )}
 
       {isCommissioner && (
         <div className="mb-6">

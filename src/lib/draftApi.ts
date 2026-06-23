@@ -8,6 +8,7 @@ import type {
   Player,
   PlayerPosition,
   Team,
+  TimerBehavior,
 } from "@/types/draft";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
@@ -26,6 +27,10 @@ interface DraftRow {
   pick_seconds: number;
   pick_deadline_at: string | null;
   paused_remaining_seconds: number | null;
+  timer_behavior: TimerBehavior;
+  clock_extension_seconds: number;
+  max_clock_extensions: number;
+  clock_extensions_used: number;
   sleeper_league_id: string | null;
   sleeper_draft_id: string | null;
   created_at: string;
@@ -133,6 +138,10 @@ function mapDraft(row: DraftRow): Draft {
     pickSeconds: row.pick_seconds,
     pickDeadlineAt: row.pick_deadline_at,
     pausedRemainingSeconds: row.paused_remaining_seconds,
+    timerBehavior: row.timer_behavior,
+    clockExtensionSeconds: row.clock_extension_seconds,
+    maxClockExtensions: row.max_clock_extensions,
+    clockExtensionsUsed: row.clock_extensions_used,
     sleeperLeagueId: row.sleeper_league_id,
     sleeperDraftId: row.sleeper_draft_id,
     createdAt: row.created_at,
@@ -305,7 +314,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,sleeper_league_id,sleeper_draft_id,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
@@ -630,12 +639,48 @@ export async function resumeDraft(draftId: string) {
 
 export async function configureDraftTimer(
   draftId: string,
-  pickSeconds: number
+  pickSeconds: number,
+  options: {
+    timerBehavior?: TimerBehavior;
+    clockExtensionSeconds?: number;
+    maxClockExtensions?: number;
+  } = {}
 ) {
   await ensureAnonymousUser();
   const { data, error } = await supabase.rpc("configure_draft_timer", {
     p_draft_id: draftId,
     p_pick_seconds: pickSeconds,
+    p_timer_behavior: options.timerBehavior ?? null,
+    p_clock_extension_seconds: options.clockExtensionSeconds ?? null,
+    p_max_clock_extensions: options.maxClockExtensions ?? null,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
+}
+
+export async function expireCurrentPick(draftId: string, expectedPick: number) {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.rpc("expire_current_pick", {
+    p_draft_id: draftId,
+    p_expected_pick: expectedPick,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
+}
+
+export async function extendClock(draftId: string, expectedPick: number) {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.rpc("extend_clock", {
+    p_draft_id: draftId,
+    p_expected_pick: expectedPick,
   });
 
   if (error) {
