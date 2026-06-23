@@ -10,6 +10,7 @@ interface DraftBoardProps {
   draftStatus: DraftStatus;
   canMakePick: boolean;
   canUndoPick: boolean;
+  myTeamName?: string;
   onSlotClick: () => void;
   onUndoPick: () => void;
 }
@@ -22,6 +23,7 @@ export default function DraftBoard({
   draftStatus,
   canMakePick,
   canUndoPick,
+  myTeamName,
   onSlotClick,
   onUndoPick,
 }: DraftBoardProps) {
@@ -101,6 +103,8 @@ export default function DraftBoard({
                       const isCurrent =
                         slot.overallPickNumber === currentPickNumber;
                       const isSelectable = isCurrent && canMakePick;
+                      const isMyTeam =
+                        myTeamName !== undefined && slot.teamName === myTeamName;
 
                       return (
                         <td
@@ -110,17 +114,28 @@ export default function DraftBoard({
                               onSlotClick();
                             }
                           }}
-                          className={`border border-gray-700 p-3 min-w-[170px] h-28 align-top ${
+                          className={[
+                            "border border-gray-700 p-3 min-w-[170px] h-28 align-top",
                             isSelectable
                               ? "cursor-pointer bg-blue-950"
-                              : "cursor-not-allowed"
-                          }`}
+                              : "cursor-not-allowed",
+                            isMyTeam && !isSelectable
+                              ? "bg-indigo-950/40"
+                              : "",
+                          ].join(" ")}
                         >
                           <div className="text-xs text-gray-400">
                             Pick {slot.overallPickNumber}
                           </div>
 
-                          <div className="font-semibold">{slot.teamName}</div>
+                          <div className={`font-semibold ${isMyTeam ? "text-indigo-300" : ""}`}>
+                            {slot.teamName}
+                            {isMyTeam && (
+                              <span className="ml-1 text-xs font-normal text-indigo-400">
+                                (you)
+                              </span>
+                            )}
+                          </div>
 
                           {pick ? (
                             <div className="mt-2">

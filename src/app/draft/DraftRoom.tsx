@@ -438,6 +438,11 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           draftStatus={snapshot.draft.status}
           canMakePick={canMakePick && !isMakingPick}
           canUndoPick={canUndoPick && !isUndoing}
+          myTeamName={
+            accessState.kind === "assigned"
+              ? snapshot.teams.find((t) => t.id === accessState.teamId)?.name
+              : undefined
+          }
           onSlotClick={() => {
             setActionError("");
             setPickMode("owner");

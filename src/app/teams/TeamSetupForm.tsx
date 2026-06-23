@@ -433,42 +433,124 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       </section>
 
       <section>
-        <h2 className="text-xl font-bold mb-3">Teams</h2>
-        <div className="space-y-3">
-          {teams.map((team, index) => (
-            <div key={team.id} className="flex items-center gap-2">
-              <span className="w-8 text-center font-bold">{index + 1}</span>
-              <input
-                aria-label={`Team ${index + 1} name`}
-                disabled={!isCommissioner}
-                className="min-w-0 flex-1 rounded border p-2 disabled:opacity-60"
-                value={team.name}
-                onChange={(event) => updateTeam(team.id, event.target.value)}
-              />
-              {isCommissioner && (
-                <>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-xl font-bold">Teams</h2>
+          {isCommissioner && (
+            <button
+              type="button"
+              disabled={isRefreshing}
+              className="rounded bg-gray-700 px-3 py-1 text-sm disabled:opacity-50"
+              onClick={refreshParticipants}
+            >
+              {isRefreshing ? "Refreshing..." : "Refresh"}
+            </button>
+          )}
+        </div>
+
+        {isCommissioner && !canManageAssignments && (
+          <p className="mb-3 text-sm text-yellow-400">
+            Pause the draft to change team assignments.
+          </p>
+        )}
+
+        <div className="space-y-2">
+          {teams.map((team, index) => {
+            const owner = setup.participants.find((p) => p.teamId === team.id);
+            const pendingInvite = setup.invitations.find(
+              (inv) => inv.teamId === team.id && inv.status === "pending"
+            );
+            const isSelf = owner?.userId === setup.currentUserId;
+
+            return (
+              <div
+                key={team.id}
+                className={[
+                  "flex flex-wrap items-center gap-2 rounded-lg border p-3",
+                  isSelf
+                    ? "border-blue-700 bg-blue-950/20"
+                    : "border-gray-700",
+                ].join(" ")}
+              >
+                <span className="w-5 shrink-0 text-center text-sm text-gray-500">
+                  {index + 1}
+                </span>
+
+                <input
+                  aria-label={`Team ${index + 1} name`}
+                  disabled={!isCommissioner}
+                  className="min-w-0 flex-1 rounded border p-1.5 text-sm disabled:opacity-60"
+                  value={team.name}
+                  onChange={(event) => updateTeam(team.id, event.target.value)}
+                />
+
+                {/* Ownership status chip */}
+                {owner ? (
+                  <span className="shrink-0 rounded-full bg-green-900/60 px-2.5 py-0.5 text-xs font-medium text-green-400">
+                    {isSelf ? "You" : owner.displayName}
+                  </span>
+                ) : pendingInvite ? (
+                  <span
+                    title={pendingInvite.email}
+                    className="max-w-[120px] shrink-0 truncate rounded-full bg-yellow-900/60 px-2.5 py-0.5 text-xs font-medium text-yellow-400"
+                  >
+                    Invited
+                  </span>
+                ) : (
+                  <span className="shrink-0 rounded-full bg-gray-800 px-2.5 py-0.5 text-xs font-medium text-gray-500">
+                    Open
+                  </span>
+                )}
+
+                {/* Commissioner: quick-fill invite form for open slots */}
+                {isCommissioner && !owner && !pendingInvite && (
                   <button
                     type="button"
-                    aria-label={`Move ${team.name} up`}
-                    disabled={index === 0}
-                    className="rounded bg-gray-700 px-3 py-2 disabled:opacity-30"
-                    onClick={() => moveTeam(index, -1)}
+                    className="shrink-0 rounded border border-dashed border-gray-600 px-2 py-0.5 text-xs text-gray-400 hover:border-blue-500 hover:text-blue-400"
+                    onClick={() => {
+                      setInviteTeamId(team.id);
+                      document.getElementById("invite-email")?.focus();
+                    }}
                   >
-                    Up
+                    + Invite
                   </button>
+                )}
+
+                {/* Pending invite: copy details */}
+                {isCommissioner && pendingInvite && (
                   <button
                     type="button"
-                    aria-label={`Move ${team.name} down`}
-                    disabled={index === teams.length - 1}
-                    className="rounded bg-gray-700 px-3 py-2 disabled:opacity-30"
-                    onClick={() => moveTeam(index, 1)}
+                    className="shrink-0 rounded bg-gray-700 px-2 py-0.5 text-xs"
+                    onClick={() => copyOwnerInvite(pendingInvite.id)}
                   >
-                    Down
+                    Copy
                   </button>
-                </>
-              )}
-            </div>
-          ))}
+                )}
+
+                {isCommissioner && (
+                  <>
+                    <button
+                      type="button"
+                      aria-label={`Move ${team.name} up`}
+                      disabled={index === 0}
+                      className="shrink-0 rounded bg-gray-700 px-2.5 py-1.5 text-xs disabled:opacity-30"
+                      onClick={() => moveTeam(index, -1)}
+                    >
+                      ↑
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`Move ${team.name} down`}
+                      disabled={index === teams.length - 1}
+                      className="shrink-0 rounded bg-gray-700 px-2.5 py-1.5 text-xs disabled:opacity-30"
+                      onClick={() => moveTeam(index, 1)}
+                    >
+                      ↓
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       </section>
 
@@ -504,6 +586,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               onSubmit={sendEmailInvitation}
             >
               <input
+                id="invite-email"
                 type="email"
                 required
                 maxLength={320}
@@ -598,73 +681,53 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             )}
           </div>
 
-          <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="text-xl font-bold">Owners</h2>
-              <button
-                type="button"
-                disabled={isRefreshing}
-                className="bg-gray-700 disabled:opacity-50 px-3 py-1 rounded"
-                onClick={refreshParticipants}
-              >
-                {isRefreshing ? "Refreshing..." : "Refresh Owners"}
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {!canManageAssignments && (
-                <p className="text-sm text-yellow-400">
-                  Pause the draft before changing team assignments.
-                </p>
-              )}
-              {setup.participants.map((participant) => {
-                const unavailableTeamIds = getAssignedTeamIds(
-                  setup.participants,
-                  participant.id
-                );
-
-                return (
-                  <div
-                    key={participant.id}
-                    className="border border-gray-700 rounded p-3 flex items-center gap-3"
-                  >
-                    <div className="flex-1">
-                      <div className="font-semibold">
-                        {participant.displayName}
-                      </div>
-                      <div className="text-xs text-gray-400 capitalize">
-                        {participant.role}
-                      </div>
-                    </div>
-
-                    <select
-                      aria-label={`Team for ${participant.displayName}`}
-                      className="border rounded p-2 bg-gray-900"
-                      value={participant.teamId ?? ""}
-                      disabled={
-                        !canManageAssignments ||
-                        assigningParticipantId === participant.id
-                      }
-                      onChange={(event) =>
-                        updateAssignment(participant.id, event.target.value)
-                      }
-                    >
-                      <option value="">Unassigned</option>
-                      {teams.map((team) => (
-                        <option
-                          key={team.id}
-                          value={team.id}
-                          disabled={unavailableTeamIds.includes(team.id)}
+          {/* Unassigned participants — joined but not yet on a team */}
+          {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").length > 0 && (
+            <div>
+              <h3 className="mb-2 text-sm font-semibold text-gray-400 uppercase tracking-wide">
+                Waiting for assignment
+              </h3>
+              <div className="space-y-2">
+                {setup.participants
+                  .filter((p) => !p.teamId && p.role !== "commissioner")
+                  .map((participant) => {
+                    const unavailableTeamIds = getAssignedTeamIds(
+                      setup.participants,
+                      participant.id
+                    );
+                    return (
+                      <div
+                        key={participant.id}
+                        className="flex items-center gap-3 rounded-lg border border-gray-700 p-3"
+                      >
+                        <div className="flex-1">
+                          <div className="font-semibold">{participant.displayName}</div>
+                          <div className="text-xs text-gray-400">Joined, unassigned</div>
+                        </div>
+                        <select
+                          aria-label={`Assign team to ${participant.displayName}`}
+                          className="rounded border bg-gray-900 p-2 text-sm"
+                          value=""
+                          disabled={!canManageAssignments || assigningParticipantId === participant.id}
+                          onChange={(e) => updateAssignment(participant.id, e.target.value)}
                         >
-                          {team.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                );
-              })}
+                          <option value="">Assign team…</option>
+                          {teams.map((team) => (
+                            <option
+                              key={team.id}
+                              value={team.id}
+                              disabled={unavailableTeamIds.includes(team.id)}
+                            >
+                              {team.name}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                    );
+                  })}
+              </div>
             </div>
-          </div>
+          )}
         </section>
       )}
     </main>
