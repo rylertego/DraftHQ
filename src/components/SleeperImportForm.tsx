@@ -8,6 +8,7 @@ import {
   getSleeperLeaguePreview,
   inviteOwner,
 } from "@/lib/draftApi";
+import { createSleeperLeagueSeason } from "@/lib/leagueApi";
 import { normalizeEmail } from "@/lib/email";
 import { normalizeSleeperLeagueId } from "@/lib/sleeper";
 
@@ -19,7 +20,17 @@ interface EditableTeam {
   ownerEmail: string;
 }
 
-export default function SleeperImportForm() {
+interface SleeperImportFormProps {
+  seasonContext?: {
+    leagueId: string;
+    year: number;
+    seasonName: string;
+  };
+}
+
+export default function SleeperImportForm({
+  seasonContext,
+}: SleeperImportFormProps) {
   const router = useRouter();
   const [leagueId, setLeagueId] = useState("");
   const [leagueName, setLeagueName] = useState("");
@@ -122,26 +133,38 @@ export default function SleeperImportForm() {
     setIsCreating(true);
 
     try {
-      const draft = await createSleeperDraft({
-        name: leagueName.trim(),
+      const preview = {
+        leagueId,
+        draftId,
+        leagueName: leagueName.trim(),
         rounds,
-        preview: {
-          leagueId,
-          draftId,
-          leagueName: leagueName.trim(),
-          rounds,
-          warnings,
-          teams: teams.map((team, index) => ({
-            rosterId: team.rosterId,
-            ownerUserId: team.ownerUserId,
-            managerName: team.managerName,
-            teamName: team.teamName.trim(),
-            draftPosition: index + 1,
-          })),
-        },
-      });
-      setCreatedDraftId(draft.id);
-      const setup = await getDraftSetup(draft.id);
+        warnings,
+        teams: teams.map((team, index) => ({
+          rosterId: team.rosterId,
+          ownerUserId: team.ownerUserId,
+          managerName: team.managerName,
+          teamName: team.teamName.trim(),
+          draftPosition: index + 1,
+        })),
+      };
+      const createdDraftIdValue = seasonContext
+        ? (
+            await createSleeperLeagueSeason({
+              ...seasonContext,
+              draftName: leagueName.trim(),
+              rounds,
+              preview,
+            })
+          ).draftId
+        : (await createSleeperDraft({ name: leagueName.trim(), rounds, preview }))
+            .id;
+
+      if (!createdDraftIdValue) {
+        throw new Error("The season was created without a linked draft.");
+      }
+
+      setCreatedDraftId(createdDraftIdValue);
+      const setup = await getDraftSetup(createdDraftIdValue);
       const invitationErrors: string[] = [];
 
       for (const [index, team] of teams.entries()) {
@@ -152,7 +175,7 @@ export default function SleeperImportForm() {
 
         try {
           const result = await inviteOwner(
-            draft.id,
+            createdDraftIdValue,
             email,
             setup.teams[index].id
           );
@@ -175,7 +198,7 @@ export default function SleeperImportForm() {
         return;
       }
 
-      router.push(`/teams?draftId=${draft.id}`);
+      router.push(`/teams?draftId=${createdDraftIdValue}`);
     } catch (importError) {
       setError(
         importError instanceof Error
@@ -289,7 +312,11 @@ export default function SleeperImportForm() {
             className="w-full rounded bg-blue-600 px-4 py-3 font-bold disabled:opacity-50"
             onClick={() => void approveImport()}
           >
-            {isCreating ? "Creating DraftHQ draft..." : "Approve and Create Draft"}
+            {isCreating
+              ? "Creating DraftHQ draft..."
+              : seasonContext
+                ? "Approve and Create Season"
+                : "Approve and Create Draft"}
           </button>
         </div>
       )}

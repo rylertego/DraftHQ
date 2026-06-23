@@ -1,5 +1,10 @@
 export type LeagueRole = "commissioner" | "member";
 export type LeagueTheme = "classic" | "broadcast" | "dark" | "modern";
+export type LeagueSeasonStatus =
+  | "upcoming"
+  | "drafting"
+  | "active"
+  | "complete";
 
 export interface League {
   id: string;
@@ -21,7 +26,32 @@ export interface LeagueMember {
   userId: string;
   role: LeagueRole;
   displayName: string;
+  avatarUrl: string | null;
   joinedAt: string;
+}
+
+export interface LeagueSeasonDraft {
+  id: string;
+  name: string;
+  status: "setup" | "active" | "paused" | "complete";
+  joinCode: string;
+}
+
+export interface LeagueSeason {
+  id: string;
+  leagueId: string;
+  year: number;
+  name: string;
+  status: LeagueSeasonStatus;
+  draftId: string | null;
+  draft: LeagueSeasonDraft | null;
+}
+
+export interface LeagueWorkspace {
+  league: League;
+  members: LeagueMember[];
+  seasons: LeagueSeason[];
+  canManage: boolean;
 }
 
 export interface LeagueSettings {

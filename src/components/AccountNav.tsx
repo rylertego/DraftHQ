@@ -52,6 +52,9 @@ export default function AccountNav() {
         </Link>
         {hasAccount ? (
           <>
+            <Link className="text-sm text-gray-300" href="/dashboard">
+              Dashboard
+            </Link>
             <Link className="text-sm text-gray-300" href="/profile">
               Profile
             </Link>
