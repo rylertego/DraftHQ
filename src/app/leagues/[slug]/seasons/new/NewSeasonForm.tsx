@@ -230,15 +230,56 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
 
 const PROVIDER_SVGS: Record<string, React.ReactNode> = {
   "sleeper.com": (
+    // Robot face: navy bg, round white/gray head, dark visor, teal eyes, antenna
     <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="36" height="36" rx="8" fill="#1a1f35"/>
-      <text x="18" y="24" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#7c6eff">Z</text>
+      <defs>
+        <radialGradient id="sl-bg" cx="50%" cy="40%" r="70%">
+          <stop offset="0%" stopColor="#253560"/>
+          <stop offset="100%" stopColor="#111d38"/>
+        </radialGradient>
+        <radialGradient id="sl-head" cx="65%" cy="30%" r="70%">
+          <stop offset="0%" stopColor="#ffffff"/>
+          <stop offset="60%" stopColor="#c8d4e8"/>
+          <stop offset="100%" stopColor="#8090a8"/>
+        </radialGradient>
+        <radialGradient id="sl-eye-l" cx="70%" cy="30%" r="80%">
+          <stop offset="0%" stopColor="#00f0d0"/>
+          <stop offset="100%" stopColor="#00a888"/>
+        </radialGradient>
+        <radialGradient id="sl-eye-r" cx="30%" cy="30%" r="80%">
+          <stop offset="0%" stopColor="#00f0d0"/>
+          <stop offset="100%" stopColor="#00a888"/>
+        </radialGradient>
+      </defs>
+      <rect width="36" height="36" rx="8" fill="url(#sl-bg)"/>
+      {/* Antenna ball */}
+      <circle cx="18" cy="5.5" r="2.5" fill="#c8d4e4"/>
+      {/* Antenna stem */}
+      <rect x="17.1" y="7.5" width="1.8" height="4" rx="0.9" fill="#8898b0"/>
+      {/* Head */}
+      <ellipse cx="18" cy="22" rx="13.5" ry="11.5" fill="url(#sl-head)"/>
+      {/* Dark visor/face */}
+      <ellipse cx="18" cy="25" rx="10.5" ry="6.5" fill="#0f1828"/>
+      {/* Left eye — angled slash shape */}
+      <path d="M10.5 23.8 C11.5 21.5 14 21.8 15.5 23.2 C14.2 25 11.5 25.2 10.5 23.8Z" fill="url(#sl-eye-l)"/>
+      {/* Right eye */}
+      <path d="M25.5 23.8 C24.5 21.5 22 21.8 20.5 23.2 C21.8 25 24.5 25.2 25.5 23.8Z" fill="url(#sl-eye-r)"/>
     </svg>
   ),
   "espn.com": (
+    // Blue bg, lime shield outline, lime E inside
     <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="36" height="36" rx="8" fill="#cc0000"/>
-      <text x="18" y="23" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="11" letterSpacing="0.5" fill="white">ESPN</text>
+      <rect width="36" height="36" rx="8" fill="#0820cc"/>
+      {/* Shield — classic heraldic shape, pointed at bottom */}
+      <path
+        d="M18 4.5L28 8.5V20C28 26.5 23.5 30.5 18 33C12.5 30.5 8 26.5 8 20V8.5L18 4.5Z"
+        fill="none"
+        stroke="#c8f000"
+        strokeWidth="2.2"
+        strokeLinejoin="round"
+      />
+      {/* E — bold, fills shield interior */}
+      <text x="18" y="26" textAnchor="middle" fontFamily="Arial Black,Arial" fontWeight="900" fontSize="16" fill="#c8f000">E</text>
     </svg>
   ),
   "fleaflicker.com": (
@@ -254,9 +295,29 @@ const PROVIDER_SVGS: Record<string, React.ReactNode> = {
     </svg>
   ),
   "yahoo.com": (
+    // Purple bg, white trophy with handles, "yahoo!" text
     <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <rect width="36" height="36" rx="8" fill="#6001d2"/>
-      <text x="18" y="25" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="18" fill="white">Y!</text>
+      <defs>
+        <linearGradient id="yh-bg" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="#9340ff"/>
+          <stop offset="100%" stopColor="#5c10cc"/>
+        </linearGradient>
+      </defs>
+      <rect width="36" height="36" rx="8" fill="url(#yh-bg)"/>
+      {/* Cup body */}
+      <path d="M12 5.5h12v10c0 3.3-2.7 6-6 6s-6-2.7-6-6V5.5Z" fill="white" opacity="0.95"/>
+      {/* Left handle */}
+      <path d="M12 7.5C9 7.5 7.5 9 7.5 11s1.5 3.5 4.5 3.5" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      {/* Right handle */}
+      <path d="M24 7.5C27 7.5 28.5 9 28.5 11s-1.5 3.5-4.5 3.5" stroke="white" strokeWidth="2" fill="none" strokeLinecap="round"/>
+      {/* Ribbon tag on cup rim */}
+      <path d="M17 7.5 L18 10 L19 7.5" fill="#c0a0ff" opacity="0.8"/>
+      {/* Stem */}
+      <rect x="16.5" y="21.5" width="3" height="4" fill="white" opacity="0.9"/>
+      {/* Base */}
+      <rect x="12.5" y="25.5" width="11" height="2.5" rx="1.2" fill="white" opacity="0.9"/>
+      {/* yahoo! */}
+      <text x="18" y="33.5" textAnchor="middle" fontFamily="Arial,Helvetica,sans-serif" fontWeight="bold" fontSize="6" fill="white">yahoo!</text>
     </svg>
   ),
   "cbssports.com": (
