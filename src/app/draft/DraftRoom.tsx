@@ -5,11 +5,9 @@ import { useRouter } from "next/navigation";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftTimer from "@/components/DraftTimer";
-import ClockSettings from "@/components/ClockSettings";
 import CommissionerParticipantManager from "@/components/CommissionerParticipantManager";
 import {
   commissionerMakePick,
-  configureDraftTimer,
   expireCurrentPick,
   extendClock,
   makePick,
@@ -18,7 +16,6 @@ import {
   startDraft,
   undoPick,
 } from "@/lib/draftApi";
-import type { TimerBehavior } from "@/types/draft";
 import { createDraftResultsCsv } from "@/lib/draftExport";
 import {
   getPickNumberInRound,
@@ -191,22 +188,6 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
         err instanceof Error ? err.message : "Unable to extend clock."
       );
     }
-  }
-
-  async function handleSaveClockSettings(settings: {
-    pickSeconds: number;
-    timerBehavior: TimerBehavior;
-    clockExtensionSeconds: number;
-    maxClockExtensions: number;
-  }) {
-    if (!draftId) return;
-    await handleDraftControl(() =>
-      configureDraftTimer(draftId, settings.pickSeconds, {
-        timerBehavior: settings.timerBehavior,
-        clockExtensionSeconds: settings.clockExtensionSeconds,
-        maxClockExtensions: settings.maxClockExtensions,
-      })
-    );
   }
 
   if (error && !snapshot) {
@@ -447,16 +428,6 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           </section>
         )}
       </div>
-
-      {isCommissioner && ["setup", "paused"].includes(snapshot.draft.status) && (
-        <div className="mb-6">
-          <ClockSettings
-            draft={snapshot.draft}
-            disabled={isControllingDraft}
-            onSave={(settings) => void handleSaveClockSettings(settings)}
-          />
-        </div>
-      )}
 
       {isCommissioner && (
         <div className="mb-6">

@@ -4,11 +4,14 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   assignTeam,
+  configureDraftTimer,
   getDraftSetup,
   inviteOwner,
   updateTeamSetup,
   type DraftSetup,
 } from "@/lib/draftApi";
+import ClockSettings from "@/components/ClockSettings";
+import type { TimerBehavior } from "@/types/draft";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
@@ -60,6 +63,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteTeamId, setInviteTeamId] = useState("");
   const [isInviting, setIsInviting] = useState(false);
+  const [isSavingClock, setIsSavingClock] = useState(false);
   const [error, setError] = useState("");
 
   useEffect(() => {
@@ -360,6 +364,35 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     }
   }
 
+  async function saveClockSettings(settings: {
+    pickSeconds: number;
+    timerBehavior: TimerBehavior;
+    clockExtensionSeconds: number;
+    maxClockExtensions: number;
+  }) {
+    if (!draftId || !setup) return;
+
+    setIsSavingClock(true);
+    setError("");
+
+    try {
+      const updatedDraft = await configureDraftTimer(draftId, settings.pickSeconds, {
+        timerBehavior: settings.timerBehavior,
+        clockExtensionSeconds: settings.clockExtensionSeconds,
+        maxClockExtensions: settings.maxClockExtensions,
+      });
+      setSetup({ ...setup, draft: updatedDraft });
+    } catch (clockError) {
+      setError(
+        clockError instanceof Error
+          ? clockError.message
+          : "Unable to save clock settings."
+      );
+    } finally {
+      setIsSavingClock(false);
+    }
+  }
+
   async function continueToDraft() {
     if (!draftId) {
       return;
@@ -553,6 +586,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           })}
         </div>
       </section>
+
+      {isCommissioner && (
+        <ClockSettings
+          draft={setup.draft}
+          disabled={isSavingClock}
+          onSave={(settings) => void saveClockSettings(settings)}
+        />
+      )}
 
       {error && <p className="text-red-500">{error}</p>}
 
