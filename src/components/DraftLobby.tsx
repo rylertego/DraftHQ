@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { Draft, DraftParticipant, Team } from "@/types/draft";
 
 interface DraftLobbyProps {
@@ -83,9 +84,12 @@ export default function DraftLobby({
     >
       {/* Top bar */}
       <div className="flex w-full items-center justify-between px-6 pt-5 pb-2">
-        <span className="text-xs font-bold uppercase tracking-widest text-gray-500">
-          DraftHQ
-        </span>
+        <Link
+          href={isCommissioner ? `/teams?draftId=${draft.id}` : "/dashboard"}
+          className="text-xs font-bold uppercase tracking-widest text-gray-500 hover:text-gray-300"
+        >
+          ← {isCommissioner ? "Back to Setup" : "Leave"}
+        </Link>
         <span className="rounded-full bg-green-900/60 px-3 py-1 text-xs font-semibold text-green-400">
           {onlineCount} online
         </span>
