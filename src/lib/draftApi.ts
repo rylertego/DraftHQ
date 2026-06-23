@@ -1,9 +1,11 @@
 import type {
   Draft,
   DraftInvitation,
+  DraftMessage,
   DraftParticipant,
   DraftRole,
   DraftStatus,
+  MessageKind,
   Pick,
   Player,
   PlayerPosition,
@@ -688,4 +690,66 @@ export async function extendClock(draftId: string, expectedPick: number) {
   }
 
   return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
+}
+
+interface MessageRow {
+  id: string;
+  draft_id: string;
+  participant_id: string | null;
+  display_name: string;
+  content: string;
+  kind: MessageKind;
+  created_at: string;
+}
+
+function mapMessage(row: MessageRow): DraftMessage {
+  return {
+    id: row.id,
+    draftId: row.draft_id,
+    participantId: row.participant_id,
+    displayName: row.display_name,
+    content: row.content,
+    kind: row.kind,
+    createdAt: row.created_at,
+  };
+}
+
+export async function getDraftMessages(
+  draftId: string,
+  limit = 100
+): Promise<DraftMessage[]> {
+  await ensureAnonymousUser();
+
+  const { data, error } = await supabase
+    .from("draft_messages")
+    .select("id,draft_id,participant_id,display_name,content,kind,created_at")
+    .eq("draft_id", draftId)
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data as MessageRow[]) ?? []).reverse().map(mapMessage);
+}
+
+export async function sendDraftMessage(
+  draftId: string,
+  content: string,
+  kind: "chat" | "announcement" = "chat"
+): Promise<DraftMessage> {
+  await ensureAnonymousUser();
+
+  const { data, error } = await supabase.rpc("send_draft_message", {
+    p_draft_id: draftId,
+    p_content: content,
+    p_kind: kind,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return mapMessage(getSingleRow<MessageRow>(data, "the sent message"));
 }

@@ -5,6 +5,8 @@ import { useRouter } from "next/navigation";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftTimer from "@/components/DraftTimer";
+import DraftLobby from "@/components/DraftLobby";
+import DraftChat from "@/components/DraftChat";
 import CommissionerParticipantManager from "@/components/CommissionerParticipantManager";
 import {
   commissionerMakePick,
@@ -227,6 +229,34 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
     )
   ).size;
   const allTeamsAssigned = assignedTeamCount === snapshot.draft.teamCount;
+  const currentParticipantId = currentParticipant?.id ?? null;
+
+  // Show lobby before the draft starts
+  if (snapshot.draft.status === "setup") {
+    return (
+      <>
+        <DraftLobby
+          draft={snapshot.draft}
+          participants={snapshot.participants}
+          teams={snapshot.teams}
+          onlineUserIds={onlineUserIds}
+          currentUserId={snapshot.currentUserId}
+          isCommissioner={isCommissioner}
+          allTeamsAssigned={allTeamsAssigned}
+          isStarting={isControllingDraft}
+          onStart={() =>
+            void handleDraftControl(() => startDraft(draftId as string))
+          }
+        />
+        <DraftChat
+          draftId={draftId as string}
+          participantId={currentParticipantId}
+          isCommissioner={isCommissioner}
+        />
+      </>
+    );
+  }
+
   const draftedPlayerIds = new Set(
     snapshot.picks.map((pick) => pick.playerId)
   );
@@ -367,18 +397,6 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           <section className="rounded-lg border border-gray-700 p-4">
             <h2 className="font-bold">Commissioner Controls</h2>
             <div className="mt-3 flex flex-wrap items-center gap-3">
-              {snapshot.draft.status === "setup" && (
-                <button
-                  type="button"
-                  disabled={isControllingDraft || !allTeamsAssigned}
-                  className="rounded bg-green-700 px-4 py-2 disabled:opacity-40"
-                  onClick={() =>
-                    void handleDraftControl(() => startDraft(draftId as string))
-                  }
-                >
-                  Start Draft
-                </button>
-              )}
               {snapshot.draft.status === "active" && (
                 <button
                   type="button"
@@ -420,11 +438,6 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
                 <span className="text-sm text-gray-400">Advancing pick...</span>
               )}
             </div>
-            {!allTeamsAssigned && snapshot.draft.status === "setup" && (
-              <p className="mt-3 text-sm text-yellow-400">
-                Assign an owner to every team before starting the draft.
-              </p>
-            )}
           </section>
         )}
       </div>
@@ -513,6 +526,12 @@ export default function DraftRoom({ draftId }: DraftRoomProps) {
           onSave={handleMakePick}
         />
       )}
+
+      <DraftChat
+        draftId={draftId as string}
+        participantId={currentParticipantId}
+        isCommissioner={isCommissioner}
+      />
     </main>
   );
 }

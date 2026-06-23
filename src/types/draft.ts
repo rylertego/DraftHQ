@@ -86,6 +86,18 @@ export interface DraftParticipant {
   updatedAt: string;
 }
 
+export type MessageKind = "chat" | "announcement" | "system";
+
+export interface DraftMessage {
+  id: string;
+  draftId: string;
+  participantId: string | null;
+  displayName: string;
+  content: string;
+  kind: MessageKind;
+  createdAt: string;
+}
+
 export interface DraftInvitation {
   id: string;
   draftId: string;
