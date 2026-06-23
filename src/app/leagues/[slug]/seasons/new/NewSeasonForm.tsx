@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import React, { FormEvent, useState } from "react";
 import { useRouter } from "next/navigation";
 import LeagueWorkspaceHeader from "@/components/LeagueWorkspaceHeader";
 import SleeperImportForm from "@/components/SleeperImportForm";
@@ -228,22 +228,59 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
   );
 }
 
-function ProviderLogo({ domain, label, color }: { domain: string; label: string; color: string }) {
+const PROVIDER_SVGS: Record<string, React.ReactNode> = {
+  "sleeper.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#1a1f35"/>
+      <text x="18" y="24" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="20" fill="#7c6eff">Z</text>
+    </svg>
+  ),
+  "espn.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#cc0000"/>
+      <text x="18" y="23" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="11" letterSpacing="0.5" fill="white">ESPN</text>
+    </svg>
+  ),
+  "fleaflicker.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#1a6b2a"/>
+      <text x="18" y="25" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="16" fill="white">FF</text>
+    </svg>
+  ),
+  "myfantasyleague.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#003366"/>
+      <text x="18" y="24" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="12" fill="white">MFL</text>
+    </svg>
+  ),
+  "yahoo.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#6001d2"/>
+      <text x="18" y="25" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="18" fill="white">Y!</text>
+    </svg>
+  ),
+  "cbssports.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#003087"/>
+      <text x="18" y="24" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="12" fill="white">CBS</text>
+    </svg>
+  ),
+  "fantrax.com": (
+    <svg viewBox="0 0 36 36" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <rect width="36" height="36" rx="8" fill="#e8272f"/>
+      <text x="18" y="25" textAnchor="middle" fontFamily="Arial Black, Arial" fontWeight="900" fontSize="18" fill="white">F</text>
+    </svg>
+  ),
+};
+
+function ProviderLogo({ domain, label }: { domain: string; label: string; color: string }) {
+  const svg = PROVIDER_SVGS[domain];
+  if (svg) {
+    return <span className="flex h-9 w-9 shrink-0 items-center justify-center">{svg}</span>;
+  }
   return (
-    <span
-      className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-lg"
-      style={{ backgroundColor: color }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
-        alt={label}
-        width={32}
-        height={32}
-        onError={(e) => {
-          (e.currentTarget as HTMLImageElement).style.display = "none";
-        }}
-      />
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gray-700 text-sm font-bold">
+      {label[0]}
     </span>
   );
 }
