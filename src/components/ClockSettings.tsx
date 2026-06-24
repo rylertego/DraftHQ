@@ -23,21 +23,9 @@ const EXTENSION_TIME_OPTIONS = [
 ];
 
 const TIMER_BEHAVIORS: { value: TimerBehavior; label: string; description: string }[] = [
-  {
-    value: "nothing",
-    label: "Nothing happens",
-    description: "The pick stays open until the commissioner acts.",
-  },
-  {
-    value: "skip",
-    label: "Skip pick",
-    description: "The pick is forfeited and the draft advances.",
-  },
-  {
-    value: "auto_draft",
-    label: "Auto-draft",
-    description: "The first available player is drafted automatically.",
-  },
+  { value: "nothing", label: "Nothing happens", description: "The pick stays open until the commissioner acts." },
+  { value: "skip", label: "Skip pick", description: "The pick is forfeited and the draft advances." },
+  { value: "auto_draft", label: "Auto-draft", description: "The first available player is drafted automatically." },
 ];
 
 interface ClockSettingsProps {
@@ -51,11 +39,7 @@ interface ClockSettingsProps {
   }) => void;
 }
 
-export default function ClockSettings({
-  draft,
-  disabled = false,
-  onSave,
-}: ClockSettingsProps) {
+export default function ClockSettings({ draft, disabled = false, onSave }: ClockSettingsProps) {
   function emitChange(overrides: Partial<{
     pickSeconds: number;
     timerBehavior: TimerBehavior;
@@ -72,123 +56,86 @@ export default function ClockSettings({
   }
 
   return (
-    <section className="rounded-xl border border-gray-700 bg-gray-950 p-5">
-      <h3 className="font-bold text-white">Clock</h3>
-      <p className="mt-0.5 text-sm text-blue-400">
-        Set the timer behavior for picks and extensions.
-      </p>
-
-      <div className="mt-5 grid gap-6 sm:grid-cols-3">
+    <section>
+      <div className="grid gap-6 sm:grid-cols-3">
         {/* Pick Clock */}
         <div>
-          <p className="mb-2 text-sm font-semibold">Pick Clock</p>
+          <p className="mb-2 text-sm font-semibold text-white">Pick Clock</p>
           <div className="flex gap-2">
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">
-                Minutes
-              </p>
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Minutes</p>
               <select
                 disabled={disabled}
-                className="rounded border border-gray-600 bg-gray-900 px-2 py-1.5 text-sm disabled:opacity-50"
+                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
                 value={Math.floor(draft.pickSeconds / 60)}
-                onChange={(e) =>
-                  emitChange({
-                    pickSeconds:
-                      Number(e.target.value) * 60 + (draft.pickSeconds % 60),
-                  })
-                }
+                onChange={(e) => emitChange({ pickSeconds: Number(e.target.value) * 60 + (draft.pickSeconds % 60) })}
               >
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((m) => (
-                  <option key={m} value={m}>
-                    {m}
-                  </option>
+                  <option key={m} value={m}>{m}</option>
                 ))}
               </select>
             </div>
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">
-                Seconds
-              </p>
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Seconds</p>
               <select
                 disabled={disabled}
-                className="rounded border border-gray-600 bg-gray-900 px-2 py-1.5 text-sm disabled:opacity-50"
+                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
                 value={draft.pickSeconds % 60}
-                onChange={(e) =>
-                  emitChange({
-                    pickSeconds:
-                      Math.floor(draft.pickSeconds / 60) * 60 +
-                      Number(e.target.value),
-                  })
-                }
+                onChange={(e) => emitChange({ pickSeconds: Math.floor(draft.pickSeconds / 60) * 60 + Number(e.target.value) })}
               >
                 {[0, 15, 30, 45].map((s) => (
-                  <option key={s} value={s}>
-                    {String(s).padStart(2, "0")}
-                  </option>
+                  <option key={s} value={s}>{String(s).padStart(2, "0")}</option>
                 ))}
               </select>
             </div>
           </div>
-          <p className="mt-1.5 text-xs text-gray-500">
-            {PICK_CLOCK_OPTIONS.find((o) => o.seconds === draft.pickSeconds)?.label ??
-              `${draft.pickSeconds}s`}
+          <p className="mt-1.5 text-xs text-slate-500">
+            {PICK_CLOCK_OPTIONS.find((o) => o.seconds === draft.pickSeconds)?.label ?? `${draft.pickSeconds}s`}
           </p>
         </div>
 
         {/* Clock Extensions */}
         <div>
-          <p className="mb-2 text-sm font-semibold">Clock Extensions</p>
+          <p className="mb-2 text-sm font-semibold text-white">Clock Extensions</p>
           <div className="flex gap-2">
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">
-                Count
-              </p>
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Count</p>
               <select
                 disabled={disabled}
-                className="rounded border border-gray-600 bg-gray-900 px-2 py-1.5 text-sm disabled:opacity-50"
+                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
                 value={draft.maxClockExtensions}
-                onChange={(e) =>
-                  emitChange({ maxClockExtensions: Number(e.target.value) })
-                }
+                onChange={(e) => emitChange({ maxClockExtensions: Number(e.target.value) })}
               >
                 {EXTENSION_COUNT_OPTIONS.map((n) => (
-                  <option key={n} value={n}>
-                    {n}
-                  </option>
+                  <option key={n} value={n}>{n}</option>
                 ))}
               </select>
             </div>
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-gray-500">
-                Time
-              </p>
+              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Time</p>
               <select
                 disabled={disabled || draft.maxClockExtensions === 0}
-                className="rounded border border-gray-600 bg-gray-900 px-2 py-1.5 text-sm disabled:opacity-50"
+                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
                 value={draft.clockExtensionSeconds}
-                onChange={(e) =>
-                  emitChange({ clockExtensionSeconds: Number(e.target.value) })
-                }
+                onChange={(e) => emitChange({ clockExtensionSeconds: Number(e.target.value) })}
               >
                 {EXTENSION_TIME_OPTIONS.map((o) => (
-                  <option key={o.seconds} value={o.seconds}>
-                    {o.label}
-                  </option>
+                  <option key={o.seconds} value={o.seconds}>{o.label}</option>
                 ))}
               </select>
             </div>
           </div>
           {draft.maxClockExtensions === 0 && (
-            <p className="mt-1.5 text-xs text-gray-500">Disabled</p>
+            <p className="mt-1.5 text-xs text-slate-500">Disabled</p>
           )}
         </div>
 
         {/* When clock hits zero */}
         <div>
-          <p className="mb-2 text-sm font-semibold">
+          <p className="mb-2 text-sm font-semibold text-white">
             When clock hits zero{" "}
             <span
-              className="ml-1 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-gray-500 text-[10px] text-gray-400"
+              className="ml-1 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-slate-600 text-[10px] text-slate-400"
               title="What happens when the pick timer runs out"
             >
               ?
@@ -196,10 +143,7 @@ export default function ClockSettings({
           </p>
           <div className="space-y-2">
             {TIMER_BEHAVIORS.map((b) => (
-              <label
-                key={b.value}
-                className="flex cursor-pointer items-start gap-2"
-              >
+              <label key={b.value} className="flex cursor-pointer items-start gap-2">
                 <input
                   type="radio"
                   name="timer-behavior"
@@ -207,11 +151,11 @@ export default function ClockSettings({
                   disabled={disabled}
                   checked={draft.timerBehavior === b.value}
                   onChange={() => emitChange({ timerBehavior: b.value })}
-                  className="mt-0.5 accent-blue-500 disabled:opacity-50"
+                  className="mt-0.5 disabled:opacity-50"
                 />
                 <span className="text-sm leading-tight">
                   <span className="font-medium text-white">{b.label}</span>
-                  <span className="ml-1 text-gray-400 text-xs">{b.description}</span>
+                  <span className="ml-1 text-xs text-slate-400">{b.description}</span>
                 </span>
               </label>
             ))}
@@ -220,4 +164,5 @@ export default function ClockSettings({
       </div>
     </section>
   );
+
 }

@@ -81,9 +81,9 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
     }
   }
 
-  if (isLoading) return <main className="mx-auto max-w-5xl p-8">Loading league...</main>;
-  if (loadError || !workspace) return <main className="mx-auto max-w-5xl p-8 text-red-500">{loadError || "League not found."}</main>;
-  if (!workspace.canManage) return <main className="mx-auto max-w-5xl p-8 text-red-500">Only a league commissioner can create a season.</main>;
+  if (isLoading) return <main className="px-6 py-8">Loading league...</main>;
+  if (loadError || !workspace) return <main className="px-6 py-8 text-red-500">{loadError || "League not found."}</main>;
+  if (!workspace.canManage) return <main className="px-6 py-8 text-red-500">Only a league commissioner can create a season.</main>;
 
   const seasonContext = {
     leagueId: workspace.league.id,
@@ -92,31 +92,31 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl space-y-6 p-6 sm:p-8">
+    <main className="w-full space-y-6 px-6 py-8">
       <LeagueWorkspaceHeader league={workspace.league} canManage />
 
       <section>
         <h2 className="text-2xl font-bold">New Season</h2>
         <div className="mt-5 grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-2 block" htmlFor="season-year">Year</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-year">Year</label>
             <input
               id="season-year"
               type="number"
               min={2000}
               max={2100}
-              className="w-full rounded border p-2"
+              className="w-full"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
             />
           </div>
           <div>
-            <label className="mb-2 block" htmlFor="season-name">Season Name</label>
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-name">Season Name</label>
             <input
               id="season-name"
               required
               maxLength={100}
-              className="w-full rounded border p-2"
+              className="w-full"
               value={seasonName}
               onChange={(e) => setSeasonName(e.target.value)}
             />
@@ -142,15 +142,15 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
                 className={[
                   "rounded-xl border p-4 text-left transition-colors",
                   provider.available
-                    ? "border-gray-700 hover:border-blue-500 hover:bg-blue-950/20 cursor-pointer"
-                    : "border-gray-800 opacity-40 cursor-not-allowed",
+                    ? "border-slate-700 hover:border-teal-500 hover:bg-teal-950/20 cursor-pointer"
+                    : "border-slate-800 opacity-40 cursor-not-allowed",
                 ].join(" ")}
               >
                 <div className="mb-3 flex items-center gap-3">
                   <ProviderLogo domain={provider.logoDomain} label={provider.label} color={provider.logoColor} />
                   <p className="font-semibold">{provider.label}</p>
                 </div>
-                <p className="text-sm text-gray-400">{provider.description}</p>
+                <p className="text-sm text-slate-400">{provider.description}</p>
               </button>
             ))}
           </div>
@@ -159,7 +159,7 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         {selectedProvider === "sleeper" && (
           <div className="mt-4">
             <div className="mb-3">
-              <button type="button" onClick={resetProvider} className="text-sm text-gray-400 hover:text-white">
+              <button type="button" onClick={resetProvider} className="text-sm text-slate-400 hover:text-white">
                 ← Providers
               </button>
             </div>
@@ -177,16 +177,16 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         )}
 
         {selectedProvider && selectedProvider !== "sleeper" && providerPreview && (
-          <div className="rounded-xl border border-gray-700 p-5">
+          <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
             <div className="mb-4 flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setProviderPreview(null)}
-                className="text-sm text-gray-400 hover:text-white"
+                className="text-sm text-slate-400 hover:text-white"
               >
                 ← Back
               </button>
-              <span className="text-gray-600">|</span>
+              <span className="text-slate-700">|</span>
               <span className="text-sm font-semibold capitalize">{selectedProvider}</span>
             </div>
             <ProviderImportForm
@@ -198,29 +198,29 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         )}
       </section>
 
-      <div className="flex items-center gap-3 text-sm text-gray-500">
-        <span className="h-px flex-1 bg-gray-800" />
+      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
+        <span className="h-px flex-1 bg-slate-800" />
         Or create manually
-        <span className="h-px flex-1 bg-gray-800" />
+        <span className="h-px flex-1 bg-slate-800" />
       </div>
 
-      <form className="space-y-4 rounded-xl border border-gray-700 p-5" onSubmit={handleManualCreate}>
+      <form className="space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-6" onSubmit={handleManualCreate}>
         <div>
-          <label className="mb-2 block" htmlFor="season-draft-name">Draft Name</label>
-          <input id="season-draft-name" required maxLength={100} className="w-full rounded border p-2" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-draft-name">Draft Name</label>
+          <input id="season-draft-name" required maxLength={100} className="w-full" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
-            <label className="mb-2 block" htmlFor="season-team-count">Teams</label>
-            <input id="season-team-count" type="number" min={2} max={20} className="w-full rounded border p-2" value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} />
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-team-count">Teams</label>
+            <input id="season-team-count" type="number" min={2} max={20} className="w-full" value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} />
           </div>
           <div>
-            <label className="mb-2 block" htmlFor="season-rounds">Rounds</label>
-            <input id="season-rounds" type="number" min={1} max={30} className="w-full rounded border p-2" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
+            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-rounds">Rounds</label>
+            <input id="season-rounds" type="number" min={1} max={30} className="w-full" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
           </div>
         </div>
-        {error && <p className="text-red-500">{error}</p>}
-        <button type="submit" disabled={isCreating} className="rounded bg-blue-600 px-4 py-2 font-semibold disabled:opacity-50">
+        {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
+        <button type="submit" disabled={isCreating} className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors">
           {isCreating ? "Creating..." : "Create Season and Draft"}
         </button>
       </form>
@@ -247,7 +247,7 @@ function ProviderLogo({ domain, label }: { domain: string; label: string; color:
     );
   }
   return (
-    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-gray-700 text-sm font-bold">
+    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-700 text-sm font-bold">
       {label[0]}
     </span>
   );
@@ -376,13 +376,13 @@ function ProviderCredentialForm({
   };
 
   return (
-    <div className="rounded-xl border border-gray-700 p-5">
+    <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
       <div className="mb-4 flex items-center gap-3">
-        <button type="button" onClick={onBack} className="text-sm text-gray-400 hover:text-white">
+        <button type="button" onClick={onBack} className="text-sm text-slate-400 hover:text-white">
           ← Providers
         </button>
-        <span className="text-gray-600">|</span>
-        <span className="font-semibold">{providerLabel[provider]}</span>
+        <span className="text-slate-700">|</span>
+        <span className="font-semibold text-white">{providerLabel[provider]}</span>
       </div>
 
       <form className="space-y-4" onSubmit={handleSubmit}>
@@ -395,7 +395,7 @@ function ProviderCredentialForm({
             required
             inputMode={provider === "yahoo" ? "text" : "numeric"}
             placeholder={provider === "yahoo" ? "e.g. 423.l.123456" : "Numeric league ID"}
-            className="w-full rounded border p-2"
+            className="w-full"
             value={leagueId}
             onChange={(e) => setLeagueId(e.target.value)}
           />
@@ -405,7 +405,7 @@ function ProviderCredentialForm({
           <div>
             <button
               type="button"
-              className="text-sm text-blue-400 underline"
+              className="text-sm text-teal-400 hover:text-teal-300"
               onClick={() => setShowPrivate((v) => !v)}
             >
               {showPrivate ? "Hide" : "Private league? Add cookies"}
@@ -420,7 +420,7 @@ function ProviderCredentialForm({
                   <input
                     id="espn-s2"
                     type="password"
-                    className="w-full rounded border p-2 font-mono text-sm"
+                    className="w-full font-mono"
                     value={espnS2}
                     onChange={(e) => setEspnS2(e.target.value)}
                   />
@@ -431,7 +431,7 @@ function ProviderCredentialForm({
                     id="espn-swid"
                     type="password"
                     placeholder="{XXXXXXXX-XXXX-XXXX-XXXX-XXXXXXXXXXXX}"
-                    className="w-full rounded border p-2 font-mono text-sm"
+                    className="w-full font-mono"
                     value={swid}
                     onChange={(e) => setSwid(e.target.value)}
                   />
@@ -450,7 +450,7 @@ function ProviderCredentialForm({
               id="mfl-api-key"
               type="password"
               placeholder="Found in MFL account settings"
-              className="w-full rounded border p-2"
+              className="w-full"
               value={apiKey}
               onChange={(e) => setApiKey(e.target.value)}
             />
@@ -462,7 +462,7 @@ function ProviderCredentialForm({
             type="button"
             disabled={isConnecting}
             onClick={() => void handleYahooConnect()}
-            className="w-full rounded bg-purple-700 px-4 py-2 font-semibold disabled:opacity-50"
+            className="w-full rounded-xl bg-purple-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-purple-600 disabled:opacity-50 transition-colors"
           >
             {isConnecting ? "Opening Yahoo..." : "Connect Yahoo Account"}
           </button>
@@ -472,12 +472,12 @@ function ProviderCredentialForm({
           <p className="text-sm text-green-400">Yahoo account connected.</p>
         )}
 
-        {error && <p className="text-red-500 text-sm">{error}</p>}
+        {error && <p className="text-red-400 text-sm">{error}</p>}
 
         <button
           type="submit"
           disabled={isLoading}
-          className="rounded bg-blue-600 px-4 py-2 font-semibold disabled:opacity-50"
+          className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
         >
           {isLoading ? "Loading preview..." : "Preview Import"}
         </button>

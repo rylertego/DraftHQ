@@ -9,6 +9,7 @@ import type {
   Pick,
   Player,
   PlayerPosition,
+  RosterPosition,
   Team,
   TimerBehavior,
 } from "@/types/draft";
@@ -35,6 +36,13 @@ interface DraftRow {
   clock_extensions_used: number;
   sleeper_league_id: string | null;
   sleeper_draft_id: string | null;
+  scheduled_at: string | null;
+  scheduled_timezone: string | null;
+  roster_positions: unknown | null;
+  scoring_type: "standard" | "ppr" | "half_ppr" | "superflex";
+  use_whammies: boolean;
+  whammy_count: number;
+  hide_player_rankings: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -146,6 +154,13 @@ function mapDraft(row: DraftRow): Draft {
     clockExtensionsUsed: row.clock_extensions_used,
     sleeperLeagueId: row.sleeper_league_id,
     sleeperDraftId: row.sleeper_draft_id,
+    scheduledAt: row.scheduled_at ?? null,
+    scheduledTimezone: row.scheduled_timezone ?? null,
+    rosterPositions: (row.roster_positions as RosterPosition[] | null) ?? null,
+    scoringType: row.scoring_type ?? "standard",
+    useWhammies: row.use_whammies ?? false,
+    whammyCount: row.whammy_count ?? 1,
+    hidePlayerRankings: row.hide_player_rankings ?? false,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -316,7 +331,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_whammies,whammy_count,hide_player_rankings,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
@@ -627,6 +642,113 @@ async function runDraftLifecycleRpc(
   return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
 }
 
+export async function updateDraftSchedule(draftId: string, scheduledAt: string | null, timezone: string | null): Promise<Draft> {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase
+    .from("drafts")
+    .update({ scheduled_at: scheduledAt, scheduled_timezone: timezone })
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+  if (error) throw new Error(error.message);
+  return mapDraft(data);
+}
+
+export async function updateDraftRosterPositions(draftId: string, positions: RosterPosition[]): Promise<Draft> {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase
+    .from("drafts")
+    .update({ roster_positions: positions })
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+  if (error) throw new Error(error.message);
+  return mapDraft(data);
+}
+
+export async function updateDraftExtras(
+  draftId: string,
+  extras: Partial<{ scoringType: Draft["scoringType"]; useWhammies: boolean; whammyCount: number; hidePlayerRankings: boolean }>
+): Promise<Draft> {
+  await ensureAnonymousUser();
+  const update: Record<string, unknown> = {};
+  if (extras.scoringType !== undefined) update.scoring_type = extras.scoringType;
+  if (extras.useWhammies !== undefined) update.use_whammies = extras.useWhammies;
+  if (extras.whammyCount !== undefined) update.whammy_count = extras.whammyCount;
+  if (extras.hidePlayerRankings !== undefined) update.hide_player_rankings = extras.hidePlayerRankings;
+  const { data, error } = await supabase
+    .from("drafts")
+    .update(update)
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+  if (error) throw new Error(error.message);
+  return mapDraft(data);
+}
+
+export async function updateDraftRounds(draftId: string, rounds: number): Promise<Draft> {
+  await ensureAnonymousUser();
+  if (rounds < 1 || rounds > 50) throw new Error("Rounds must be between 1 and 50.");
+  const { data, error } = await supabase
+    .from("drafts")
+    .update({ rounds })
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+  if (error) throw new Error(error.message);
+  return mapDraft(data);
+}
+
+export async function updateDraftTeamCount(draftId: string, teamCount: number): Promise<Draft> {
+  await ensureAnonymousUser();
+  if (teamCount < 2 || teamCount > 32) throw new Error("Team count must be between 2 and 32.");
+
+  const { data: existingTeams, error: fetchError } = await supabase
+    .from("teams")
+    .select("id,draft_position")
+    .eq("draft_id", draftId)
+    .order("draft_position");
+  if (fetchError) throw new Error(fetchError.message);
+
+  const current = (existingTeams as { id: string; draft_position: number }[]) ?? [];
+
+  if (teamCount > current.length) {
+    const inserts = Array.from({ length: teamCount - current.length }, (_, i) => ({
+      draft_id: draftId,
+      name: `Team ${current.length + i + 1}`,
+      draft_position: current.length + i + 1,
+    }));
+    const { error: insertError } = await supabase.from("teams").insert(inserts);
+    if (insertError) throw new Error(insertError.message);
+  } else if (teamCount < current.length) {
+    const toRemove = current.slice(teamCount).map((t) => t.id);
+    const { error: deleteError } = await supabase.from("teams").delete().in("id", toRemove);
+    if (deleteError) throw new Error(deleteError.message);
+  }
+
+  const { data, error } = await supabase
+    .from("drafts")
+    .update({ team_count: teamCount })
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+  if (error) throw new Error(error.message);
+  return mapDraft(data);
+}
+
+export async function updateDraftName(draftId: string, name: string): Promise<Draft> {
+  const trimmed = name.trim();
+  if (!trimmed) throw new Error("Draft name cannot be empty.");
+  const { data, error } = await supabase
+    .from("drafts")
+    .update({ name: trimmed })
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+  if (error) throw new Error(error.message);
+  return mapDraft(data);
+}
+
 export async function startDraft(draftId: string) {
   return runDraftLifecycleRpc("start_draft", draftId);
 }
@@ -676,6 +798,33 @@ export async function expireCurrentPick(draftId: string, expectedPick: number) {
   }
 
   return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
+}
+
+export async function resetDraft(draftId: string) {
+  await ensureAnonymousUser();
+
+  const { error: deleteError } = await supabase
+    .from("picks")
+    .delete()
+    .eq("draft_id", draftId);
+
+  if (deleteError) throw new Error(deleteError.message);
+
+  const { data, error: updateError } = await supabase
+    .from("drafts")
+    .update({
+      status: "setup",
+      current_pick: 1,
+      pick_deadline_at: null,
+      paused_remaining_seconds: null,
+      clock_extensions_used: 0,
+    })
+    .eq("id", draftId)
+    .select()
+    .single<DraftRow>();
+
+  if (updateError) throw new Error(updateError.message);
+  return mapDraft(data);
 }
 
 export async function extendClock(draftId: string, expectedPick: number) {

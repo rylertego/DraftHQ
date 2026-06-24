@@ -1,5 +1,15 @@
 export type DraftStatus = "setup" | "active" | "paused" | "complete";
 
+export interface RosterPosition {
+  id: string;
+  label: string;
+  abbrev: string;
+  enabled: boolean;
+  min: number;
+  max: number;
+  color: string;
+}
+
 export type DraftRole = "commissioner" | "owner" | "viewer";
 
 export type TimerBehavior = "nothing" | "skip" | "auto_draft";
@@ -25,6 +35,13 @@ export interface Draft {
   clockExtensionsUsed: number;
   sleeperLeagueId: string | null;
   sleeperDraftId: string | null;
+  scheduledAt: string | null;
+  scheduledTimezone: string | null;
+  rosterPositions: RosterPosition[] | null;
+  scoringType: "standard" | "ppr" | "half_ppr" | "superflex";
+  useWhammies: boolean;
+  whammyCount: number;
+  hidePlayerRankings: boolean;
   createdAt: string;
   updatedAt: string;
 }

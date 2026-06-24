@@ -11,11 +11,7 @@ interface DraftChatProps {
   isCommissioner: boolean;
 }
 
-export default function DraftChat({
-  draftId,
-  participantId,
-  isCommissioner,
-}: DraftChatProps) {
+export default function DraftChat({ draftId, participantId, isCommissioner }: DraftChatProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<DraftMessage[]>([]);
   const [input, setInput] = useState("");
@@ -27,7 +23,6 @@ export default function DraftChat({
 
   useEffect(() => {
     let cancelled = false;
-
     void getDraftMessages(draftId).then((msgs) => {
       if (!cancelled) setMessages(msgs);
     });
@@ -36,30 +31,17 @@ export default function DraftChat({
       .channel(`draft-chat:${draftId}`)
       .on(
         "postgres_changes",
-        {
-          event: "INSERT",
-          schema: "public",
-          table: "draft_messages",
-          filter: `draft_id=eq.${draftId}`,
-        },
+        { event: "INSERT", schema: "public", table: "draft_messages", filter: `draft_id=eq.${draftId}` },
         (payload) => {
           const row = payload.new as {
-            id: string;
-            draft_id: string;
-            participant_id: string | null;
-            display_name: string;
-            content: string;
-            kind: "chat" | "announcement" | "system";
-            created_at: string;
+            id: string; draft_id: string; participant_id: string | null;
+            display_name: string; content: string;
+            kind: "chat" | "announcement" | "system"; created_at: string;
           };
           const msg: DraftMessage = {
-            id: row.id,
-            draftId: row.draft_id,
-            participantId: row.participant_id,
-            displayName: row.display_name,
-            content: row.content,
-            kind: row.kind,
-            createdAt: row.created_at,
+            id: row.id, draftId: row.draft_id, participantId: row.participant_id,
+            displayName: row.display_name, content: row.content,
+            kind: row.kind, createdAt: row.created_at,
           };
           setMessages((prev) => [...prev, msg]);
           setUnread((n) => (isOpen ? 0 : n + 1));
@@ -67,10 +49,7 @@ export default function DraftChat({
       )
       .subscribe();
 
-    return () => {
-      cancelled = true;
-      void supabase.removeChannel(channel);
-    };
+    return () => { cancelled = true; void supabase.removeChannel(channel); };
   }, [draftId, isOpen]);
 
   useEffect(() => {
@@ -84,18 +63,14 @@ export default function DraftChat({
   }, [isOpen]);
 
   useEffect(() => {
-    if (isOpen) {
-      bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
+    if (isOpen) bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
   async function handleSend() {
     const text = input.trim();
     if (!text || isSending || !participantId) return;
-
     setIsSending(true);
     setInput("");
-
     try {
       await sendDraftMessage(draftId, text, isAnnounce ? "announcement" : "chat");
       setIsAnnounce(false);
@@ -108,10 +83,7 @@ export default function DraftChat({
   }
 
   function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter" && !e.shiftKey) {
-      e.preventDefault();
-      void handleSend();
-    }
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); }
   }
 
   const canChat = Boolean(participantId);
@@ -122,7 +94,7 @@ export default function DraftChat({
       <button
         type="button"
         aria-label={isOpen ? "Close chat" : "Open chat"}
-        className="fixed bottom-4 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full bg-gray-800 shadow-lg border border-gray-600 hover:bg-gray-700 transition-colors"
+        className="fixed bottom-4 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-800 shadow-lg hover:bg-slate-700 transition-colors"
         onClick={() => setIsOpen((o) => !o)}
       >
         <span className="text-xl">💬</span>
@@ -135,19 +107,19 @@ export default function DraftChat({
 
       {/* Panel */}
       {isOpen && (
-        <div className="fixed bottom-0 left-0 z-40 flex h-[min(500px,80vh)] w-[340px] flex-col rounded-tr-xl border border-gray-700 bg-gray-950/95 shadow-2xl backdrop-blur">
+        <div className="fixed bottom-0 left-0 z-40 flex h-[min(500px,80vh)] w-[340px] flex-col rounded-tr-2xl border border-slate-700 bg-slate-950/95 shadow-2xl backdrop-blur">
           {/* Header */}
-          <div className="flex items-center justify-between border-b border-gray-700 px-4 py-2.5">
+          <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
             <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-green-400" />
-              <span className="text-xs font-bold uppercase tracking-widest text-gray-300">
+              <span className="h-2 w-2 rounded-full bg-teal-400" />
+              <span className="text-xs font-bold uppercase tracking-widest text-slate-300">
                 Draft Chat
               </span>
             </div>
             <button
               type="button"
               aria-label="Close chat"
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-700 text-xs hover:bg-gray-600"
+              className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
               onClick={() => setIsOpen(false)}
             >
               ✕
@@ -157,29 +129,22 @@ export default function DraftChat({
           {/* Messages */}
           <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
             {messages.length === 0 && (
-              <p className="mt-4 text-center text-xs text-gray-600">
-                No messages yet. Say hello!
-              </p>
+              <p className="mt-4 text-center text-xs text-slate-600">No messages yet. Say hello!</p>
             )}
 
             {messages.map((msg) => {
               if (msg.kind === "system") {
                 return (
                   <div key={msg.id} className="py-0.5 text-center">
-                    <span className="text-[11px] text-gray-500 italic">
-                      {msg.content}
-                    </span>
+                    <span className="text-[11px] italic text-slate-500">{msg.content}</span>
                   </div>
                 );
               }
 
               if (msg.kind === "announcement") {
                 return (
-                  <div
-                    key={msg.id}
-                    className="rounded border border-yellow-700/50 bg-yellow-950/40 px-3 py-1.5"
-                  >
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-yellow-400 uppercase tracking-wide mb-0.5">
+                  <div key={msg.id} className="rounded-xl border border-yellow-700/50 bg-yellow-950/40 px-3 py-1.5">
+                    <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-yellow-400">
                       <span>📣</span> Commissioner Announcement
                     </div>
                     <p className="text-sm text-yellow-100">{msg.content}</p>
@@ -190,18 +155,14 @@ export default function DraftChat({
               return (
                 <div key={msg.id} className="flex items-start gap-2 py-0.5">
                   <div
-                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-green-800 text-[10px] font-bold text-white"
+                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-900 text-[10px] font-bold text-teal-200"
                     aria-hidden
                   >
                     {msg.displayName.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[11px] font-semibold text-green-400">
-                      {msg.displayName}
-                    </span>
-                    <p className="text-sm leading-snug text-gray-200 break-words">
-                      {msg.content}
-                    </p>
+                    <span className="text-[11px] font-semibold text-teal-400">{msg.displayName}</span>
+                    <p className="break-words text-sm leading-snug text-slate-200">{msg.content}</p>
                   </div>
                 </div>
               );
@@ -211,16 +172,16 @@ export default function DraftChat({
 
           {/* Input */}
           {canChat ? (
-            <div className="border-t border-gray-700 p-2 space-y-1.5">
+            <div className="border-t border-slate-800 p-2 space-y-1.5">
               {isCommissioner && (
                 <button
                   type="button"
                   onClick={() => setIsAnnounce((a) => !a)}
                   className={[
-                    "w-full rounded px-3 py-1 text-xs font-semibold transition-colors",
+                    "w-full rounded-lg px-3 py-1 text-xs font-semibold transition-colors",
                     isAnnounce
                       ? "bg-yellow-600 text-white"
-                      : "bg-gray-800 text-gray-400 hover:bg-gray-700",
+                      : "bg-slate-800 text-slate-400 hover:bg-slate-700",
                   ].join(" ")}
                 >
                   {isAnnounce ? "📣 Sending as Announcement" : "Commish Announce"}
@@ -232,7 +193,7 @@ export default function DraftChat({
                   type="text"
                   maxLength={500}
                   placeholder={isAnnounce ? "Commissioner announcement..." : "Type message..."}
-                  className="min-w-0 flex-1 rounded border border-gray-700 bg-gray-900 px-3 py-1.5 text-sm text-white placeholder:text-gray-600 focus:border-gray-500 focus:outline-none"
+                  className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:border-teal-500 focus:outline-none"
                   value={input}
                   onChange={(e) => setInput(e.target.value)}
                   onKeyDown={handleKeyDown}
@@ -242,7 +203,7 @@ export default function DraftChat({
                   type="button"
                   disabled={!input.trim() || isSending}
                   onClick={() => void handleSend()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded bg-blue-600 text-white hover:bg-blue-500 disabled:opacity-40"
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-500 text-slate-950 hover:bg-teal-400 disabled:opacity-40 transition-colors"
                   aria-label="Send"
                 >
                   ↑
@@ -250,10 +211,8 @@ export default function DraftChat({
               </div>
             </div>
           ) : (
-            <div className="border-t border-gray-700 px-4 py-3">
-              <p className="text-center text-xs text-gray-500">
-                Join the draft to chat.
-              </p>
+            <div className="border-t border-slate-800 px-4 py-3">
+              <p className="text-center text-xs text-slate-500">Join the draft to chat.</p>
             </div>
           )}
         </div>

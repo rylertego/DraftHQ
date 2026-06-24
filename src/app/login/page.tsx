@@ -33,24 +33,59 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-md p-8">
-      <h1 className="mb-2 text-3xl font-bold">Log In</h1>
-      <p className="mb-6 text-gray-400">Continue to your draft room account.</p>
-      <form className="space-y-4" onSubmit={handleSubmit}>
-        <div>
-          <label className="mb-2 block" htmlFor="login-email">Email</label>
-          <input id="login-email" type="email" required className="w-full rounded border p-2" value={email} onChange={(event) => setEmail(event.target.value)} />
+    <main className="flex flex-1 items-center justify-center px-4 py-12">
+      <div className="w-full max-w-md">
+        <div className="mb-8 text-center">
+          <h1 className="text-3xl font-bold text-white">Welcome back</h1>
+          <p className="mt-2 text-slate-400">Log in to your DraftHQ account.</p>
         </div>
-        <div>
-          <label className="mb-2 block" htmlFor="login-password">Password</label>
-          <input id="login-password" type="password" required className="w-full rounded border p-2" value={password} onChange={(event) => setPassword(event.target.value)} />
+
+        <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
+          <form className="space-y-5" onSubmit={handleSubmit}>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="login-email">
+                Email
+              </label>
+              <input
+                id="login-email"
+                type="email"
+                required
+                className="w-full"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="login-password">
+                Password
+              </label>
+              <input
+                id="login-password"
+                type="password"
+                required
+                className="w-full"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+            </div>
+            {error && <p className="rounded-lg bg-red-950/40 border border-red-800 px-3 py-2 text-sm text-red-400">{error}</p>}
+            <button
+              type="submit"
+              disabled={isSubmitting}
+              className="w-full rounded-xl bg-teal-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+            >
+              {isSubmitting ? "Logging in..." : "Log In"}
+            </button>
+          </form>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            New here?{" "}
+            <Link className="text-teal-400 hover:text-teal-300 font-medium" href="/signup">
+              Create an account
+            </Link>
+          </p>
         </div>
-        {error && <p className="text-red-500">{error}</p>}
-        <button type="submit" disabled={isSubmitting} className="w-full rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50">
-          {isSubmitting ? "Logging in..." : "Log In"}
-        </button>
-      </form>
-      <p className="mt-4 text-sm text-gray-400">New here? <Link className="text-blue-400 underline" href="/signup">Create an account</Link></p>
+      </div>
     </main>
   );
 }

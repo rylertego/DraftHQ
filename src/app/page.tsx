@@ -14,50 +14,56 @@ export default function HomePage() {
   }, []);
 
   return (
-    <main className="mx-auto flex w-full max-w-5xl flex-1 items-center px-4 py-12 sm:px-6 sm:py-20">
-      <div className="w-full rounded-2xl border border-gray-800 bg-gray-950 p-6 shadow-2xl sm:p-10">
-        <p className="text-sm font-semibold uppercase tracking-[0.2em] text-blue-400">
-          Live fantasy draft room
-        </p>
-        <h1 className="mt-3 max-w-3xl text-4xl font-bold tracking-tight sm:text-6xl">
-          Run draft night together from any screen.
-        </h1>
-        <p className="mt-5 max-w-2xl text-lg leading-8 text-gray-300">
-          DraftHQ keeps every owner, pick, timer, and team in sync across phones
-          and laptops.
-        </p>
+    <main className="flex flex-1 items-center px-4 py-12 sm:px-6 sm:py-20">
+      <div className="mx-auto w-full max-w-5xl">
+        {/* Hero */}
+        <div className="mb-12 text-center">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal-400 mb-4">
+            Fantasy Draft Platform
+          </p>
+          <h1 className="text-5xl font-extrabold tracking-tight text-white sm:text-7xl">
+            Draft Together.<br />
+            <span className="text-teal-400">Win Forever.</span>
+          </h1>
+          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
+            DraftHQ keeps every owner, pick, timer, and team in sync — across phones and laptops — in real time.
+          </p>
+        </div>
 
-        <div className="mt-8 grid gap-4 sm:grid-cols-2">
-          <section className="rounded-xl border border-blue-800 bg-blue-950/30 p-5">
-            <h2 className="text-xl font-bold">Joining a draft?</h2>
-            <p className="mt-2 text-sm leading-6 text-gray-300">
-              Open your invitation link or enter the code from your commissioner.
+        {/* Cards */}
+        <div className="grid gap-5 sm:grid-cols-2">
+          <section className="rounded-2xl border border-teal-800/50 bg-teal-950/20 p-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-teal-500 mb-3">Owners</p>
+            <h2 className="text-2xl font-bold text-white">Joining a draft?</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
+              Open your invitation link or enter the join code from your commissioner.
             </p>
             <Link
-              className="mt-5 inline-flex w-full justify-center rounded bg-blue-600 px-4 py-3 font-semibold text-white"
               href="/join"
+              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
             >
-              Join Draft
+              Join a Draft
             </Link>
           </section>
 
-          <section className="rounded-xl border border-gray-700 p-5">
-            <h2 className="text-xl font-bold">Running the league?</h2>
-            <p className="mt-2 text-sm leading-6 text-gray-300">
+          <section className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Commissioners</p>
+            <h2 className="text-2xl font-bold text-white">Running the league?</h2>
+            <p className="mt-3 text-sm leading-6 text-slate-400">
               {isLoggedIn
-                ? "Create a draft, manage your league, or view your dashboard."
-                : "Log in to create, import, configure, and control your draft room."}
+                ? "Create a draft, manage your league, or enter your draft room."
+                : "Log in to create, configure, and control your draft."}
             </p>
-            <div className="mt-5 grid grid-cols-2 gap-3">
+            <div className="mt-6 grid grid-cols-2 gap-3">
               <Link
-                className="rounded bg-gray-700 px-4 py-3 text-center font-semibold text-white"
                 href={isLoggedIn ? "/dashboard" : "/login"}
+                className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-center text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
               >
                 {isLoggedIn ? "Dashboard" : "Log In"}
               </Link>
               <Link
-                className="rounded bg-green-700 px-4 py-3 text-center font-semibold text-white"
                 href="/create"
+                className="rounded-xl bg-teal-500 px-4 py-3 text-center text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
               >
                 Create Draft
               </Link>

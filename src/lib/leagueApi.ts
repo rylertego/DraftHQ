@@ -319,6 +319,45 @@ function getSingleSeason(data: unknown) {
   return mapSeason(row as LeagueSeasonRow, new Map());
 }
 
+export async function inviteLeagueMember(leagueId: string, email: string): Promise<{ invited: boolean }> {
+  const user = await requirePersistentUser();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Authentication session is missing.");
+
+  const response = await fetch(`/api/leagues/${leagueId}/members`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+  const payload = (await response.json()) as { error?: string; invited?: boolean };
+  if (!response.ok) throw new Error(payload.error ?? "Unable to add member.");
+  void user;
+  return { invited: payload.invited ?? false };
+}
+
+export async function removeLeagueMember(leagueId: string, memberId: string): Promise<void> {
+  const user = await requirePersistentUser();
+  const { data: sessionData } = await supabase.auth.getSession();
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) throw new Error("Authentication session is missing.");
+
+  const response = await fetch(`/api/leagues/${leagueId}/members`, {
+    method: "DELETE",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ memberId }),
+  });
+  const payload = (await response.json()) as { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? "Unable to remove member.");
+  void user;
+}
+
+export async function deleteLeague(leagueId: string): Promise<void> {
+  await requirePersistentUser();
+  const { error } = await supabase.from("leagues").delete().eq("id", leagueId);
+  if (error) throw new Error(error.message);
+}
+
 export async function createLeagueSeasonDraft(input: {
   leagueId: string;
   year: number;

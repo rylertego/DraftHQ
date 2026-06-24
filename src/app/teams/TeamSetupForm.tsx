@@ -1,23 +1,50 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import {
   assignTeam,
   configureDraftTimer,
   getDraftSetup,
   inviteOwner,
+  updateDraftName,
+  updateDraftExtras,
+  updateDraftRounds,
+  updateDraftRosterPositions,
+  updateDraftSchedule,
+  updateDraftTeamCount,
   updateTeamSetup,
   type DraftSetup,
 } from "@/lib/draftApi";
-import ClockSettings from "@/components/ClockSettings";
-import type { TimerBehavior } from "@/types/draft";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
 import { supabase } from "@/lib/supabase";
-import type { DraftInvitation, Team } from "@/types/draft";
+import ClockSettings from "@/components/ClockSettings";
+import type { DraftInvitation, RosterPosition, Team, TimerBehavior } from "@/types/draft";
+
+const DEFAULT_ROSTER_POSITIONS: RosterPosition[] = [
+  { id: "QB", label: "Quarterbacks", abbrev: "QB", enabled: true, min: 0, max: 9, color: "#67E8F9" },
+  { id: "RB", label: "Running backs", abbrev: "RB", enabled: true, min: 0, max: 9, color: "#FCD34D" },
+  { id: "WR", label: "Wide Receivers", abbrev: "WR", enabled: true, min: 0, max: 9, color: "#F97316" },
+  { id: "TE", label: "Tight End", abbrev: "TE", enabled: true, min: 0, max: 9, color: "#A78BFA" },
+  { id: "K", label: "Kickers", abbrev: "K", enabled: true, min: 0, max: 9, color: "#4ADE80" },
+  { id: "DST", label: "Defense / ST", abbrev: "Def", enabled: true, min: 0, max: 9, color: "#F87171" },
+  { id: "IDP", label: "Individual Def. Players", abbrev: "IDP", enabled: false, min: 0, max: 9, color: "#C4A4A4" },
+  { id: "FLEX", label: "Flex (W/R/T)", abbrev: "FLX", enabled: false, min: 0, max: 9, color: "#94A3B8" },
+  { id: "SUPERFLEX", label: "Superflex (Q/W/R/T)", abbrev: "SF", enabled: false, min: 0, max: 9, color: "#818CF8" },
+  { id: "OP", label: "Offensive Player", abbrev: "OP", enabled: false, min: 0, max: 9, color: "#FCA5A5" },
+  { id: "DL", label: "Defensive Line", abbrev: "DL", enabled: false, min: 0, max: 9, color: "#86EFAC" },
+  { id: "LB", label: "Linebacker", abbrev: "LB", enabled: false, min: 0, max: 9, color: "#93C5FD" },
+  { id: "DB", label: "Defensive Back", abbrev: "DB", enabled: false, min: 0, max: 9, color: "#FDE68A" },
+  { id: "BN", label: "Bench", abbrev: "BN", enabled: false, min: 0, max: 9, color: "#475569" },
+  { id: "IR", label: "Injured Reserve", abbrev: "IR", enabled: false, min: 0, max: 9, color: "#7F1D1D" },
+];
+const ROSTER_POSITIONS_COLLAPSED = 7;
+
+type Tab = "settings" | "teams" | "draft-order";
 
 interface TeamSetupFormProps {
   draftId: string | null;
@@ -30,338 +57,272 @@ async function copyText(text: string) {
       return true;
     }
   } catch {
-    // LAN development over HTTP may block the secure Clipboard API.
+    // fallback below
   }
-
-  const textArea = document.createElement("textarea");
-  textArea.value = text;
-  textArea.setAttribute("readonly", "");
-  textArea.style.position = "fixed";
-  textArea.style.opacity = "0";
-  document.body.appendChild(textArea);
-  textArea.select();
-  textArea.setSelectionRange(0, text.length);
-
+  const el = document.createElement("textarea");
+  el.value = text;
+  el.setAttribute("readonly", "");
+  el.style.cssText = "position:fixed;opacity:0";
+  document.body.appendChild(el);
+  el.select();
+  el.setSelectionRange(0, text.length);
   try {
     return document.execCommand("copy");
   } finally {
-    document.body.removeChild(textArea);
+    document.body.removeChild(el);
   }
+}
+
+function formatClock(seconds: number) {
+  const m = Math.floor(seconds / 60);
+  const s = seconds % 60;
+  return s === 0 ? `${m}m` : `${m}:${String(s).padStart(2, "0")}`;
+}
+
+const BEHAVIOR_LABELS: Record<string, string> = {
+  nothing: "Nothing happens",
+  skip: "Skip pick",
+  auto_draft: "Auto-draft",
+};
+
+function LockIcon() {
+  return (
+    <svg className="h-3.5 w-3.5 text-slate-600" viewBox="0 0 16 16" fill="none">
+      <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.4" />
+    </svg>
+  );
 }
 
 export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = (searchParams.get("tab") as Tab | null) ?? "teams";
+  const leagueSlug = searchParams.get("leagueSlug");
+  const backHref = leagueSlug ? `/leagues/${leagueSlug}` : "/dashboard";
+  const [tab, setTab] = useState<Tab>(initialTab);
   const [setup, setSetup] = useState<DraftSetup | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [assigningParticipantId, setAssigningParticipantId] = useState<
-    string | null
-  >(null);
+  const [assigningParticipantId, setAssigningParticipantId] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteTeamId, setInviteTeamId] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [isSavingClock, setIsSavingClock] = useState(false);
+
+  // Settings tab — draft name / format editing
+  const [draftName, setDraftName] = useState("");
+  const [isSavingName, setIsSavingName] = useState(false);
+  const nameInputRef = useRef<HTMLInputElement>(null);
+  const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
+  const [savingTeamId, setSavingTeamId] = useState<string | null>(null);
+  const [lastSeasonOpen, setLastSeasonOpen] = useState<Set<string>>(new Set());
+  const [rounds, setRounds] = useState(15);
+  const [isSavingRounds, setIsSavingRounds] = useState(false);
+  const [teamCount, setTeamCount] = useState(10);
+  const [isSavingTeamCount, setIsSavingTeamCount] = useState(false);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("");
+  const [scheduledTimezone, setScheduledTimezone] = useState(
+    Intl.DateTimeFormat().resolvedOptions().timeZone
+  );
+  const [isSavingSchedule, setIsSavingSchedule] = useState(false);
+  const [rosterPositions, setRosterPositions] = useState<RosterPosition[]>(DEFAULT_ROSTER_POSITIONS);
+  const [showAllPositions, setShowAllPositions] = useState(false);
+  const [scoringType, setScoringType] = useState<"standard" | "ppr" | "half_ppr" | "superflex">("standard");
+  const [useWhammies, setUseWhammies] = useState(false);
+  const [whammyCount, setWhammyCount] = useState(1);
+
   const [error, setError] = useState("");
 
   useEffect(() => {
-    if (!draftId) {
-      router.replace("/create");
-      return;
-    }
+    if (!draftId) { router.replace("/create"); return; }
 
     let cancelled = false;
-
-    async function loadTeams() {
-      try {
-        const loadedSetup = await getDraftSetup(draftId as string);
-
-        if (!cancelled) {
-          setSetup(loadedSetup);
-          setTeams(loadedSetup.teams);
+    void getDraftSetup(draftId).then((s) => {
+      if (!cancelled) {
+        setSetup(s); setTeams(s.teams); setDraftName(s.draft.name);
+        setRounds(s.draft.rounds); setTeamCount(s.draft.teamCount);
+        if (s.draft.scheduledAt) {
+          const dt = new Date(s.draft.scheduledAt);
+          setScheduledDate(dt.toISOString().slice(0, 10));
+          setScheduledTime(dt.toISOString().slice(11, 16));
         }
-      } catch (loadError) {
-        if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : "Unable to load teams."
+        if (s.draft.scheduledTimezone) setScheduledTimezone(s.draft.scheduledTimezone);
+        setScoringType(s.draft.scoringType ?? "standard");
+        setUseWhammies(s.draft.useWhammies ?? false);
+        setWhammyCount(s.draft.whammyCount ?? 1);
+        if (s.draft.rosterPositions?.length) {
+          setRosterPositions(
+            DEFAULT_ROSTER_POSITIONS.map((def) => {
+              const saved = s.draft.rosterPositions!.find((p) => p.id === def.id);
+              return saved ? { ...def, ...saved } : def;
+            })
           );
         }
-      } finally {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
       }
-    }
+    }).catch((e) => {
+      if (!cancelled) setError(e instanceof Error ? e.message : "Unable to load draft.");
+    }).finally(() => {
+      if (!cancelled) setIsLoading(false);
+    });
 
-    void loadTeams();
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [draftId, router]);
 
   useEffect(() => {
-    if (!draftId) {
-      return;
-    }
-
+    if (!draftId) return;
     let active = true;
-    let refreshInFlight = false;
-    let refreshQueued = false;
+    let inFlight = false;
+    let queued = false;
 
-    const refreshSetup = async () => {
-      if (refreshInFlight) {
-        refreshQueued = true;
-        return;
-      }
-
-      refreshInFlight = true;
+    const refresh = async () => {
+      if (inFlight) { queued = true; return; }
+      inFlight = true;
       do {
-        refreshQueued = false;
+        queued = false;
         try {
-          const refreshedSetup = await getDraftSetup(draftId);
+          const s = await getDraftSetup(draftId);
           if (active) {
-            setSetup(refreshedSetup);
+            setSetup(s);
+            setTeams(s.teams);
+            setDraftName((prev) => prev === s.draft.name ? prev : s.draft.name);
             setError("");
           }
-        } catch (refreshError) {
-          if (active) {
-            setError(
-              refreshError instanceof Error
-                ? refreshError.message
-                : "Unable to refresh owners."
-            );
-          }
+        } catch (e) {
+          if (active) setError(e instanceof Error ? e.message : "Unable to refresh.");
         }
-      } while (active && refreshQueued);
-      refreshInFlight = false;
+      } while (active && queued);
+      inFlight = false;
     };
 
     const channel = supabase
       .channel(`team-setup:${draftId}`)
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "draft_participants",
-          filter: `draft_id=eq.${draftId}`,
-        },
-        () => void refreshSetup()
-      )
-      .on(
-        "postgres_changes",
-        {
-          event: "*",
-          schema: "public",
-          table: "draft_invitations",
-          filter: `draft_id=eq.${draftId}`,
-        },
-        () => void refreshSetup()
-      )
-      .subscribe((status) => {
-        if (status === "SUBSCRIBED") {
-          void refreshSetup();
-        }
-      });
+      .on("postgres_changes", { event: "*", schema: "public", table: "draft_participants", filter: `draft_id=eq.${draftId}` }, () => void refresh())
+      .on("postgres_changes", { event: "*", schema: "public", table: "draft_invitations", filter: `draft_id=eq.${draftId}` }, () => void refresh())
+      .subscribe((s) => { if (s === "SUBSCRIBED") void refresh(); });
 
-    const refreshWhenVisible = () => {
-      if (
-        shouldRefreshDraftOnVisibility(
-          document.visibilityState,
-          navigator.onLine
-        )
-      ) {
-        void refreshSetup();
-      }
+    const onVisible = () => {
+      if (shouldRefreshDraftOnVisibility(document.visibilityState, navigator.onLine)) void refresh();
     };
-    const pollId = window.setInterval(refreshWhenVisible, 10_000);
-    window.addEventListener("online", refreshWhenVisible);
-    window.addEventListener("focus", refreshWhenVisible);
-    document.addEventListener("visibilitychange", refreshWhenVisible);
+    const pollId = window.setInterval(onVisible, 10_000);
+    window.addEventListener("online", onVisible);
+    window.addEventListener("focus", onVisible);
+    document.addEventListener("visibilitychange", onVisible);
 
     return () => {
       active = false;
       window.clearInterval(pollId);
-      window.removeEventListener("online", refreshWhenVisible);
-      window.removeEventListener("focus", refreshWhenVisible);
-      document.removeEventListener("visibilitychange", refreshWhenVisible);
+      window.removeEventListener("online", onVisible);
+      window.removeEventListener("focus", onVisible);
+      document.removeEventListener("visibilitychange", onVisible);
       void supabase.removeChannel(channel);
     };
   }, [draftId]);
 
   function updateTeam(teamId: string, value: string) {
-    setTeams((current) =>
-      current.map((team) =>
-        team.id === teamId ? { ...team, name: value } : team
-      )
-    );
+    setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, name: value } : t));
   }
 
   function moveTeam(index: number, offset: -1 | 1) {
-    setTeams((current) => moveDraftTeam(current, index, offset));
+    setTeams((prev) => moveDraftTeam(prev, index, offset));
   }
 
   async function refreshParticipants() {
-    if (!draftId) {
-      return;
-    }
-
-    setError("");
+    if (!draftId) return;
     setIsRefreshing(true);
-
     try {
-      const refreshedSetup = await getDraftSetup(draftId);
-      setSetup(refreshedSetup);
-    } catch (refreshError) {
-      setError(
-        refreshError instanceof Error
-          ? refreshError.message
-          : "Unable to refresh participants."
-      );
+      const s = await getDraftSetup(draftId);
+      setSetup(s);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to refresh.");
     } finally {
       setIsRefreshing(false);
     }
   }
 
-  async function updateAssignment(participantId: string, teamId: string) {
-    if (!draftId || !setup) {
-      return;
-    }
-
-    setError("");
-    setAssigningParticipantId(participantId);
-
+  async function saveDraftName() {
+    if (!draftId || !setup) return;
+    const trimmed = draftName.trim();
+    if (!trimmed || trimmed === setup.draft.name) return;
+    setIsSavingName(true);
     try {
-      const updatedParticipant = await assignTeam(
-        draftId,
-        participantId,
-        teamId || null
-      );
+      const updated = await updateDraftName(draftId, trimmed);
+      setSetup({ ...setup, draft: updated });
+      setDraftName(updated.name);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to update draft name.");
+      setDraftName(setup.draft.name);
+    } finally {
+      setIsSavingName(false);
+    }
+  }
 
-      setSetup({
-        ...setup,
-        participants: setup.participants.map((participant) =>
-          participant.id === participantId ? updatedParticipant : participant
-        ),
-      });
-    } catch (assignmentError) {
-      setError(
-        assignmentError instanceof Error
-          ? assignmentError.message
-          : "Unable to assign the team."
-      );
+  async function updateAssignment(participantId: string, teamId: string) {
+    if (!draftId || !setup) return;
+    setAssigningParticipantId(participantId);
+    try {
+      const updated = await assignTeam(draftId, participantId, teamId || null);
+      setSetup({ ...setup, participants: setup.participants.map((p) => p.id === participantId ? updated : p) });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to assign team.");
     } finally {
       setAssigningParticipantId(null);
     }
   }
 
   async function copyJoinLink() {
-    if (!setup) {
-      return;
-    }
-
-    const joinUrl = `${window.location.origin}/join/${setup.draft.joinCode}`;
-
-    if (await copyText(joinUrl)) {
-      setCopyStatus("Join link copied.");
-    } else {
-      setCopyStatus(`Clipboard unavailable. Copy manually:\n${joinUrl}`);
-    }
+    if (!setup) return;
+    const url = `${window.location.origin}/join/${setup.draft.joinCode}`;
+    setCopyStatus((await copyText(url)) ? "Copied!" : `Copy manually: ${url}`);
+    setTimeout(() => setCopyStatus(""), 2500);
   }
 
   async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     const sendEmail = submitter?.getAttribute("data-delivery") !== "manual";
-
-    if (!draftId || !setup || !inviteEmail.trim() || !inviteTeamId) {
-      return;
-    }
-
-    setError("");
+    if (!draftId || !setup || !inviteEmail.trim() || !inviteTeamId) return;
     setIsInviting(true);
-
     try {
-      const result = await inviteOwner(
-        draftId,
-        inviteEmail.trim(),
-        inviteTeamId,
-        { sendEmail }
-      );
-      const invitation = result.invitation;
-      const invitedTeam = teams.find((team) => team.id === invitation.teamId);
-      const existingIndex = setup.invitations.findIndex(
-        (current) => current.id === invitation.id
-      );
-      const invitations =
-        existingIndex === -1
-          ? [...setup.invitations, invitation]
-          : setup.invitations.map((current) =>
-              current.id === invitation.id ? invitation : current
-            );
-
+      const result = await inviteOwner(draftId, inviteEmail.trim(), inviteTeamId, { sendEmail });
+      const { invitation } = result;
+      const invitedTeam = teams.find((t) => t.id === invitation.teamId);
+      const idx = setup.invitations.findIndex((i) => i.id === invitation.id);
+      const invitations = idx === -1
+        ? [...setup.invitations, invitation]
+        : setup.invitations.map((i) => i.id === invitation.id ? invitation : i);
       setSetup({ ...setup, invitations });
-      setInviteEmail("");
-      setInviteTeamId("");
+      setInviteEmail(""); setInviteTeamId("");
       if (!sendEmail && invitedTeam) {
         await copyOwnerInviteDetails(invitation, invitedTeam);
       } else {
-        setCopyStatus(
-          result.warning
-            ? `${result.warning} Use Copy Invite below to share it manually.`
-            : "Invitation reserved and email requested."
-        );
+        setCopyStatus(result.warning ? `${result.warning} Use Copy Invite below.` : "Invitation sent.");
+        setTimeout(() => setCopyStatus(""), 3000);
       }
-    } catch (inviteError) {
-      setError(
-        inviteError instanceof Error
-          ? inviteError.message
-          : "Unable to send invitation."
-      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to send invitation.");
     } finally {
       setIsInviting(false);
     }
   }
 
   async function copyOwnerInvite(invitationId: string) {
-    const invitation = setup?.invitations.find(
-      (current) => current.id === invitationId
-    );
-    const team = teams.find((current) => current.id === invitation?.teamId);
-
-    if (!setup || !invitation || !team) {
-      return;
-    }
-
-    await copyOwnerInviteDetails(invitation, team);
+    const inv = setup?.invitations.find((i) => i.id === invitationId);
+    const team = teams.find((t) => t.id === inv?.teamId);
+    if (!setup || !inv || !team) return;
+    await copyOwnerInviteDetails(inv, team);
   }
 
-  async function copyOwnerInviteDetails(
-    invitation: DraftInvitation,
-    team: Team
-  ) {
-    if (!setup) {
-      return;
-    }
-
-    const joinUrl = `${window.location.origin}/join/${setup.draft.joinCode}`;
-    const message = buildOwnerInvitationMessage({
-      draftName: setup.draft.name,
-      teamName: team.name,
-      email: invitation.email,
-      joinUrl,
-    });
-
-    if (await copyText(message)) {
-      setCopyStatus(`Invite for ${invitation.email} copied.`);
-    } else {
-      setCopyStatus(`Clipboard unavailable. Copy manually:\n${message}`);
-    }
+  async function copyOwnerInviteDetails(invitation: DraftInvitation, team: Team) {
+    if (!setup) return;
+    const url = `${window.location.origin}/join/${setup.draft.joinCode}`;
+    const msg = buildOwnerInvitationMessage({ draftName: setup.draft.name, teamName: team.name, email: invitation.email, joinUrl: url });
+    setCopyStatus((await copyText(msg)) ? `Invite for ${invitation.email} copied.` : `Copy manually:\n${msg}`);
+    setTimeout(() => setCopyStatus(""), 3000);
   }
 
   async function saveClockSettings(settings: {
@@ -371,406 +332,1102 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     maxClockExtensions: number;
   }) {
     if (!draftId || !setup) return;
-
     setIsSavingClock(true);
-    setError("");
-
     try {
-      const updatedDraft = await configureDraftTimer(draftId, settings.pickSeconds, {
+      const updated = await configureDraftTimer(draftId, settings.pickSeconds, {
         timerBehavior: settings.timerBehavior,
         clockExtensionSeconds: settings.clockExtensionSeconds,
         maxClockExtensions: settings.maxClockExtensions,
       });
-      setSetup({ ...setup, draft: updatedDraft });
-    } catch (clockError) {
-      setError(
-        clockError instanceof Error
-          ? clockError.message
-          : "Unable to save clock settings."
-      );
+      setSetup({ ...setup, draft: updated });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save clock settings.");
     } finally {
       setIsSavingClock(false);
     }
   }
 
+  async function saveTeam(teamId: string) {
+    if (!draftId) return;
+    setSavingTeamId(teamId);
+    try {
+      await updateTeamSetup(draftId, teams);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save team.");
+    } finally {
+      setSavingTeamId(null);
+    }
+  }
+
+  function saveRosterPositions(updated: RosterPosition[]) {
+    setRosterPositions(updated);
+    if (!draftId || !setup) return;
+    updateDraftRosterPositions(draftId, updated)
+      .then((draft) => setSetup({ ...setup, draft }))
+      .catch((e) => setError(e instanceof Error ? e.message : "Unable to save roster positions."));
+  }
+
   async function continueToDraft() {
-    if (!draftId) {
-      return;
-    }
-
-    if (teams.some((team) => !team.name.trim())) {
-      setError("Every team must have a name.");
-      return;
-    }
-
-    setError("");
-    setIsSaving(true);
-
+    if (!draftId) return;
+    if (teams.some((t) => !t.name.trim())) { setError("Every team must have a name."); return; }
+    setError(""); setIsSaving(true);
     try {
       await updateTeamSetup(draftId, teams);
       router.push(`/draft?draftId=${draftId}`);
-    } catch (saveError) {
-      setError(
-        saveError instanceof Error
-          ? saveError.message
-          : "Unable to save teams."
-      );
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save teams.");
       setIsSaving(false);
     }
   }
 
   if (isLoading) {
-    return <main className="max-w-2xl mx-auto p-8">Loading teams...</main>;
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-slate-500">Loading draft...</p>
+      </div>
+    );
   }
 
   if (!setup) {
     return (
-      <main className="max-w-2xl mx-auto p-8 text-red-500">
-        {error || "Unable to load draft setup."}
-      </main>
+      <div className="flex min-h-screen items-center justify-center">
+        <p className="text-red-400">{error || "Unable to load draft setup."}</p>
+      </div>
     );
   }
 
-  const isCommissioner =
-    setup.currentUserId === setup.draft.commissionerUserId;
-  const canManageAssignments =
-    setup.draft.status === "setup" || setup.draft.status === "paused";
+  const isCommissioner = setup.currentUserId === setup.draft.commissionerUserId;
+  const canManageAssignments = setup.draft.status === "setup" || setup.draft.status === "paused";
+  const draft = setup.draft;
+  const joinUrl = typeof window !== "undefined"
+    ? `${window.location.origin}/join/${draft.joinCode}`
+    : `/join/${draft.joinCode}`;
+  const isDraftNameDirty = draftName.trim() !== draft.name && draftName.trim() !== "";
+
+  const TABS: { id: Tab; label: string }[] = [
+    { id: "settings", label: "Settings" },
+    { id: "teams", label: "Teams" },
+    { id: "draft-order", label: "Draft Order" },
+  ];
+
+  const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-teal-500 focus:outline-none disabled:opacity-50 transition-colors";
+  const labelCls = "block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5";
+  const cardCls = "rounded-2xl border border-slate-800 bg-slate-900 p-6";
 
   return (
-    <main className="max-w-2xl mx-auto p-8 space-y-8">
-      <section>
-        <h1 className="text-3xl font-bold mb-2">Team Setup</h1>
-        <p className="text-gray-400">Join code: {setup.draft.joinCode}</p>
-        <div className="flex items-center gap-3 mt-3">
-          <a
-            className="text-blue-400 underline"
-            href={`/join/${setup.draft.joinCode}`}
-            target="_blank"
-            rel="noreferrer"
-          >
-            Open join page
-          </a>
-          <button
-            type="button"
-            className="bg-gray-700 px-3 py-1 rounded"
-            onClick={copyJoinLink}
-          >
-            Copy Join Link
-          </button>
-        </div>
-        {copyStatus && (
-          <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-400 select-all">
-            {copyStatus}
-          </p>
-        )}
-      </section>
+    <div className="flex-1 text-white">
 
-      <section>
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xl font-bold">Teams</h2>
-          {isCommissioner && (
+      {/* ── Header ── */}
+      <header className="sticky top-0 z-20 border-b border-slate-800 bg-[#020617]/95 backdrop-blur">
+        <div className="flex items-center gap-3 px-6 py-3">
+          <Link
+            href={backHref}
+            className="flex items-center gap-1.5 text-slate-500 hover:text-white transition-colors"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+              <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </Link>
+          <span className="font-bold text-white">{draft.name}</span>
+
+          <div className="ml-auto flex items-center gap-3">
+            <span className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+              Pre-Draft
+            </span>
             <button
               type="button"
-              disabled={isRefreshing}
-              className="rounded bg-gray-700 px-3 py-1 text-sm disabled:opacity-50"
-              onClick={refreshParticipants}
+              onClick={() => void continueToDraft()}
+              disabled={isSaving}
+              className="flex items-center gap-2 rounded-lg bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
             >
-              {isRefreshing ? "Refreshing..." : "Refresh"}
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+                <path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+              </svg>
+              Enter Draft Room
             </button>
-          )}
+          </div>
         </div>
 
-        {isCommissioner && !canManageAssignments && (
-          <p className="mb-3 text-sm text-yellow-400">
-            Pause the draft to change team assignments.
-          </p>
-        )}
-
-        <div className="space-y-2">
-          {teams.map((team, index) => {
-            const owner = setup.participants.find((p) => p.teamId === team.id);
-            const pendingInvite = setup.invitations.find(
-              (inv) => inv.teamId === team.id && inv.status === "pending"
-            );
-            const isSelf = owner?.userId === setup.currentUserId;
-
-            return (
-              <div
-                key={team.id}
+        {/* Tabs */}
+        <div className="px-6">
+          <nav className="flex">
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => setTab(t.id)}
                 className={[
-                  "flex flex-wrap items-center gap-2 rounded-lg border p-3",
-                  isSelf
-                    ? "border-blue-700 bg-blue-950/20"
-                    : "border-gray-700",
+                  "border-b-2 px-5 py-3 text-sm font-medium transition-colors",
+                  tab === t.id
+                    ? "border-teal-500 text-teal-400"
+                    : "border-transparent text-slate-500 hover:text-slate-300",
                 ].join(" ")}
               >
-                <span className="w-5 shrink-0 text-center text-sm text-gray-500">
-                  {index + 1}
-                </span>
-
-                <input
-                  aria-label={`Team ${index + 1} name`}
-                  disabled={!isCommissioner}
-                  className="min-w-0 flex-1 rounded border p-1.5 text-sm disabled:opacity-60"
-                  value={team.name}
-                  onChange={(event) => updateTeam(team.id, event.target.value)}
-                />
-
-                {/* Ownership status chip */}
-                {owner ? (
-                  <span className="shrink-0 rounded-full bg-green-900/60 px-2.5 py-0.5 text-xs font-medium text-green-400">
-                    {isSelf ? "You" : owner.displayName}
-                  </span>
-                ) : pendingInvite ? (
-                  <span
-                    title={pendingInvite.email}
-                    className="max-w-[120px] shrink-0 truncate rounded-full bg-yellow-900/60 px-2.5 py-0.5 text-xs font-medium text-yellow-400"
-                  >
-                    Invited
-                  </span>
-                ) : (
-                  <span className="shrink-0 rounded-full bg-gray-800 px-2.5 py-0.5 text-xs font-medium text-gray-500">
-                    Open
-                  </span>
-                )}
-
-                {/* Commissioner: quick-fill invite form for open slots */}
-                {isCommissioner && !owner && !pendingInvite && (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded border border-dashed border-gray-600 px-2 py-0.5 text-xs text-gray-400 hover:border-blue-500 hover:text-blue-400"
-                    onClick={() => {
-                      setInviteTeamId(team.id);
-                      document.getElementById("invite-email")?.focus();
-                    }}
-                  >
-                    + Invite
-                  </button>
-                )}
-
-                {/* Pending invite: copy details */}
-                {isCommissioner && pendingInvite && (
-                  <button
-                    type="button"
-                    className="shrink-0 rounded bg-gray-700 px-2 py-0.5 text-xs"
-                    onClick={() => copyOwnerInvite(pendingInvite.id)}
-                  >
-                    Copy
-                  </button>
-                )}
-
-                {isCommissioner && (
-                  <>
-                    <button
-                      type="button"
-                      aria-label={`Move ${team.name} up`}
-                      disabled={index === 0}
-                      className="shrink-0 rounded bg-gray-700 px-2.5 py-1.5 text-xs disabled:opacity-30"
-                      onClick={() => moveTeam(index, -1)}
-                    >
-                      ↑
-                    </button>
-                    <button
-                      type="button"
-                      aria-label={`Move ${team.name} down`}
-                      disabled={index === teams.length - 1}
-                      className="shrink-0 rounded bg-gray-700 px-2.5 py-1.5 text-xs disabled:opacity-30"
-                      onClick={() => moveTeam(index, 1)}
-                    >
-                      ↓
-                    </button>
-                  </>
-                )}
-              </div>
-            );
-          })}
+                {t.label}
+              </button>
+            ))}
+          </nav>
         </div>
-      </section>
+      </header>
 
-      {isCommissioner && (
-        <ClockSettings
-          draft={setup.draft}
-          disabled={isSavingClock}
-          onSave={(settings) => void saveClockSettings(settings)}
-        />
-      )}
+      {/* ── Body ── */}
+      <div className="mx-auto max-w-5xl px-6 py-8">
+        {error && (
+          <div className="mb-6 rounded-lg border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-400">
+            {error}
+          </div>
+        )}
+        {copyStatus && (
+          <div className="mb-6 rounded-lg border border-teal-700/50 bg-teal-950/30 px-4 py-3 text-sm text-teal-300">
+            {copyStatus}
+          </div>
+        )}
 
-      {error && <p className="text-red-500">{error}</p>}
+        <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
 
-      {isCommissioner ? (
-        <button
-          type="button"
-          onClick={continueToDraft}
-          disabled={
-            isSaving || assigningParticipantId !== null || teams.length === 0
-          }
-          className="bg-blue-600 disabled:opacity-50 text-white px-4 py-2 rounded"
-        >
-          {isSaving ? "Saving..." : "Continue"}
-        </button>
-      ) : (
-        <button
-          type="button"
-          onClick={() => router.push(`/draft?draftId=${draftId}`)}
-          className="bg-blue-600 text-white px-4 py-2 rounded"
-        >
-          Open Draft
-        </button>
-      )}
-
-      {isCommissioner && (
-        <section className="space-y-6">
+          {/* ── Main content ── */}
           <div>
-            <h2 className="text-xl font-bold mb-3">Invite Owners</h2>
-            <form
-              className="grid gap-2 sm:grid-cols-[1fr_1fr_auto]"
-              onSubmit={sendEmailInvitation}
-            >
-              <input
-                id="invite-email"
-                type="email"
-                required
-                maxLength={320}
-                className="border rounded p-2 flex-1"
-                placeholder="owner@example.com"
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-              />
-              <select
-                required
-                aria-label="Team for invited owner"
-                className="border rounded p-2 bg-gray-900"
-                value={inviteTeamId}
-                onChange={(event) => setInviteTeamId(event.target.value)}
-              >
-                <option value="">Select team</option>
-                {teams.map((team) => {
-                  const isUnavailable =
-                    setup.participants.some(
-                      (participant) => participant.teamId === team.id
-                    ) ||
-                    setup.invitations.some(
-                      (invitation) =>
-                        invitation.status === "pending" &&
-                        invitation.teamId === team.id
-                    );
 
-                  return (
-                    <option
-                      key={team.id}
-                      value={team.id}
-                      disabled={isUnavailable}
-                    >
-                      {team.name}
-                    </option>
-                  );
-                })}
-              </select>
-              <button
-                type="submit"
-                data-delivery="email"
-                disabled={isInviting}
-                className="bg-blue-600 disabled:opacity-50 px-4 py-2 rounded"
-              >
-                {isInviting ? "Sending..." : "Send Invite"}
-              </button>
-              <button
-                type="submit"
-                data-delivery="manual"
-                disabled={isInviting}
-                className="rounded bg-gray-700 px-4 py-2 disabled:opacity-50 sm:col-start-3"
-              >
-                Reserve & Copy
-              </button>
-            </form>
+            {/* SETTINGS TAB */}
+            {tab === "settings" && (
+              <div className="space-y-5">
 
-            {setup.invitations.length > 0 && (
-              <div className="mt-3 space-y-2">
-                {setup.invitations.map((invitation) => (
-                  <div
-                    key={invitation.id}
-                    className="border border-gray-700 rounded p-2 flex justify-between gap-3"
-                  >
-                    <span>
-                      {invitation.email}
-                      {invitation.teamId && (
-                        <span className="text-gray-400">
-                          {" "}
-                          - {teams.find(
-                            (team) => team.id === invitation.teamId
-                          )?.name}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Draft details</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Name and invite link for your draft.</p>
+
+                  <div className="grid gap-5 sm:grid-cols-2">
+                    <div>
+                      <label htmlFor="draft-name" className={labelCls}>Draft name</label>
+                      <div className="flex gap-2">
+                        <input
+                          id="draft-name"
+                          ref={nameInputRef}
+                          type="text"
+                          maxLength={80}
+                          disabled={!isCommissioner || isSavingName}
+                          className={inputCls}
+                          value={draftName}
+                          onChange={(e) => setDraftName(e.target.value)}
+                          onBlur={() => { if (isDraftNameDirty) void saveDraftName(); }}
+                          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveDraftName(); nameInputRef.current?.blur(); } }}
+                        />
+                        {isDraftNameDirty && (
+                          <button
+                            type="button"
+                            disabled={isSavingName}
+                            onClick={() => void saveDraftName()}
+                            className="shrink-0 rounded-lg bg-teal-500 px-3 text-xs font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                          >
+                            {isSavingName ? "..." : "Save"}
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <p className={labelCls}>Join code</p>
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 font-mono text-lg font-bold tracking-[0.25em] text-white">
+                          {draft.joinCode}
                         </span>
-                      )}
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-gray-400 capitalize">
-                        {invitation.status}
-                      </span>
-                      {invitation.status === "pending" && invitation.teamId && (
                         <button
                           type="button"
-                          className="rounded bg-gray-700 px-2 py-1 text-sm"
-                          onClick={() => copyOwnerInvite(invitation.id)}
+                          onClick={copyJoinLink}
+                          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
                         >
-                          Copy Invite
+                          Copy link
                         </button>
-                      )}
+                        <a
+                          href={joinUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="text-xs text-teal-400 hover:text-teal-300"
+                        >
+                          Open ↗
+                        </a>
+                      </div>
                     </div>
                   </div>
-                ))}
-              </div>
-            )}
-          </div>
+                </div>
 
-          {/* Unassigned participants — joined but not yet on a team */}
-          {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").length > 0 && (
-            <div>
-              <h3 className="mb-2 text-sm font-semibold text-gray-400 uppercase tracking-wide">
-                Waiting for assignment
-              </h3>
-              <div className="space-y-2">
-                {setup.participants
-                  .filter((p) => !p.teamId && p.role !== "commissioner")
-                  .map((participant) => {
-                    const unavailableTeamIds = getAssignedTeamIds(
-                      setup.participants,
-                      participant.id
-                    );
-                    return (
-                      <div
-                        key={participant.id}
-                        className="flex items-center gap-3 rounded-lg border border-gray-700 p-3"
-                      >
-                        <div className="flex-1">
-                          <div className="font-semibold">{participant.displayName}</div>
-                          <div className="text-xs text-gray-400">Joined, unassigned</div>
-                        </div>
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Draft format</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Changing teams will add or remove slots from the draft order.</p>
+
+                  <div className="grid gap-5 sm:grid-cols-2 mb-5">
+                    <div>
+                      <label className={labelCls}>Teams</label>
+                      <div className="flex items-center gap-2">
                         <select
-                          aria-label={`Assign team to ${participant.displayName}`}
-                          className="rounded border bg-gray-900 p-2 text-sm"
-                          value=""
-                          disabled={!canManageAssignments || assigningParticipantId === participant.id}
-                          onChange={(e) => updateAssignment(participant.id, e.target.value)}
+                          disabled={!isCommissioner || isSavingTeamCount}
+                          className="w-full disabled:opacity-50"
+                          value={teamCount}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setTeamCount(val);
+                            if (draftId && setup) {
+                              setIsSavingTeamCount(true);
+                              updateDraftTeamCount(draftId, val)
+                                .then((updated) => import("@/lib/draftApi").then((m) => m.getDraftSetup(draftId)).then((fresh) => {
+                                  setSetup({ ...fresh, draft: updated });
+                                  setTeams(fresh.teams);
+                                }))
+                                .catch((e) => { setError(e instanceof Error ? e.message : "Unable to update teams."); setTeamCount(setup.draft.teamCount); })
+                                .finally(() => setIsSavingTeamCount(false));
+                            }
+                          }}
                         >
-                          <option value="">Assign team…</option>
-                          {teams.map((team) => (
-                            <option
-                              key={team.id}
-                              value={team.id}
-                              disabled={unavailableTeamIds.includes(team.id)}
-                            >
-                              {team.name}
-                            </option>
+                          {Array.from({ length: 23 }, (_, i) => i + 2).map((n) => (
+                            <option key={n} value={n}>{n} teams</option>
+                          ))}
+                        </select>
+                        {isSavingTeamCount && <span className="shrink-0 text-xs text-slate-500">Saving...</span>}
+                      </div>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Rounds</label>
+                      <div className="flex items-center gap-2">
+                        <select
+                          disabled={!isCommissioner || isSavingRounds}
+                          className="w-full disabled:opacity-50"
+                          value={rounds}
+                          onChange={(e) => {
+                            const val = Number(e.target.value);
+                            setRounds(val);
+                            if (draftId && setup) {
+                              setIsSavingRounds(true);
+                              updateDraftRounds(draftId, val)
+                                .then((updated) => setSetup({ ...setup, draft: updated }))
+                                .catch((e) => { setError(e instanceof Error ? e.message : "Unable to update rounds."); setRounds(setup.draft.rounds); })
+                                .finally(() => setIsSavingRounds(false));
+                            }
+                          }}
+                        >
+                          {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
+                            <option key={n} value={n}>{n} rounds</option>
+                          ))}
+                        </select>
+                        {isSavingRounds && <span className="shrink-0 text-xs text-slate-500">Saving...</span>}
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="mb-5 border-slate-800" />
+
+                  <div>
+                    <p className={labelCls}>Draft style</p>
+                    <div className="space-y-2">
+                      {/* Regular / Snake — active */}
+                      <div className="flex items-start gap-3 rounded-xl border border-teal-800/50 bg-teal-950/20 px-4 py-3">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-teal-500">
+                          <div className="h-2 w-2 rounded-full bg-teal-500" />
+                        </div>
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-white">Regular</p>
+                          <p className="text-xs text-slate-500">Teams take turns selecting players (snake/serpentine order).</p>
+                        </div>
+                      </div>
+                      {/* Auction — coming soon */}
+                      <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 opacity-50 cursor-not-allowed">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-slate-600" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-400">Auction</p>
+                            <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coming soon</span>
+                          </div>
+                          <p className="text-xs text-slate-600">Teams bid on players during nominations.</p>
+                        </div>
+                      </div>
+                      {/* Combo — coming soon */}
+                      <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 opacity-50 cursor-not-allowed">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-slate-600" />
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-400">Combo / Half-and-Half</p>
+                            <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coming soon</span>
+                          </div>
+                          <p className="text-xs text-slate-600">Auction rounds followed by regular snake rounds.</p>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <hr className="my-5 border-slate-800" />
+
+                  <div>
+                    <p className={labelCls}>Clock settings</p>
+                    <ClockSettings
+                      draft={draft}
+                      disabled={isSavingClock}
+                      onSave={(s) => void saveClockSettings(s)}
+                    />
+                    {isSavingClock && <p className="mt-2 text-xs text-slate-500">Saving...</p>}
+                  </div>
+
+                  <hr className="my-5 border-slate-800" />
+
+                  <div>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className={labelCls} style={{ marginBottom: 0 }}>Draft date</p>
+                      <span className="mb-1.5 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-slate-600 text-[10px] text-slate-400" title="Optional — set a date/time to share with team owners">?</span>
+                    </div>
+                    <p className="mb-3 text-xs text-slate-500">Optional — set a date/time to share with owners.</p>
+                    <div className="grid gap-4 sm:grid-cols-3">
+                      <div>
+                        <label className={labelCls}>Date</label>
+                        <input
+                          type="date"
+                          disabled={!isCommissioner || isSavingSchedule}
+                          className={inputCls}
+                          value={scheduledDate}
+                          onChange={(e) => setScheduledDate(e.target.value)}
+                          onBlur={() => {
+                            if (!draftId || !setup || !scheduledDate) return;
+                            setIsSavingSchedule(true);
+                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            updateDraftSchedule(draftId, iso, scheduledTimezone)
+                              .then((updated) => setSetup({ ...setup, draft: updated }))
+                              .catch((e) => setError(e instanceof Error ? e.message : "Unable to save schedule."))
+                              .finally(() => setIsSavingSchedule(false));
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Time</label>
+                        <input
+                          type="time"
+                          disabled={!isCommissioner || isSavingSchedule || !scheduledDate}
+                          className={inputCls}
+                          value={scheduledTime}
+                          onChange={(e) => setScheduledTime(e.target.value)}
+                          onBlur={() => {
+                            if (!draftId || !setup || !scheduledDate) return;
+                            setIsSavingSchedule(true);
+                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            updateDraftSchedule(draftId, iso, scheduledTimezone)
+                              .then((updated) => setSetup({ ...setup, draft: updated }))
+                              .catch((e) => setError(e instanceof Error ? e.message : "Unable to save time."))
+                              .finally(() => setIsSavingSchedule(false));
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className={labelCls}>Timezone</label>
+                        <select
+                          disabled={!isCommissioner || isSavingSchedule}
+                          className="w-full disabled:opacity-50"
+                          value={scheduledTimezone}
+                          onChange={(e) => {
+                            setScheduledTimezone(e.target.value);
+                            if (!draftId || !setup || !scheduledDate) return;
+                            setIsSavingSchedule(true);
+                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            updateDraftSchedule(draftId, iso, e.target.value)
+                              .then((updated) => setSetup({ ...setup, draft: updated }))
+                              .catch((e) => setError(e instanceof Error ? e.message : "Unable to save timezone."))
+                              .finally(() => setIsSavingSchedule(false));
+                          }}
+                        >
+                          {[
+                            "America/New_York",
+                            "America/Chicago",
+                            "America/Denver",
+                            "America/Los_Angeles",
+                            "America/Phoenix",
+                            "America/Anchorage",
+                            "Pacific/Honolulu",
+                            "Europe/London",
+                            "Europe/Paris",
+                            "Australia/Sydney",
+                          ].map((tz) => (
+                            <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
                           ))}
                         </select>
                       </div>
-                    );
-                  })}
+                    </div>
+                    {scheduledDate && (
+                      <button
+                        type="button"
+                        className="mt-2 text-xs text-slate-500 hover:text-red-400 transition-colors"
+                        onClick={() => {
+                          setScheduledDate(""); setScheduledTime("");
+                          if (!draftId || !setup) return;
+                          void updateDraftSchedule(draftId, null, null)
+                            .then((updated) => setSetup({ ...setup, draft: updated }));
+                        }}
+                      >
+                        Clear date
+                      </button>
+                    )}
+                    {isSavingSchedule && <p className="mt-1 text-xs text-slate-500">Saving...</p>}
+                  </div>
+                </div>
+
+                {/* ── Roster Positions ── */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Roster positions</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Choose which positions exist and how many can be rostered.</p>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-sm">
+                      <thead>
+                        <tr className="border-b border-slate-800">
+                          <th className="pb-2 text-left text-[10px] font-semibold uppercase tracking-wide text-slate-500 w-full">Position</th>
+                          <th className="pb-2 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Use</th>
+                          <th className="pb-2 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Minimum</th>
+                          <th className="pb-2 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500 whitespace-nowrap">Maximum</th>
+                          <th className="pb-2 px-3 text-center text-[10px] font-semibold uppercase tracking-wide text-slate-500">Color</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {(showAllPositions ? rosterPositions : rosterPositions.slice(0, ROSTER_POSITIONS_COLLAPSED)).map((pos) => (
+                          <tr key={pos.id} className={pos.enabled ? "" : "opacity-50"}>
+                            <td className="py-3 pr-4">
+                              <p className="font-semibold text-white leading-tight">{pos.label}</p>
+                              <p className="text-xs text-slate-500">{pos.abbrev}</p>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="checkbox"
+                                disabled={!isCommissioner}
+                                checked={pos.enabled}
+                                onChange={(e) => {
+                                  const next = rosterPositions.map((p) =>
+                                    p.id === pos.id ? { ...p, enabled: e.target.checked } : p
+                                  );
+                                  saveRosterPositions(next);
+                                }}
+                                className="h-4 w-4 rounded accent-teal-500"
+                              />
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <select
+                                disabled={!isCommissioner || !pos.enabled}
+                                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white disabled:opacity-40"
+                                value={pos.min}
+                                onChange={(e) => {
+                                  const next = rosterPositions.map((p) =>
+                                    p.id === pos.id ? { ...p, min: Number(e.target.value) } : p
+                                  );
+                                  saveRosterPositions(next);
+                                }}
+                              >
+                                {Array.from({ length: 10 }, (_, i) => (
+                                  <option key={i} value={i}>{i}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <select
+                                disabled={!isCommissioner || !pos.enabled}
+                                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white disabled:opacity-40"
+                                value={pos.max}
+                                onChange={(e) => {
+                                  const next = rosterPositions.map((p) =>
+                                    p.id === pos.id ? { ...p, max: Number(e.target.value) } : p
+                                  );
+                                  saveRosterPositions(next);
+                                }}
+                              >
+                                {Array.from({ length: 10 }, (_, i) => (
+                                  <option key={i} value={i}>{i}</option>
+                                ))}
+                              </select>
+                            </td>
+                            <td className="py-3 px-3 text-center">
+                              <input
+                                type="color"
+                                disabled={!isCommissioner || !pos.enabled}
+                                value={pos.color}
+                                onChange={(e) => {
+                                  const next = rosterPositions.map((p) =>
+                                    p.id === pos.id ? { ...p, color: e.target.value } : p
+                                  );
+                                  setRosterPositions(next);
+                                }}
+                                onBlur={() => saveRosterPositions(rosterPositions)}
+                                className="h-8 w-14 cursor-pointer rounded border border-slate-700 bg-transparent p-0.5 disabled:opacity-40"
+                                title={`Color for ${pos.label}`}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowAllPositions((v) => !v)}
+                    className="mt-4 flex items-center gap-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 transition-colors"
+                  >
+                    <svg className={`h-4 w-4 transition-transform ${showAllPositions ? "rotate-180" : ""}`} viewBox="0 0 16 16" fill="none">
+                      <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    {showAllPositions ? "Show fewer positions" : "Show more positions"}
+                  </button>
+                </div>
+
+                {/* ── Visibility & extras ── */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Visibility &amp; extras</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Optional controls that affect what owners see and can do.</p>
+
+                  <div className="divide-y divide-slate-800">
+                    {/* Player Whammies */}
+                    <div className="grid gap-4 py-5 sm:grid-cols-2 first:pt-0">
+                      <div>
+                        <p className="font-semibold text-white text-sm">Player Whammies</p>
+                        <p className="mt-0.5 text-xs text-slate-500">Optional "mystery player" mode.</p>
+                      </div>
+                      <div>
+                        <p className="mb-3 text-sm text-slate-400">
+                          Assign a select number of mystery players as a "Whammy".
+                        </p>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                          <input
+                            type="checkbox"
+                            disabled={!isCommissioner}
+                            checked={useWhammies}
+                            onChange={(e) => {
+                              setUseWhammies(e.target.checked);
+                              if (!draftId || !setup) return;
+                              void updateDraftExtras(draftId, { useWhammies: e.target.checked })
+                                .then((d) => setSetup({ ...setup, draft: d }))
+                                .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
+                            }}
+                            className="h-4 w-4 rounded accent-teal-500 disabled:opacity-50"
+                          />
+                          <span className="text-sm text-white">Use Whammies</span>
+                        </label>
+                        {useWhammies && (
+                          <div className="mt-3 flex items-center gap-3">
+                            <label className="text-xs text-slate-400 whitespace-nowrap">Number of Whammies</label>
+                            <select
+                              disabled={!isCommissioner}
+                              className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white disabled:opacity-50"
+                              value={whammyCount}
+                              onChange={(e) => {
+                                const val = Number(e.target.value);
+                                setWhammyCount(val);
+                                if (!draftId || !setup) return;
+                                void updateDraftExtras(draftId, { whammyCount: val })
+                                  .then((d) => setSetup({ ...setup, draft: d }))
+                                  .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
+                              }}
+                            >
+                              {Array.from({ length: 30 }, (_, i) => (
+                                <option key={i + 1} value={i + 1}>{i + 1}</option>
+                              ))}
+                            </select>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Player Rankings Type */}
+                    <div className="grid gap-4 py-5 sm:grid-cols-2">
+                      <div>
+                        <p className="font-semibold text-white text-sm">Player Rankings Type</p>
+                        <p className="mt-0.5 text-xs text-slate-500">Standard, PPR, Half-PPR, or Superflex.</p>
+                      </div>
+                      <div>
+                        <select
+                          disabled={!isCommissioner}
+                          className="w-full disabled:opacity-50"
+                          value={scoringType}
+                          onChange={(e) => {
+                            const val = e.target.value as typeof scoringType;
+                            setScoringType(val);
+                            if (!draftId || !setup) return;
+                            void updateDraftExtras(draftId, { scoringType: val })
+                              .then((d) => setSetup({ ...setup, draft: d }))
+                              .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
+                          }}
+                        >
+                          <option value="standard">Standard</option>
+                          <option value="ppr">PPR</option>
+                          <option value="half_ppr">Half-PPR</option>
+                          <option value="superflex">Superflex</option>
+                        </select>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
               </div>
+            )}
+
+            {/* TEAMS TAB */}
+            {tab === "teams" && (
+              <div className="space-y-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-base font-bold text-white">Teams setup</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Add names, logos, owners, and other team details. Click a team to expand and edit.</p>
+                  </div>
+                  {isCommissioner && (
+                    <button
+                      type="button"
+                      disabled={isRefreshing}
+                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                      onClick={refreshParticipants}
+                    >
+                      {isRefreshing ? "Refreshing..." : "Refresh"}
+                    </button>
+                  )}
+                </div>
+
+                {isCommissioner && !canManageAssignments && (
+                  <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 px-4 py-2 text-sm text-amber-400">
+                    Pause the draft to change team assignments.
+                  </div>
+                )}
+
+                {/* Accordion team list */}
+                <div className="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden">
+                  <div className="divide-y divide-slate-800">
+                    {teams.map((team, index) => {
+                      const owner = setup.participants.find((p) => p.teamId === team.id);
+                      const pending = setup.invitations.find((inv) => inv.teamId === team.id && inv.status === "pending");
+                      const isExpanded = expandedTeamId === team.id;
+                      const isCommissionerTeam = owner?.role === "commissioner";
+                      const isSelf = owner?.userId === setup.currentUserId;
+                      const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","#14b8a6","#f59e0b"];
+                      const avatarColor = avatarColors[index % avatarColors.length];
+                      const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
+
+                      return (
+                        <div key={team.id}>
+                          {/* Collapsed row */}
+                          <button
+                            type="button"
+                            className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-800/40 transition-colors"
+                            onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
+                          >
+                            <span className="w-5 shrink-0 text-sm font-bold text-slate-500 text-center">{index + 1}</span>
+                            <div
+                              className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                              style={{ backgroundColor: avatarColor }}
+                            >
+                              {initials}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-white truncate">{team.name}</span>
+                                {isCommissionerTeam && (
+                                  <span className="shrink-0 rounded-md border border-teal-700 bg-teal-950/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-400">Commissioner</span>
+                                )}
+                                {!owner && pending && (
+                                  <span className="shrink-0 rounded-md bg-amber-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">Invited</span>
+                                )}
+                              </div>
+                              {owner ? (
+                                <p className="text-xs text-slate-500 truncate">{owner.displayName}{isSelf ? " (You)" : ""}</p>
+                              ) : pending ? (
+                                <p className="text-xs text-slate-500 truncate">{pending.email}</p>
+                              ) : (
+                                <p className="text-xs text-slate-600">No owner assigned</p>
+                              )}
+                            </div>
+                            <svg className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} viewBox="0 0 16 16" fill="none">
+                              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+
+                          {/* Expanded panel */}
+                          {isExpanded && (
+                            <div className="border-t border-slate-800 bg-slate-950/40 px-5 py-5">
+                              <div className="grid gap-8 lg:grid-cols-[1fr_240px]">
+
+                                {/* Left — Team identity */}
+                                <div className="space-y-5">
+                                  <div>
+                                    <div className="flex items-center justify-between mb-4">
+                                      <p className="text-sm font-bold text-white">Team identity</p>
+                                      <span className="text-xs text-slate-500">Core details</span>
+                                    </div>
+
+                                    <div className="grid gap-4 sm:grid-cols-2 mb-4">
+                                      <div>
+                                        <label className={labelCls}>Team name</label>
+                                        <input type="text" disabled={!isCommissioner} className={inputCls} value={team.name} onChange={(e) => updateTeam(team.id, e.target.value)} />
+                                      </div>
+                                      <div>
+                                        {/* TODO: needs teams.short_name column */}
+                                        <label className={labelCls}>Short name</label>
+                                        <input type="text" disabled className={inputCls} placeholder="Coming soon" />
+                                      </div>
+                                    </div>
+
+                                    <div className="grid gap-4 sm:grid-cols-2 mb-4">
+                                      <div>
+                                        {/* TODO: needs teams.tts_name + TTS integration */}
+                                        <label className={labelCls}>
+                                          Text-to-speech name{" "}
+                                          <span className="normal-case font-normal text-slate-500">(Optional)</span>
+                                        </label>
+                                        <div className="flex gap-2">
+                                          <input type="text" disabled className={inputCls + " flex-1"} placeholder="Coming soon" />
+                                          <button type="button" disabled className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-600 disabled:opacity-40">
+                                            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor"><path d="M6 3.5L6 12.5L11 8L6 3.5Z"/></svg>
+                                          </button>
+                                        </div>
+                                      </div>
+                                      <div>
+                                        {/* TODO: needs teams.autodraft column */}
+                                        <label className={labelCls}>Autodraft</label>
+                                        <select disabled className="w-full disabled:opacity-40">
+                                          <option>Off</option>
+                                          <option>On</option>
+                                        </select>
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      {/* TODO: needs teams.pre_draft_notes column */}
+                                      <label className={labelCls}>Pre-draft notes</label>
+                                      <textarea disabled rows={3} className={inputCls + " resize-y disabled:opacity-40"} placeholder="Coming soon — notes visible to the commissioner before the draft." />
+                                    </div>
+                                  </div>
+
+                                  {/* Last season details */}
+                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+                                    <button
+                                      type="button"
+                                      className="flex w-full items-center justify-between px-4 py-3 text-left"
+                                      onClick={() => setLastSeasonOpen((prev) => {
+                                        const next = new Set(prev);
+                                        next.has(team.id) ? next.delete(team.id) : next.add(team.id);
+                                        return next;
+                                      })}
+                                    >
+                                      <span className="text-sm font-semibold text-white">Last season details</span>
+                                      <div className="flex items-center gap-3">
+                                        <span className="text-xs text-slate-500">Optional</span>
+                                        <svg className={`h-4 w-4 text-slate-500 transition-transform ${lastSeasonOpen.has(team.id) ? "rotate-180" : ""}`} viewBox="0 0 16 16" fill="none">
+                                          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                        </svg>
+                                      </div>
+                                    </button>
+                                    {lastSeasonOpen.has(team.id) && (
+                                      <div className="border-t border-slate-800 px-4 pb-4 pt-4">
+                                        {/* TODO: needs teams.last_season_pick, last_season_record, last_season_playoffs columns */}
+                                        <div className="grid gap-3 sm:grid-cols-3">
+                                          <div>
+                                            <label className={labelCls}>First round pick</label>
+                                            <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="e.g. 1.04" />
+                                          </div>
+                                          <div>
+                                            <label className={labelCls}>Record</label>
+                                            <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="e.g. 9-4" />
+                                          </div>
+                                          <div>
+                                            <label className={labelCls}>Playoffs</label>
+                                            <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="e.g. Won" />
+                                          </div>
+                                        </div>
+                                        <p className="mt-2 text-[10px] text-slate-600">Last season details coming soon.</p>
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Walk-up songs */}
+                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-3">
+                                      <span className="text-sm font-semibold text-white">Walk-up songs</span>
+                                      {/* TODO: implement walk-up songs (Phase 7) */}
+                                      <span className="text-xs text-slate-500">Coming in Phase 7</span>
+                                    </div>
+                                    <div className="border-t border-slate-800 px-4 py-4">
+                                      <p className="text-xs text-slate-600">Add up to 3 songs per team. Walk-up songs play when a team is on the clock.</p>
+                                      <button type="button" disabled className="mt-3 rounded-lg border border-dashed border-slate-700 px-4 py-2 text-xs font-medium text-slate-600 disabled:cursor-not-allowed">
+                                        + Add a song
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Right — Owner + Images + Actions */}
+                                <div className="space-y-5">
+                                  {/* Owner */}
+                                  <div>
+                                    <p className="text-sm font-bold text-white mb-3">Owner</p>
+                                    {owner ? (
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className={labelCls}>Owner name</label>
+                                          {/* TODO: editable owner name stored on teams.owner_name */}
+                                          <input type="text" disabled className={inputCls + " disabled:opacity-60"} value={owner.displayName} readOnly />
+                                        </div>
+                                        <div>
+                                          <label className={labelCls}>Owner email</label>
+                                          <input type="text" disabled className={inputCls + " disabled:opacity-60"} placeholder="Managed by account" />
+                                        </div>
+                                        {isCommissioner && canManageAssignments && !isCommissionerTeam && (
+                                          <button type="button" className="text-xs text-slate-500 hover:text-red-400 transition-colors" onClick={() => void updateAssignment(owner.id, "")}>
+                                            Remove owner
+                                          </button>
+                                        )}
+                                      </div>
+                                    ) : pending ? (
+                                      <div className="space-y-3">
+                                        <div>
+                                          <label className={labelCls}>Owner email</label>
+                                          <input type="text" disabled className={inputCls + " disabled:opacity-60"} value={pending.email} readOnly />
+                                        </div>
+                                        <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">
+                                          Invitation pending
+                                          <button type="button" className="ml-2 underline hover:text-amber-300 transition-colors" onClick={() => copyOwnerInvite(pending.id)}>Copy link</button>
+                                        </div>
+                                      </div>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").length > 0 && (
+                                          <select aria-label="Assign existing member" className="w-full disabled:opacity-50" value="" disabled={!canManageAssignments}
+                                            onChange={(e) => { const p = setup.participants.find((m) => m.id === e.target.value); if (p) void updateAssignment(p.id, team.id); }}>
+                                            <option value="">Assign existing member…</option>
+                                            {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").map((p) => (
+                                              <option key={p.id} value={p.id}>{p.displayName}</option>
+                                            ))}
+                                          </select>
+                                        )}
+                                        {isCommissioner && (
+                                          <>
+                                            <div>
+                                              <label className={labelCls}>Owner name</label>
+                                              <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="Coming soon" />
+                                            </div>
+                                            <div>
+                                              <label className={labelCls}>Owner email</label>
+                                              <input
+                                                type="email"
+                                                maxLength={320}
+                                                className={inputCls}
+                                                placeholder="owner@example.com"
+                                                value={inviteTeamId === team.id ? inviteEmail : ""}
+                                                onChange={(e) => { setInviteTeamId(team.id); setInviteEmail(e.target.value); }}
+                                              />
+                                            </div>
+                                          </>
+                                        )}
+                                      </div>
+                                    )}
+                                  </div>
+
+                                  {/* Images */}
+                                  <div>
+                                    <div className="flex items-center justify-between mb-3">
+                                      <p className="text-sm font-bold text-white">Images</p>
+                                      <span className="text-xs text-slate-500">4MB max</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-3">
+                                      <div>
+                                        <p className={labelCls}>Team logo</p>
+                                        {/* TODO: implement logo upload (Supabase Storage) */}
+                                        <div className="h-20 w-full rounded-xl flex items-center justify-center text-xl font-bold text-white border-2 border-dashed border-slate-700 hover:border-teal-500 cursor-pointer transition-colors" style={{ backgroundColor: avatarColor + "33" }}>
+                                          {initials}
+                                        </div>
+                                      </div>
+                                      <div>
+                                        <p className={labelCls}>Owner photo</p>
+                                        {/* TODO: needs teams.owner_photo_url column */}
+                                        <div className="h-20 w-full rounded-xl flex items-center justify-center border-2 border-dashed border-slate-700 hover:border-teal-500 cursor-pointer transition-colors bg-slate-800/40">
+                                          <svg className="h-8 w-8 text-slate-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z"/></svg>
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <p className="mt-1.5 text-[10px] text-slate-600">Image uploads coming soon.</p>
+                                  </div>
+
+                                  {/* Actions */}
+                                  <div className="space-y-2 pt-1">
+                                    <button
+                                      type="button"
+                                      disabled={savingTeamId === team.id}
+                                      className="w-full rounded-xl bg-teal-500 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                                      onClick={() => void saveTeam(team.id)}
+                                    >
+                                      {savingTeamId === team.id ? "Saving..." : "Save team"}
+                                    </button>
+                                    {isCommissioner && !owner && !pending && (
+                                      <form onSubmit={(e) => { e.preventDefault(); setInviteTeamId(team.id); sendEmailInvitation(e); }}>
+                                        <button
+                                          type="submit"
+                                          data-delivery="email"
+                                          disabled={isInviting || !inviteEmail || inviteTeamId !== team.id}
+                                          className="w-full rounded-xl border border-teal-700 py-2.5 text-sm font-semibold text-teal-400 hover:bg-teal-950/40 disabled:opacity-40 transition-colors"
+                                        >
+                                          {isInviting && inviteTeamId === team.id ? "Sending..." : "Save team & invite owner"}
+                                        </button>
+                                      </form>
+                                    )}
+                                  </div>
+                                </div>
+
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Pending invitations summary */}
+                {setup.invitations.length > 0 && (
+                  <div className={cardCls}>
+                    <p className="text-sm font-bold text-white mb-3">Pending invitations</p>
+                    <div className="space-y-1.5">
+                      {setup.invitations.map((inv) => (
+                        <div key={inv.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm">
+                          <span className="text-slate-300">
+                            {inv.email}
+                            {inv.teamId && <span className="ml-2 text-slate-600">— {teams.find((t) => t.id === inv.teamId)?.name}</span>}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="capitalize text-xs text-slate-600">{inv.status}</span>
+                            {inv.status === "pending" && inv.teamId && (
+                              <button type="button" className="rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs text-slate-400 hover:text-white transition-colors" onClick={() => copyOwnerInvite(inv.id)}>
+                                Copy
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DRAFT ORDER TAB */}
+            {tab === "draft-order" && (
+              <div className="space-y-5">
+                <div>
+                  <p className="text-base font-bold text-white">Draft Order</p>
+                  <p className="mt-0.5 text-xs text-slate-500">Set and randomize the pick order for your draft.</p>
+                </div>
+                <div className={cardCls}>
+                  <div className="divide-y divide-slate-800">
+                    {teams.map((team, index) => {
+                      const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","#14b8a6","#f59e0b"];
+                      const avatarColor = avatarColors[index % avatarColors.length];
+                      const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
+                      return (
+                        <div key={team.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
+                          <span className="w-6 shrink-0 text-center text-sm font-bold text-slate-500">{index + 1}</span>
+                          <div className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: avatarColor }}>
+                            {initials}
+                          </div>
+                          <span className="flex-1 text-sm font-medium text-white">{team.name}</span>
+                          {isCommissioner && (
+                            <div className="flex gap-1">
+                              <button type="button" disabled={index === 0} aria-label="Move up" className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors" onClick={() => moveTeam(index, -1)}>↑</button>
+                              <button type="button" disabled={index === teams.length - 1} aria-label="Move down" className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors" onClick={() => moveTeam(index, 1)}>↓</button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {isCommissioner && (
+                    <div className="mt-5 flex gap-3 border-t border-slate-800 pt-5">
+                      <button
+                        type="button"
+                        className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                        onClick={() => {
+                          const shuffled = [...teams].sort(() => Math.random() - 0.5);
+                          shuffled.forEach((t, i) => updateTeam(t.id, teams.find((o) => o.id === t.id)?.name ?? t.name));
+                          // reorder by swapping positions
+                          shuffled.forEach((_, i) => {
+                            const currentIdx = teams.findIndex((t) => t.id === shuffled[i].id);
+                            if (currentIdx !== i) moveTeam(currentIdx, i - currentIdx > 0 ? 1 : -1);
+                          });
+                        }}
+                      >
+                        Randomize order
+                      </button>
+                      <button
+                        type="button"
+                        disabled={savingTeamId === "order"}
+                        className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                        onClick={async () => {
+                          setSavingTeamId("order");
+                          try { if (draftId) await updateTeamSetup(draftId, teams); }
+                          catch (e) { setError(e instanceof Error ? e.message : "Unable to save order."); }
+                          finally { setSavingTeamId(null); }
+                        }}
+                      >
+                        {savingTeamId === "order" ? "Saving..." : "Save order"}
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* CLOCK TAB */}
+
+          </div>
+
+          {/* ── Sidebar ── */}
+          <aside className="lg:sticky lg:top-[108px] lg:self-start">
+            <div className={cardCls}>
+              <p className="text-sm font-bold text-white">Summary</p>
+              <p className="mt-0.5 text-xs text-slate-600 mb-4">Your current setup at a glance.</p>
+
+              <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5">
+                <div>
+                  <dt className="text-xs text-slate-500">Draft style</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">Snake</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Teams</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">{draft.teamCount}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Rounds</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">{draft.rounds}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Total picks</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">{draft.teamCount * draft.rounds}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Pick clock</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">{formatClock(draft.pickSeconds)}</dd>
+                </div>
+                <div>
+                  <dt className="text-xs text-slate-500">On expiry</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">{BEHAVIOR_LABELS[draft.timerBehavior] ?? "Nothing"}</dd>
+                </div>
+                {draft.maxClockExtensions > 0 && (
+                  <div className="col-span-2">
+                    <dt className="text-xs text-slate-500">Extensions</dt>
+                    <dd className="mt-0.5 text-sm font-semibold text-white">
+                      {draft.maxClockExtensions} × {formatClock(draft.clockExtensionSeconds)}
+                    </dd>
+                  </div>
+                )}
+              </dl>
+
+              <button
+                type="button"
+                onClick={() => void continueToDraft()}
+                disabled={isSaving}
+                className="mt-5 w-full rounded-xl bg-teal-500 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+              >
+                {isSaving ? "Saving..." : "Enter Draft Room"}
+              </button>
             </div>
-          )}
-        </section>
-      )}
-    </main>
+          </aside>
+
+        </div>
+      </div>
+    </div>
   );
 }
