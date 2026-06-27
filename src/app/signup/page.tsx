@@ -32,7 +32,7 @@ export default function SignupPage() {
 
     const { data: sessionData } = await supabase.auth.getSession();
     const currentUser = sessionData.session?.user;
-    const redirectTo = `${window.location.origin}/profile`;
+    const redirectTo = `${window.location.origin}/dashboard`;
     const result = currentUser?.is_anonymous
       ? await supabase.auth.updateUser(
           { email: email.trim(), password, data: { display_name: name } },

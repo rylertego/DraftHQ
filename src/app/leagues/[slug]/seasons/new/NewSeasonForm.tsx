@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import LeagueWorkspaceHeader from "@/components/LeagueWorkspaceHeader";
 import SleeperImportForm from "@/components/SleeperImportForm";
 import ProviderImportForm from "@/components/ProviderImportForm";
-import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
-import { createLeagueSeasonDraft } from "@/lib/leagueApi";
+import { useWorkspace } from "@/context/LeagueWorkspaceContext";
+import { useLeagueTheme } from "@/context/LeagueThemeContext";
+import { createLeagueSeasonDraft, getLeagueTeams } from "@/lib/leagueApi";
+import type { LeagueTeam } from "@/types/league";
 import {
   getEspnLeaguePreview,
   getFleaflickerLeaguePreview,
@@ -39,7 +40,8 @@ const PROVIDERS: ProviderCard[] = [
 
 export default function NewSeasonForm({ slug }: { slug: string }) {
   const router = useRouter();
-  const { workspace, error: loadError, isLoading } = useLeagueWorkspace(slug);
+  const { workspace, isLoading, error: loadError } = useWorkspace();
+  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const currentYear = new Date().getFullYear();
 
   const [year, setYear] = useState(currentYear);
@@ -52,6 +54,21 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
   const [rounds, setRounds] = useState(15);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
+
+  const [franchiseTeams, setFranchiseTeams] = useState<LeagueTeam[]>([]);
+  const hasFranchises = franchiseTeams.length > 0;
+
+  // Lock team count to league's active team setting
+  useEffect(() => {
+    if (workspace) setTeamCount(workspace.league.teamCount);
+  }, [workspace]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    void getLeagueTeams(workspace.league.id).then((teams) => {
+      setFranchiseTeams(teams.filter((t) => !t.archivedAt));
+    });
+  }, [workspace]);
 
   function resetProvider() {
     setSelectedProvider(null);
@@ -74,16 +91,16 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         rounds,
       });
       if (!season.draftId) throw new Error("The season was created without a draft.");
-      router.push(`/teams?draftId=${season.draftId}`);
+      router.push(`/teams?draftId=${season.draftId}&tab=settings&leagueSlug=${slug}`);
     } catch (createError) {
       setError(createError instanceof Error ? createError.message : "Unable to create the season.");
       setIsCreating(false);
     }
   }
 
-  if (isLoading) return <main className="px-6 py-8">Loading league...</main>;
-  if (loadError || !workspace) return <main className="px-6 py-8 text-red-500">{loadError || "League not found."}</main>;
-  if (!workspace.canManage) return <main className="px-6 py-8 text-red-500">Only a league commissioner can create a season.</main>;
+  if (isLoading) return <div className="px-6 py-8 text-slate-400">Loading league...</div>;
+  if (loadError || !workspace) return <div className="px-6 py-8 text-red-500">{loadError || "League not found."}</div>;
+  if (!workspace.canManage) return <div className="px-6 py-8 text-red-500">Only a league commissioner can create a season.</div>;
 
   const seasonContext = {
     leagueId: workspace.league.id,
@@ -92,8 +109,7 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
   };
 
   return (
-    <main className="w-full space-y-6 px-6 py-8">
-      <LeagueWorkspaceHeader league={workspace.league} canManage />
+    <div className="w-full space-y-6">
 
       <section>
         <h2 className="text-2xl font-bold">New Season</h2>
@@ -141,10 +157,9 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
                 }
                 className={[
                   "rounded-xl border p-4 text-left transition-colors",
-                  provider.available
-                    ? "border-slate-700 hover:border-teal-500 hover:bg-teal-950/20 cursor-pointer"
-                    : "border-slate-800 opacity-40 cursor-not-allowed",
+                  provider.available ? "cursor-pointer" : "border-slate-800 opacity-40 cursor-not-allowed",
                 ].join(" ")}
+                style={provider.available ? { borderColor: primary + "44" } : undefined}
               >
                 <div className="mb-3 flex items-center gap-3">
                   <ProviderLogo domain={provider.logoDomain} label={provider.label} color={provider.logoColor} />
@@ -163,7 +178,7 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
                 ← Providers
               </button>
             </div>
-            <SleeperImportForm seasonContext={seasonContext} />
+            <SleeperImportForm seasonContext={seasonContext} leagueSlug={slug} />
           </div>
         )}
 
@@ -193,6 +208,7 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
               preview={providerPreview}
               seasonContext={seasonContext}
               onBack={() => setProviderPreview(null)}
+              leagueSlug={slug}
             />
           </div>
         )}
@@ -212,19 +228,57 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         <div className="grid gap-4 sm:grid-cols-2">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-team-count">Teams</label>
-            <input id="season-team-count" type="number" min={2} max={20} className="w-full" value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} />
+            <input
+              id="season-team-count"
+              type="number"
+              min={2}
+              max={20}
+              className="w-full disabled:opacity-60 disabled:cursor-not-allowed"
+              value={teamCount}
+              disabled={hasFranchises}
+              onChange={(e) => setTeamCount(Number(e.target.value))}
+            />
+            <p className="mt-1 text-xs text-slate-500">Set in league settings.</p>
           </div>
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-rounds">Rounds</label>
             <input id="season-rounds" type="number" min={1} max={30} className="w-full" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
           </div>
         </div>
+
+        {hasFranchises && (
+          <div>
+            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Franchises that will be linked</p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {franchiseTeams.map((t) => (
+                <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-slate-800 bg-slate-800/40 px-3 py-2">
+                  <div
+                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg text-xs font-bold"
+                    style={{ backgroundColor: primary + "33" }}
+                  >
+                    {t.logoUrl
+                      // eslint-disable-next-line @next/next/no-img-element
+                      ? <img src={t.logoUrl} alt="" className="h-full w-full object-cover" />
+                      : <span style={{ color: primary }}>{(t.shortName || t.name).slice(0, 2).toUpperCase()}</span>
+                    }
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-semibold text-white">{t.name}</p>
+                    {t.ownerName && <p className="truncate text-xs text-slate-400">{t.ownerName}</p>}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-        <button type="submit" disabled={isCreating} className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors">
+        <button type="submit" disabled={isCreating}
+          className="rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+          style={{ backgroundColor: primary, color: secondary }}>
           {isCreating ? "Creating..." : "Create Season and Draft"}
         </button>
       </form>
-    </main>
+    </div>
   );
 }
 
@@ -266,6 +320,7 @@ function ProviderCredentialForm({
   onPreview,
   onBack,
 }: ProviderCredentialFormProps) {
+  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [leagueId, setLeagueId] = useState("");
   const [espnS2, setEspnS2] = useState("");
   const [swid, setSwid] = useState("");
@@ -405,7 +460,8 @@ function ProviderCredentialForm({
           <div>
             <button
               type="button"
-              className="text-sm text-teal-400 hover:text-teal-300"
+              className="text-sm transition-opacity hover:opacity-70"
+          style={{ color: primary }}
               onClick={() => setShowPrivate((v) => !v)}
             >
               {showPrivate ? "Hide" : "Private league? Add cookies"}
@@ -477,7 +533,8 @@ function ProviderCredentialForm({
         <button
           type="submit"
           disabled={isLoading}
-          className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+          className="rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+          style={{ backgroundColor: primary, color: secondary }}
         >
           {isLoading ? "Loading preview..." : "Preview Import"}
         </button>

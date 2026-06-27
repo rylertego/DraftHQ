@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   getDraftRevision,
   getDraftRoomSnapshot,
+  getDraftServerTimeOffsetMs,
   type DraftRoomSnapshot,
 } from "@/lib/draftApi";
 import {
@@ -20,6 +21,7 @@ import {
 } from "@/lib/draftRecovery";
 
 const DRAFT_REVISION_POLL_MS = 10_000;
+const SERVER_TIME_SYNC_MS = 120_000;
 
 export function useRealtimeDraftRoom(draftId: string | null) {
   const [snapshot, setSnapshot] = useState<DraftRoomSnapshot | null>(null);
@@ -149,6 +151,17 @@ export function useRealtimeDraftRoom(draftId: string | null) {
         });
     }, DRAFT_REVISION_POLL_MS);
 
+    // Periodically re-sync server time offset independently of full refreshes.
+    // Keeps the pick clock accurate during long picks with no realtime activity.
+    const serverTimeSyncId = window.setInterval(() => {
+      if (cancelled || !shouldRefreshDraftOnVisibility(document.visibilityState, navigator.onLine)) return;
+      void getDraftServerTimeOffsetMs(draftId).then((offsetMs) => {
+        if (!cancelled) {
+          setSnapshot((current) => current ? { ...current, serverTimeOffsetMs: offsetMs } : current);
+        }
+      }).catch(() => undefined);
+    }, SERVER_TIME_SYNC_MS);
+
     window.addEventListener("online", handleRecovery);
     window.addEventListener("offline", handleOffline);
     window.addEventListener("focus", handleRecovery);
@@ -182,6 +195,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
       window.removeEventListener("focus", handleRecovery);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.clearInterval(revisionPollId);
+      window.clearInterval(serverTimeSyncId);
       refreshRef.current = async () => undefined;
     };
   }, [draftId]);

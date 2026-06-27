@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { createLeague, deleteLeague, getMyLeagueWorkspaces } from "@/lib/leagueApi";
+import { deleteLeague, getMyLeagueWorkspaces } from "@/lib/leagueApi";
 import type { LeagueSeason, LeagueWorkspace } from "@/types/league";
 
 const CURRENT_YEAR = new Date().getFullYear();
@@ -38,125 +38,12 @@ function draftStatusLabel(season: LeagueSeason): { label: string; dot: string } 
   if (ds === "complete" || season.status === "complete") return { label: "Season complete", dot: "bg-slate-600" };
   if (season.status === "drafting") return { label: "Draft scheduled", dot: "bg-teal-400" };
   if (season.status === "active") return { label: "In season", dot: "bg-teal-400" };
+  if (season.draft?.scheduledAt) {
+    const d = new Date(season.draft.scheduledAt);
+    const label = `Draft On: ${d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
+    return { label, dot: "bg-teal-500" };
+  }
   return { label: "Upcoming", dot: "bg-slate-700" };
-}
-
-// ── Create league modal ───────────────────────────────────────────────────────
-function CreateLeagueModal({ onClose }: { onClose: () => void }) {
-  const router = useRouter();
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [isCreating, setIsCreating] = useState(false);
-  const [error, setError] = useState("");
-  const nameRef = useRef<HTMLInputElement>(null);
-
-  useEffect(() => {
-    setTimeout(() => nameRef.current?.focus(), 50);
-    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
-  }, [onClose]);
-
-  function updateName(value: string) {
-    setName(value);
-    setSlug(
-      value.toLowerCase().trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-    );
-  }
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setError("");
-    setIsCreating(true);
-    try {
-      const league = await createLeague({ name, slug });
-      router.push(`/leagues/${league.slug}/settings`);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to create league.");
-      setIsCreating(false);
-    }
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div className="mb-5 flex items-start justify-between">
-          <div>
-            <h2 className="text-xl font-bold text-white">Create League</h2>
-            <p className="mt-0.5 text-sm text-slate-500">A persistent home for your seasons and drafts.</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-colors"
-          >
-            ✕
-          </button>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="modal-league-name">
-              League Name
-            </label>
-            <input
-              ref={nameRef}
-              id="modal-league-name"
-              required
-              maxLength={100}
-              className="w-full"
-              value={name}
-              onChange={(e) => updateName(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="modal-league-slug">
-              URL Slug
-            </label>
-            <input
-              id="modal-league-slug"
-              required
-              minLength={3}
-              maxLength={60}
-              pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              className="w-full font-mono"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
-            />
-            <p className="mt-1 text-xs text-slate-600">
-              /leagues/<span className="text-slate-400">{slug || "your-league"}</span>
-            </p>
-          </div>
-
-          {error && (
-            <p className="rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-            >
-              Cancel
-            </button>
-            <button
-              type="submit"
-              disabled={isCreating}
-              className="flex-1 rounded-xl bg-teal-500 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
-            >
-              {isCreating ? "Creating..." : "Create League"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
 }
 
 // ── Per-row context menu ──────────────────────────────────────────────────────
@@ -339,7 +226,6 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<LeagueWorkspace | null>(null);
-  const [showCreate, setShowCreate] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -390,13 +276,12 @@ export default function DashboardPage() {
                         {isCurrent ? "Leagues" : year}
                       </h2>
                       {isCurrent && (
-                        <button
-                          type="button"
-                          onClick={() => setShowCreate(true)}
+                        <Link
+                          href="/leagues/new"
                           className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
                         >
                           + Create League
-                        </button>
+                        </Link>
                       )}
                     </div>
 
@@ -411,13 +296,12 @@ export default function DashboardPage() {
                           .
                         </p>
                         <div className="mt-5 flex items-center justify-center gap-3">
-                          <button
-                            type="button"
-                            onClick={() => setShowCreate(true)}
+                          <Link
+                            href="/leagues/new"
                             className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
                           >
                             Create League
-                          </button>
+                          </Link>
                           <Link
                             href="/create"
                             className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
@@ -450,9 +334,8 @@ export default function DashboardPage() {
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
               <p className="text-sm font-bold text-white">Quick actions</p>
               <div className="mt-3 space-y-2">
-                <button
-                  type="button"
-                  onClick={() => setShowCreate(true)}
+                <Link
+                  href="/leagues/new"
                   className="flex w-full items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-teal-600 hover:bg-teal-950/20 hover:text-white transition-colors"
                 >
                   <svg className="h-4 w-4 text-teal-400" viewBox="0 0 16 16" fill="none">
@@ -460,7 +343,7 @@ export default function DashboardPage() {
                     <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>
                   New League
-                </button>
+                </Link>
                 <Link
                   href="/create"
                   className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-teal-600 hover:bg-teal-950/20 hover:text-white transition-colors"
@@ -484,14 +367,6 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            <div className="rounded-2xl border border-teal-800/40 bg-teal-950/20 p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-teal-400">New in DraftHQ</p>
-              <p className="mt-2 font-bold text-white">Live Draft Lobby</p>
-              <p className="mt-1 text-sm text-slate-400">
-                Gather your league before the draft starts. See who&apos;s online, chat in real-time, and let the commissioner kick things off.
-              </p>
-            </div>
-
             <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
               <p className="text-sm font-bold text-white">VPNs can disrupt drafts</p>
               <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
@@ -501,8 +376,6 @@ export default function DashboardPage() {
           </aside>
         </div>
       </div>
-
-      {showCreate && <CreateLeagueModal onClose={() => setShowCreate(false)} />}
 
       {deleteTarget && (
         <DeleteLeagueModal

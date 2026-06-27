@@ -22,12 +22,14 @@ interface ProviderImportFormProps {
     seasonName: string;
   };
   onBack: () => void;
+  leagueSlug?: string;
 }
 
 export default function ProviderImportForm({
   preview,
   seasonContext,
   onBack,
+  leagueSlug,
 }: ProviderImportFormProps) {
   const router = useRouter();
   const [draftName, setDraftName] = useState(preview.leagueName);
@@ -122,7 +124,7 @@ export default function ProviderImportForm({
         return;
       }
 
-      router.push(`/teams?draftId=${season.draftId}`);
+      router.push(`/teams?draftId=${season.draftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`);
     } catch (approveError) {
       setError(
         approveError instanceof Error
@@ -238,7 +240,7 @@ export default function ProviderImportForm({
         <button
           type="button"
           className="w-full rounded bg-gray-700 px-4 py-2"
-          onClick={() => router.push(`/teams?draftId=${createdDraftId}`)}
+          onClick={() => router.push(`/teams?draftId=${createdDraftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`)}
         >
           Continue to Team Setup
         </button>

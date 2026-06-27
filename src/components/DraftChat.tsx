@@ -3,23 +3,36 @@
 import { useEffect, useRef, useState } from "react";
 import { supabase } from "@/lib/supabase";
 import { getDraftMessages, sendDraftMessage } from "@/lib/draftApi";
-import type { DraftMessage } from "@/types/draft";
+import type { DraftMessage, DraftParticipant } from "@/types/draft";
 
 interface DraftChatProps {
   draftId: string;
   participantId: string | null;
   isCommissioner: boolean;
+  isOpen: boolean;
+  onClose: () => void;
+  onUnreadChange: (count: number) => void;
+  participants: DraftParticipant[];
+  onlineUserIds: string[];
 }
 
-export default function DraftChat({ draftId, participantId, isCommissioner }: DraftChatProps) {
-  const [isOpen, setIsOpen] = useState(false);
+export default function DraftChat({
+  draftId,
+  participantId,
+  isCommissioner,
+  isOpen,
+  onClose,
+  onUnreadChange,
+  participants,
+  onlineUserIds,
+}: DraftChatProps) {
   const [messages, setMessages] = useState<DraftMessage[]>([]);
   const [input, setInput] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [isAnnounce, setIsAnnounce] = useState(false);
-  const [unread, setUnread] = useState(0);
   const bottomRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const unreadRef = useRef(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -38,23 +51,29 @@ export default function DraftChat({ draftId, participantId, isCommissioner }: Dr
             display_name: string; content: string;
             kind: "chat" | "announcement" | "system"; created_at: string;
           };
-          const msg: DraftMessage = {
-            id: row.id, draftId: row.draft_id, participantId: row.participant_id,
-            displayName: row.display_name, content: row.content,
-            kind: row.kind, createdAt: row.created_at,
-          };
-          setMessages((prev) => [...prev, msg]);
-          setUnread((n) => (isOpen ? 0 : n + 1));
+          setMessages((prev) => [
+            ...prev,
+            {
+              id: row.id, draftId: row.draft_id, participantId: row.participant_id,
+              displayName: row.display_name, content: row.content,
+              kind: row.kind, createdAt: row.created_at,
+            },
+          ]);
+          if (!isOpen) {
+            unreadRef.current += 1;
+            onUnreadChange(unreadRef.current);
+          }
         }
       )
       .subscribe();
 
     return () => { cancelled = true; void supabase.removeChannel(channel); };
-  }, [draftId, isOpen]);
+  }, [draftId]);
 
   useEffect(() => {
     if (isOpen) {
-      setUnread(0);
+      unreadRef.current = 0;
+      onUnreadChange(0);
       setTimeout(() => {
         bottomRef.current?.scrollIntoView({ behavior: "smooth" });
         inputRef.current?.focus();
@@ -86,82 +105,64 @@ export default function DraftChat({ draftId, participantId, isCommissioner }: Dr
     if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); void handleSend(); }
   }
 
+  if (!isOpen) return null;
+
+  const onlineSet = new Set(onlineUserIds);
   const canChat = Boolean(participantId);
 
   return (
-    <>
-      {/* Toggle button */}
-      <button
-        type="button"
-        aria-label={isOpen ? "Close chat" : "Open chat"}
-        className="fixed bottom-4 left-4 z-50 flex h-12 w-12 items-center justify-center rounded-full border border-slate-700 bg-slate-800 shadow-lg hover:bg-slate-700 transition-colors"
-        onClick={() => setIsOpen((o) => !o)}
-      >
-        <span className="text-xl">💬</span>
-        {unread > 0 && !isOpen && (
-          <span className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">
-            {unread > 9 ? "9+" : unread}
-          </span>
-        )}
-      </button>
+    <div className="fixed bottom-[58px] left-0 z-50 flex flex-col overflow-hidden rounded-tr-2xl border border-white/10 bg-slate-950 shadow-2xl"
+      style={{ width: "min(520px, 95vw)", height: "min(480px, 70vh)" }}>
 
-      {/* Panel */}
-      {isOpen && (
-        <div className="fixed bottom-0 left-0 z-40 flex h-[min(500px,80vh)] w-[340px] flex-col rounded-tr-2xl border border-slate-700 bg-slate-950/95 shadow-2xl backdrop-blur">
-          {/* Header */}
-          <div className="flex items-center justify-between border-b border-slate-800 px-4 py-2.5">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-teal-400" />
-              <span className="text-xs font-bold uppercase tracking-widest text-slate-300">
-                Draft Chat
-              </span>
-            </div>
-            <button
-              type="button"
-              aria-label="Close chat"
-              className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-800 text-xs text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
-              onClick={() => setIsOpen(false)}
-            >
-              ✕
-            </button>
-          </div>
+      {/* Header */}
+      <div className="flex shrink-0 items-center justify-between border-b border-white/8 bg-slate-900/80 px-4 py-2.5">
+        <div className="flex items-center gap-2">
+          <span className="h-2 w-2 rounded-full bg-teal-400" />
+          <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-200">Draft Chat</span>
+        </div>
+        <button type="button" aria-label="Close chat"
+          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+          onClick={onClose}>
+          <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3">
+            <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+          </svg>
+        </button>
+      </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-3 py-2 space-y-1">
+      {/* Body: messages + participants */}
+      <div className="flex min-h-0 flex-1">
+
+        {/* Messages */}
+        <div className="flex min-w-0 flex-1 flex-col border-r border-white/8">
+          <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 space-y-1.5">
             {messages.length === 0 && (
-              <p className="mt-4 text-center text-xs text-slate-600">No messages yet. Say hello!</p>
+              <p className="mt-6 text-center text-xs text-slate-600">No messages yet. Say hello!</p>
             )}
-
             {messages.map((msg) => {
               if (msg.kind === "system") {
                 return (
                   <div key={msg.id} className="py-0.5 text-center">
-                    <span className="text-[11px] italic text-slate-500">{msg.content}</span>
+                    <span className="text-[11px] italic text-slate-600">{msg.content}</span>
                   </div>
                 );
               }
-
               if (msg.kind === "announcement") {
                 return (
-                  <div key={msg.id} className="rounded-xl border border-yellow-700/50 bg-yellow-950/40 px-3 py-1.5">
-                    <div className="mb-0.5 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wide text-yellow-400">
-                      <span>📣</span> Commissioner Announcement
+                  <div key={msg.id} className="rounded-lg border border-amber-700/40 bg-amber-950/40 px-3 py-2">
+                    <div className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-amber-400">
+                      Commissioner Announcement
                     </div>
-                    <p className="text-sm text-yellow-100">{msg.content}</p>
+                    <p className="text-sm leading-snug text-amber-100">{msg.content}</p>
                   </div>
                 );
               }
-
               return (
                 <div key={msg.id} className="flex items-start gap-2 py-0.5">
-                  <div
-                    className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-900 text-[10px] font-bold text-teal-200"
-                    aria-hidden
-                  >
+                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-900/60 text-[10px] font-black text-teal-300">
                     {msg.displayName.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[11px] font-semibold text-teal-400">{msg.displayName}</span>
+                    <span className="text-[11px] font-bold text-teal-400">{msg.displayName}</span>
                     <p className="break-words text-sm leading-snug text-slate-200">{msg.content}</p>
                   </div>
                 </div>
@@ -171,52 +172,60 @@ export default function DraftChat({ draftId, participantId, isCommissioner }: Dr
           </div>
 
           {/* Input */}
-          {canChat ? (
-            <div className="border-t border-slate-800 p-2 space-y-1.5">
-              {isCommissioner && (
-                <button
-                  type="button"
-                  onClick={() => setIsAnnounce((a) => !a)}
-                  className={[
-                    "w-full rounded-lg px-3 py-1 text-xs font-semibold transition-colors",
-                    isAnnounce
-                      ? "bg-yellow-600 text-white"
-                      : "bg-slate-800 text-slate-400 hover:bg-slate-700",
-                  ].join(" ")}
-                >
-                  {isAnnounce ? "📣 Sending as Announcement" : "Commish Announce"}
-                </button>
-              )}
-              <div className="flex gap-2">
-                <input
-                  ref={inputRef}
-                  type="text"
-                  maxLength={500}
-                  placeholder={isAnnounce ? "Commissioner announcement..." : "Type message..."}
-                  className="min-w-0 flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white placeholder:text-slate-600 focus:border-teal-500 focus:outline-none"
-                  value={input}
-                  onChange={(e) => setInput(e.target.value)}
-                  onKeyDown={handleKeyDown}
-                  disabled={isSending}
-                />
-                <button
-                  type="button"
-                  disabled={!input.trim() || isSending}
-                  onClick={() => void handleSend()}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-500 text-slate-950 hover:bg-teal-400 disabled:opacity-40 transition-colors"
-                  aria-label="Send"
-                >
-                  ↑
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="border-t border-slate-800 px-4 py-3">
-              <p className="text-center text-xs text-slate-500">Join the draft to chat.</p>
-            </div>
-          )}
+          <div className="shrink-0 border-t border-white/8 p-2 space-y-1.5">
+            {canChat ? (
+              <>
+                {isCommissioner && (
+                  <button type="button"
+                    onClick={() => setIsAnnounce((a) => !a)}
+                    className={`w-full rounded-lg px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-colors ${isAnnounce ? "bg-amber-600 text-white" : "bg-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"}`}>
+                    {isAnnounce ? "📣 Commissioner Announcement" : "Commish Announce"}
+                  </button>
+                )}
+                <div className="flex gap-2">
+                  <input ref={inputRef} type="text" maxLength={500}
+                    placeholder={isAnnounce ? "Commissioner announcement..." : "Type a message..."}
+                    className="min-w-0 flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-teal-500/60 focus:outline-none"
+                    value={input}
+                    onChange={(e) => setInput(e.target.value)}
+                    onKeyDown={handleKeyDown}
+                    disabled={isSending}
+                  />
+                  <button type="button" disabled={!input.trim() || isSending} onClick={() => void handleSend()}
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-500 text-slate-950 hover:bg-teal-400 disabled:opacity-30 transition-colors"
+                    aria-label="Send">
+                    <svg viewBox="0 0 14 14" fill="currentColor" className="h-4 w-4">
+                      <path d="M7 1v12M7 1L3 5M7 1l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+                    </svg>
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="py-2 text-center text-xs text-slate-600">Join the draft to chat.</p>
+            )}
+          </div>
         </div>
-      )}
-    </>
+
+        {/* Participants sidebar */}
+        <div className="flex w-36 shrink-0 flex-col">
+          <div className="shrink-0 border-b border-white/8 px-3 py-2">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">In Room</span>
+          </div>
+          <div className="flex-1 overflow-y-auto py-2">
+            {participants.map((p) => {
+              const isOnline = onlineSet.has(p.userId);
+              return (
+                <div key={p.id} className="flex items-center gap-2 px-3 py-1.5">
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isOnline ? "bg-green-400" : "bg-slate-700"}`} />
+                  <span className={`truncate text-xs font-semibold ${isOnline ? "text-slate-200" : "text-slate-600"}`}>
+                    {p.displayName}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }

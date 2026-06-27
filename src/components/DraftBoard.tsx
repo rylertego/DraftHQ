@@ -1,6 +1,5 @@
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import type { DraftStatus, Pick, Team } from "@/types/draft";
-import RecentPicks from "./RecentPicks";
 
 interface DraftBoardProps {
   teams: string[];
@@ -11,9 +10,28 @@ interface DraftBoardProps {
   canMakePick: boolean;
   canUndoPick: boolean;
   myTeamName?: string;
+  byeWeeks?: Map<string, number>;
   onSlotClick: () => void;
   onUndoPick: () => void;
 }
+
+const POSITION_COLORS: Record<string, string> = {
+  QB: "#67E8F9",
+  RB: "#FCD34D",
+  WR: "#F97316",
+  TE: "#A78BFA",
+  K: "#4ADE80",
+  DST: "#F87171",
+};
+
+const POSITION_CELL: Record<string, { bg: string; text: string; sub: string }> = {
+  QB: { bg: "#164e63", text: "#e0f7ff", sub: "#67E8F9" },
+  RB: { bg: "#78350f", text: "#fef9c3", sub: "#FCD34D" },
+  WR: { bg: "#7c2d12", text: "#ffedd5", sub: "#FB923C" },
+  TE: { bg: "#3b0764", text: "#f5f3ff", sub: "#C4B5FD" },
+  K:  { bg: "#14532d", text: "#dcfce7", sub: "#4ADE80" },
+  DST:{ bg: "#7f1d1d", text: "#fee2e2", sub: "#FCA5A5" },
+};
 
 export default function DraftBoard({
   teams,
@@ -21,11 +39,8 @@ export default function DraftBoard({
   picks,
   currentPickNumber,
   draftStatus,
-  canMakePick,
-  canUndoPick,
   myTeamName,
-  onSlotClick,
-  onUndoPick,
+  byeWeeks,
 }: DraftBoardProps) {
   const teamObjects: Team[] = teams.map((name, index) => ({
     id: String(index + 1),
@@ -35,138 +50,111 @@ export default function DraftBoard({
   }));
 
   const slots = generateSnakeDraftOrder(teamObjects, rounds);
-  const currentSlot = slots.find(
-    (slot) => slot.overallPickNumber === currentPickNumber
-  );
 
   function getPick(overallPickNumber: number) {
-    return picks.find(
-      (pick) => pick.overallPickNumber === overallPickNumber
-    );
+    return picks.find((pick) => pick.overallPickNumber === overallPickNumber);
   }
 
+  const rowHeight = "52px";
+
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <section className="rounded-lg border border-gray-700 bg-gray-950 p-4 sm:p-6 lg:col-span-2">
-          <p className="text-sm uppercase tracking-wide text-gray-400">
-            On the Clock
-          </p>
+    <section className="flex h-full flex-col">
+      <div className="min-h-0 flex-1 overflow-auto [touch-action:pan-x_pan-y]">
+        <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+          <colgroup>
+            <col style={{ width: "40px" }} />
+            {teams.map((_, i) => <col key={i} />)}
+          </colgroup>
+          <thead>
+            <tr>
+              <th className="sticky left-0 top-0 z-20 border-r border-b border-slate-800 bg-slate-950 px-2 py-2 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
+                RD
+              </th>
+              {teams.map((name, i) => (
+                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800 bg-slate-950 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wide ${myTeamName === name ? "text-teal-400" : "text-slate-400"}`}>
+                  {name}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody className="h-full">
+            {Array.from({ length: rounds }, (_, roundIndex) => {
+              const round = roundIndex + 1;
+              const isEvenRow = round % 2 === 0;
+              const emptyBg = isEvenRow ? "#0d1a2e" : "#020617";
 
-          <h2 className="mt-2 text-2xl font-bold sm:text-4xl">
-            {currentSlot?.teamName ?? "Draft Complete"}
-          </h2>
+              const roundSlots = slots
+                .filter((slot) => slot.round === round)
+                .sort((a, b) => (round % 2 === 1 ? a.pickNumber - b.pickNumber : b.pickNumber - a.pickNumber));
 
-          <p className="text-gray-400 mt-2">
-            Pick {currentSlot?.overallPickNumber ?? "-"} | Round{" "}
-            {currentSlot?.round ?? "-"}
-          </p>
+              return (
+                <tr key={round}>
+                  <td
+                    className="sticky left-0 z-10 border-r border-b border-slate-800 px-2 text-xs font-black text-slate-500 text-center align-middle"
+                    style={{ height: rowHeight, backgroundColor: isEvenRow ? "#0d1a2e" : "#020617" }}
+                  >
+                    {round}
+                  </td>
 
-          <button
-            onClick={onUndoPick}
-            disabled={!canUndoPick || picks.length === 0}
-            className="mt-4 bg-red-700 disabled:opacity-40 hover:bg-red-600 px-4 py-2 rounded"
-          >
-            Undo Last Pick
-          </button>
-        </section>
+                  {roundSlots.map((slot) => {
+                    const pick = getPick(slot.overallPickNumber);
+                    const isCurrent = slot.overallPickNumber === currentPickNumber;
+                    const cell = pick ? (POSITION_CELL[pick.playerPosition] ?? null) : null;
+                    const posColor = pick ? (POSITION_COLORS[pick.playerPosition] ?? "#94A3B8") : null;
+                    const byeWeek = pick?.nflTeam ? (byeWeeks?.get(pick.nflTeam) ?? null) : null;
 
-        <RecentPicks picks={picks} />
-      </div>
+                    const nameParts = pick ? pick.playerName.split(" ") : [];
+                    const lastName = nameParts.slice(1).join(" ") || nameParts[0] || "";
+                    const firstName = nameParts.length > 1 ? nameParts[0] : "";
 
-      <section>
-        <h2 className="text-2xl font-bold mb-4">Draft Board</h2>
-
-        <div className="max-w-full overflow-x-auto overscroll-x-contain rounded border border-gray-700 [touch-action:pan-x_pan-y]">
-          <table className="border-collapse border border-gray-700">
-            <tbody>
-              {Array.from({ length: rounds }, (_, roundIndex) => {
-                const round = roundIndex + 1;
-                const roundSlots = slots
-                  .filter((slot) => slot.round === round)
-                  .sort((first, second) => {
-                    if (round % 2 === 1) {
-                      return first.pickNumber - second.pickNumber;
-                    }
-
-                    return second.pickNumber - first.pickNumber;
-                  });
-
-                return (
-                  <tr key={round}>
-                    <td className="sticky left-0 z-10 whitespace-nowrap border border-gray-700 bg-gray-900 p-3 font-bold">
-                      Round {round}
-                    </td>
-
-                    {roundSlots.map((slot) => {
-                      const pick = getPick(slot.overallPickNumber);
-                      const isCurrent =
-                        slot.overallPickNumber === currentPickNumber;
-                      const isSelectable = isCurrent && canMakePick;
-                      const isMyTeam =
-                        myTeamName !== undefined && slot.teamName === myTeamName;
-
-                      return (
-                        <td
-                          key={slot.overallPickNumber}
-                          onClick={() => {
-                            if (isSelectable) {
-                              onSlotClick();
-                            }
-                          }}
-                          className={[
-                            "border border-gray-700 p-3 min-w-[170px] h-28 align-top",
-                            isSelectable
-                              ? "cursor-pointer bg-blue-950"
-                              : "cursor-not-allowed",
-                            isMyTeam && !isSelectable
-                              ? "bg-indigo-950/40"
-                              : "",
-                          ].join(" ")}
-                        >
-                          <div className="text-xs text-gray-400">
-                            Pick {slot.overallPickNumber}
-                          </div>
-
-                          <div className={`font-semibold ${isMyTeam ? "text-indigo-300" : ""}`}>
-                            {slot.teamName}
-                            {isMyTeam && (
-                              <span className="ml-1 text-xs font-normal text-indigo-400">
-                                (you)
+                    return (
+                      <td
+                        key={slot.overallPickNumber}
+                        className="border-r border-b border-slate-800 px-1.5 align-middle overflow-hidden"
+                        style={{
+                          height: rowHeight,
+                          backgroundColor: cell
+                            ? cell.bg
+                            : isCurrent
+                            ? "rgba(30,58,138,0.3)"
+                            : emptyBg,
+                          boxShadow: isCurrent && !pick ? "inset 0 0 0 2px #14b8a6" : undefined,
+                        }}
+                      >
+                        {pick ? (
+                          <>
+                            <div className="flex items-baseline justify-between gap-1 leading-none mb-0.5">
+                              <span className="w-1/2 truncate text-[10px] font-semibold uppercase leading-none" style={{ color: cell?.sub ?? posColor ?? "#94A3B8", opacity: 0.75 }}>
+                                {firstName}
+                              </span>
+                              <span className="w-1/2 text-right text-[10px] font-bold leading-none whitespace-nowrap overflow-hidden" style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.8 }}>
+                                {byeWeek && <span className="mr-0.5">{byeWeek}</span>}
+                                <span>{pick.nflTeam}</span>
+                                <span className="font-black ml-0.5">{pick.playerPosition}</span>
+                              </span>
+                            </div>
+                            <div className="truncate text-2xl font-black leading-tight tracking-tight" style={{ color: cell?.text ?? "#fff" }}>
+                              {lastName}
+                            </div>
+                          </>
+                        ) : (
+                          <div className="flex h-full items-center justify-center">
+                            {isCurrent && (
+                              <span className="text-xs font-black uppercase tracking-widest text-teal-500">
+                                {draftStatus === "active" ? "Picking" : draftStatus === "setup" ? "Not started" : "Paused"}
                               </span>
                             )}
                           </div>
-
-                          {pick ? (
-                            <div className="mt-2">
-                              <div className="font-bold">{pick.playerName}</div>
-                              <div className="text-xs text-gray-400">
-                                {pick.playerPosition} - {pick.nflTeam}
-                              </div>
-                            </div>
-                          ) : (
-                            <div className="text-xs text-gray-500 mt-2">
-                              {isSelectable
-                                ? "Click to draft"
-                                : isCurrent
-                                  ? draftStatus === "active"
-                                    ? "Waiting for team owner"
-                                    : draftStatus === "setup"
-                                      ? "Draft has not started"
-                                      : "Draft is paused"
-                                  : "Waiting"}
-                            </div>
-                          )}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </div>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }

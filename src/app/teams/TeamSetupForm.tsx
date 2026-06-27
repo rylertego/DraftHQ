@@ -14,7 +14,10 @@ import {
   updateDraftRosterPositions,
   updateDraftSchedule,
   updateDraftTeamCount,
+  updateTeamDetails,
   updateTeamSetup,
+  uploadDraftTeamLogo,
+  uploadDraftOwnerPhoto,
   type DraftSetup,
 } from "@/lib/draftApi";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
@@ -22,6 +25,8 @@ import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
 import { supabase } from "@/lib/supabase";
+import { getLeagueBranding, inviteLeagueMember } from "@/lib/leagueApi";
+import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import ClockSettings from "@/components/ClockSettings";
 import type { DraftInvitation, RosterPosition, Team, TimerBehavior } from "@/types/draft";
 
@@ -99,7 +104,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const searchParams = useSearchParams();
   const initialTab = (searchParams.get("tab") as Tab | null) ?? "teams";
   const leagueSlug = searchParams.get("leagueSlug");
+  const fromDraft = searchParams.get("fromDraft") === "1";
   const backHref = leagueSlug ? `/leagues/${leagueSlug}` : "/dashboard";
+  const backToDraftHref = draftId
+    ? `/draft?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`
+    : null;
   const [tab, setTab] = useState<Tab>(initialTab);
   const [setup, setSetup] = useState<DraftSetup | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -133,10 +142,20 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [rosterPositions, setRosterPositions] = useState<RosterPosition[]>(DEFAULT_ROSTER_POSITIONS);
   const [showAllPositions, setShowAllPositions] = useState(false);
   const [scoringType, setScoringType] = useState<"standard" | "ppr" | "half_ppr" | "superflex">("standard");
-  const [useWhammies, setUseWhammies] = useState(false);
-  const [whammyCount, setWhammyCount] = useState(1);
+  const [useLandmines, setUseLandmines] = useState(false);
+  const [landmineCount, setLandmineCount] = useState(3);
 
   const [error, setError] = useState("");
+
+  const { accentColor: primary, bgColor: secondary, setAccentColor, setBgColor } = useLeagueTheme();
+
+  useEffect(() => {
+    if (!leagueSlug) return;
+    void getLeagueBranding(leagueSlug).then((b) => {
+      if (b?.primaryColor) setAccentColor(b.primaryColor);
+      if (b?.secondaryColor) setBgColor(b.secondaryColor);
+    });
+  }, [leagueSlug, setAccentColor, setBgColor]);
 
   useEffect(() => {
     if (!draftId) { router.replace("/create"); return; }
@@ -153,8 +172,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         }
         if (s.draft.scheduledTimezone) setScheduledTimezone(s.draft.scheduledTimezone);
         setScoringType(s.draft.scoringType ?? "standard");
-        setUseWhammies(s.draft.useWhammies ?? false);
-        setWhammyCount(s.draft.whammyCount ?? 1);
+        setUseLandmines(s.draft.useLandmines ?? false);
+        setLandmineCount(s.draft.landmineCount ?? 3);
         if (s.draft.rosterPositions?.length) {
           setRosterPositions(
             DEFAULT_ROSTER_POSITIONS.map((def) => {
@@ -227,6 +246,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, name: value } : t));
   }
 
+  function updateTeamField<K extends keyof typeof teams[number]>(teamId: string, field: K, value: typeof teams[number][K]) {
+    setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, [field]: value } : t));
+  }
+
   function moveTeam(index: number, offset: -1 | 1) {
     setTeams((prev) => moveDraftTeam(prev, index, offset));
   }
@@ -281,14 +304,31 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setTimeout(() => setCopyStatus(""), 2500);
   }
 
-  async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>) {
+  async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>, teamIdOverride?: string) {
     event.preventDefault();
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     const sendEmail = submitter?.getAttribute("data-delivery") !== "manual";
-    if (!draftId || !setup || !inviteEmail.trim() || !inviteTeamId) return;
+    const targetTeamId = teamIdOverride ?? inviteTeamId;
+    if (!draftId || !setup || !inviteEmail.trim() || !targetTeamId) return;
     setIsInviting(true);
     try {
-      const result = await inviteOwner(draftId, inviteEmail.trim(), inviteTeamId, { sendEmail });
+      // Save the team state first so name changes are persisted
+      await updateTeamSetup(draftId, teams);
+
+      // Invite to the league when this draft belongs to one
+      if (setup.draft.leagueId) {
+        try {
+          await inviteLeagueMember(setup.draft.leagueId, inviteEmail.trim());
+        } catch (leagueErr) {
+          // Non-fatal: they may already be a league member
+          const msg = leagueErr instanceof Error ? leagueErr.message : "";
+          if (!msg.includes("already a member")) {
+            console.warn("League invite warning:", msg);
+          }
+        }
+      }
+
+      const result = await inviteOwner(draftId, inviteEmail.trim(), targetTeamId, { sendEmail });
       const { invitation } = result;
       const invitedTeam = teams.find((t) => t.id === invitation.teamId);
       const idx = setup.invitations.findIndex((i) => i.id === invitation.id);
@@ -351,7 +391,20 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     if (!draftId) return;
     setSavingTeamId(teamId);
     try {
+      const team = teams.find((t) => t.id === teamId);
       await updateTeamSetup(draftId, teams);
+      if (team) {
+        await updateTeamDetails(draftId, teamId, {
+          shortName: team.shortName,
+          ttsName: team.ttsName,
+          autodraft: team.autodraft,
+          preDraftNotes: team.preDraftNotes,
+          lastSeasonPick: team.lastSeasonPick,
+          lastSeasonRecord: team.lastSeasonRecord,
+          lastSeasonPlayoffs: team.lastSeasonPlayoffs,
+          ownerName: team.ownerName,
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save team.");
     } finally {
@@ -367,13 +420,26 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       .catch((e) => setError(e instanceof Error ? e.message : "Unable to save roster positions."));
   }
 
+  async function saveTeams() {
+    if (!draftId) return;
+    if (teams.some((t) => !t.name.trim())) { setError("Every team must have a name."); return; }
+    setError(""); setIsSaving(true);
+    try {
+      await updateTeamSetup(draftId, teams);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save teams.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   async function continueToDraft() {
     if (!draftId) return;
     if (teams.some((t) => !t.name.trim())) { setError("Every team must have a name."); return; }
     setError(""); setIsSaving(true);
     try {
       await updateTeamSetup(draftId, teams);
-      router.push(`/draft?draftId=${draftId}`);
+      router.push(`/draft?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save teams.");
       setIsSaving(false);
@@ -431,21 +497,37 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           <span className="font-bold text-white">{draft.name}</span>
 
           <div className="ml-auto flex items-center gap-3">
-            <span className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-              Pre-Draft
-            </span>
-            <button
-              type="button"
-              onClick={() => void continueToDraft()}
-              disabled={isSaving}
-              className="flex items-center gap-2 rounded-lg bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
-            >
-              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-                <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
-                <path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-              </svg>
-              Enter Draft Room
-            </button>
+            {fromDraft && backToDraftHref ? (
+              <Link
+                href={backToDraftHref}
+                className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90"
+                style={{ backgroundColor: primary, color: secondary }}
+              >
+                <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                  <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+                Back to Draft
+              </Link>
+            ) : (
+              <>
+                <span className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                  Pre-Draft
+                </span>
+                <button
+                  type="button"
+                  onClick={() => void continueToDraft()}
+                  disabled={isSaving}
+                  className="flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: primary, color: secondary }}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                    <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.5"/>
+                    <path d="M6 5h4M6 8h4M6 11h2" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                  </svg>
+                  Enter Draft Room
+                </button>
+              </>
+            )}
           </div>
         </div>
 
@@ -457,12 +539,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 key={t.id}
                 type="button"
                 onClick={() => setTab(t.id)}
-                className={[
-                  "border-b-2 px-5 py-3 text-sm font-medium transition-colors",
-                  tab === t.id
-                    ? "border-teal-500 text-teal-400"
-                    : "border-transparent text-slate-500 hover:text-slate-300",
-                ].join(" ")}
+                className="border-b-2 px-5 py-3 text-sm font-medium transition-colors"
+                style={tab === t.id
+                  ? { borderColor: primary, color: primary }
+                  : { borderColor: "transparent", color: "#64748b" }
+                }
               >
                 {t.label}
               </button>
@@ -472,19 +553,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       </header>
 
       {/* ── Body ── */}
-      <div className="mx-auto max-w-5xl px-6 py-8">
+      <div className="mx-auto max-w-5xl px-6 py-8 pb-24 lg:pb-8">
         {error && (
           <div className="mb-6 rounded-lg border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-400">
             {error}
           </div>
         )}
         {copyStatus && (
-          <div className="mb-6 rounded-lg border border-teal-700/50 bg-teal-950/30 px-4 py-3 text-sm text-teal-300">
+          <div className="mb-6 rounded-lg border px-4 py-3 text-sm" style={{ borderColor: primary + "55", backgroundColor: primary + "15", color: primary }}>
             {copyStatus}
           </div>
         )}
 
-        <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
+        <div className={`grid gap-8 ${tab === "settings" ? "lg:grid-cols-[1fr_260px]" : ""}`}>
 
           {/* ── Main content ── */}
           <div>
@@ -518,7 +599,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             type="button"
                             disabled={isSavingName}
                             onClick={() => void saveDraftName()}
-                            className="shrink-0 rounded-lg bg-teal-500 px-3 text-xs font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                            className="shrink-0 rounded-lg px-3 text-xs font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                            style={{ backgroundColor: primary, color: secondary }}
                           >
                             {isSavingName ? "..." : "Save"}
                           </button>
@@ -543,7 +625,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           href={joinUrl}
                           target="_blank"
                           rel="noreferrer"
-                          className="text-xs text-teal-400 hover:text-teal-300"
+                          className="text-xs transition-opacity hover:opacity-80"
+                          style={{ color: primary }}
                         >
                           Open ↗
                         </a>
@@ -617,12 +700,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   <hr className="mb-5 border-slate-800" />
 
                   <div>
-                    <p className={labelCls}>Draft style</p>
-                    <div className="space-y-2">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className={labelCls} style={{ marginBottom: 0 }}>Draft style</p>
+                      {fromDraft && (
+                        <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                          Locked during draft
+                        </span>
+                      )}
+                    </div>
+                    <div className={`space-y-2 ${fromDraft ? "pointer-events-none opacity-50" : ""}`}>
                       {/* Regular / Snake — active */}
-                      <div className="flex items-start gap-3 rounded-xl border border-teal-800/50 bg-teal-950/20 px-4 py-3">
-                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-teal-500">
-                          <div className="h-2 w-2 rounded-full bg-teal-500" />
+                      <div className="flex items-start gap-3 rounded-xl border px-4 py-3" style={{ borderColor: primary + "55", backgroundColor: primary + "15" }}>
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2" style={{ borderColor: primary }}>
+                          <div className="h-2 w-2 rounded-full" style={{ backgroundColor: primary }} />
                         </div>
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-white">Regular</p>
@@ -861,13 +951,34 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   <button
                     type="button"
                     onClick={() => setShowAllPositions((v) => !v)}
-                    className="mt-4 flex items-center gap-1.5 text-sm font-medium text-teal-400 hover:text-teal-300 transition-colors"
+                    className="mt-4 flex items-center gap-1.5 text-sm font-medium transition-opacity hover:opacity-80"
+                    style={{ color: primary }}
                   >
                     <svg className={`h-4 w-4 transition-transform ${showAllPositions ? "rotate-180" : ""}`} viewBox="0 0 16 16" fill="none">
                       <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                     </svg>
                     {showAllPositions ? "Show fewer positions" : "Show more positions"}
                   </button>
+                </div>
+
+                {/* ── Draft room theme ── */}
+                <div className={cardCls}>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-base font-bold text-white">Draft Room Theme</p>
+                      <p className="mt-0.5 text-xs text-slate-500">Control the visual style of the live draft room.</p>
+                    </div>
+                    <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Coming soon</span>
+                  </div>
+                  <div className="mt-4 grid grid-cols-4 gap-3 opacity-40 pointer-events-none select-none">
+                    {["Classic", "Broadcast", "Dark", "Modern"].map((t) => (
+                      <div key={t} className="rounded-xl border px-3 py-3 text-center text-sm font-semibold"
+                        style={t === "Classic" ? { borderColor: primary + "66", backgroundColor: primary + "15", color: primary } : { borderColor: "#334155", backgroundColor: "rgba(30,41,59,0.4)", color: "#94a3b8" }}
+                      >
+                        {t}
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
                 {/* ── Visibility & extras ── */}
@@ -879,41 +990,41 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     {/* Player Whammies */}
                     <div className="grid gap-4 py-5 sm:grid-cols-2 first:pt-0">
                       <div>
-                        <p className="font-semibold text-white text-sm">Player Whammies</p>
-                        <p className="mt-0.5 text-xs text-slate-500">Optional "mystery player" mode.</p>
+                        <p className="font-semibold text-white text-sm">Landmines</p>
+                        <p className="mt-0.5 text-xs text-slate-500">Mystery player picks hidden until draft ends.</p>
                       </div>
                       <div>
                         <p className="mb-3 text-sm text-slate-400">
-                          Assign a select number of mystery players as a "Whammy".
+                          Each team is assigned a set number of pick slots where the player selection stays hidden from opponents until the draft ends.
                         </p>
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
                             disabled={!isCommissioner}
-                            checked={useWhammies}
+                            checked={useLandmines}
                             onChange={(e) => {
-                              setUseWhammies(e.target.checked);
+                              setUseLandmines(e.target.checked);
                               if (!draftId || !setup) return;
-                              void updateDraftExtras(draftId, { useWhammies: e.target.checked })
+                              void updateDraftExtras(draftId, { useLandmines: e.target.checked })
                                 .then((d) => setSetup({ ...setup, draft: d }))
                                 .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
                             }}
                             className="h-4 w-4 rounded accent-teal-500 disabled:opacity-50"
                           />
-                          <span className="text-sm text-white">Use Whammies</span>
+                          <span className="text-sm text-white">Use Landmines</span>
                         </label>
-                        {useWhammies && (
+                        {useLandmines && (
                           <div className="mt-3 flex items-center gap-3">
-                            <label className="text-xs text-slate-400 whitespace-nowrap">Number of Whammies</label>
+                            <label className="text-xs text-slate-400 whitespace-nowrap">Landmines per team</label>
                             <select
                               disabled={!isCommissioner}
                               className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white disabled:opacity-50"
-                              value={whammyCount}
+                              value={landmineCount}
                               onChange={(e) => {
                                 const val = Number(e.target.value);
-                                setWhammyCount(val);
+                                setLandmineCount(val);
                                 if (!draftId || !setup) return;
-                                void updateDraftExtras(draftId, { whammyCount: val })
+                                void updateDraftExtras(draftId, { landmineCount: val })
                                   .then((d) => setSetup({ ...setup, draft: d }))
                                   .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
                               }}
@@ -1010,16 +1121,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           >
                             <span className="w-5 shrink-0 text-sm font-bold text-slate-500 text-center">{index + 1}</span>
                             <div
-                              className="h-9 w-9 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white"
+                              className="h-9 w-9 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
                               style={{ backgroundColor: avatarColor }}
                             >
-                              {initials}
+                              {team.logoUrl
+                                // eslint-disable-next-line @next/next/no-img-element
+                                ? <img src={team.logoUrl} alt="" className="h-full w-full object-cover" />
+                                : initials}
                             </div>
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-white truncate">{team.name}</span>
                                 {isCommissionerTeam && (
-                                  <span className="shrink-0 rounded-md border border-teal-700 bg-teal-950/60 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-teal-400">Commissioner</span>
+                                  <span className="shrink-0 rounded-md border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide" style={{ borderColor: primary + "66", backgroundColor: primary + "15", color: primary }}>Commissioner</span>
                                 )}
                                 {!owner && pending && (
                                   <span className="shrink-0 rounded-md bg-amber-900/40 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-400">Invited</span>
@@ -1041,60 +1155,76 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           {/* Expanded panel */}
                           {isExpanded && (
                             <div className="border-t border-slate-800 bg-slate-950/40 px-5 py-5">
-                              <div className="grid gap-8 lg:grid-cols-[1fr_240px]">
+                              <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
 
                                 {/* Left — Team identity */}
-                                <div className="space-y-5">
-                                  <div>
-                                    <div className="flex items-center justify-between mb-4">
-                                      <p className="text-sm font-bold text-white">Team identity</p>
-                                      <span className="text-xs text-slate-500">Core details</span>
-                                    </div>
+                                <div className="space-y-4">
+                                  <div className="flex items-center justify-between">
+                                    <p className="text-sm font-bold text-white">Team identity</p>
+                                    <span className="text-xs text-slate-500">Core details</span>
+                                  </div>
 
-                                    <div className="grid gap-4 sm:grid-cols-2 mb-4">
-                                      <div>
-                                        <label className={labelCls}>Team name</label>
-                                        <input type="text" disabled={!isCommissioner} className={inputCls} value={team.name} onChange={(e) => updateTeam(team.id, e.target.value)} />
-                                      </div>
-                                      <div>
-                                        {/* TODO: needs teams.short_name column */}
-                                        <label className={labelCls}>Short name</label>
-                                        <input type="text" disabled className={inputCls} placeholder="Coming soon" />
-                                      </div>
-                                    </div>
-
-                                    <div className="grid gap-4 sm:grid-cols-2 mb-4">
-                                      <div>
-                                        {/* TODO: needs teams.tts_name + TTS integration */}
-                                        <label className={labelCls}>
-                                          Text-to-speech name{" "}
-                                          <span className="normal-case font-normal text-slate-500">(Optional)</span>
-                                        </label>
-                                        <div className="flex gap-2">
-                                          <input type="text" disabled className={inputCls + " flex-1"} placeholder="Coming soon" />
-                                          <button type="button" disabled className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-slate-600 disabled:opacity-40">
-                                            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="currentColor"><path d="M6 3.5L6 12.5L11 8L6 3.5Z"/></svg>
-                                          </button>
-                                        </div>
-                                      </div>
-                                      <div>
-                                        {/* TODO: needs teams.autodraft column */}
-                                        <label className={labelCls}>Autodraft</label>
-                                        <select disabled className="w-full disabled:opacity-40">
-                                          <option>Off</option>
-                                          <option>On</option>
-                                        </select>
-                                      </div>
-                                    </div>
-
+                                  <div className="grid gap-3 sm:grid-cols-2">
                                     <div>
-                                      {/* TODO: needs teams.pre_draft_notes column */}
-                                      <label className={labelCls}>Pre-draft notes</label>
-                                      <textarea disabled rows={3} className={inputCls + " resize-y disabled:opacity-40"} placeholder="Coming soon — notes visible to the commissioner before the draft." />
+                                      <label className={labelCls}>Team name</label>
+                                      <input type="text" disabled={!isCommissioner} className={inputCls} value={team.name} onChange={(e) => updateTeam(team.id, e.target.value)} />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>Short name</label>
+                                      <input
+                                        type="text"
+                                        disabled={!isCommissioner}
+                                        maxLength={10}
+                                        className={inputCls}
+                                        value={team.shortName ?? ""}
+                                        placeholder="e.g. Rockets"
+                                        onChange={(e) => updateTeamField(team.id, "shortName", e.target.value)}
+                                      />
                                     </div>
                                   </div>
 
-                                  {/* Last season details */}
+                                  <div className="grid gap-3 sm:grid-cols-2">
+                                    <div>
+                                      <label className={labelCls}>Text-to-speech name <span className="normal-case font-normal text-slate-500">(Optional)</span></label>
+                                      <input
+                                        type="text"
+                                        disabled={!isCommissioner}
+                                        maxLength={60}
+                                        className={inputCls}
+                                        value={team.ttsName ?? ""}
+                                        placeholder="Pronunciation for announcer"
+                                        onChange={(e) => updateTeamField(team.id, "ttsName", e.target.value)}
+                                      />
+                                    </div>
+                                    <div>
+                                      <label className={labelCls}>Autodraft</label>
+                                      <label className="mt-2 flex cursor-pointer items-center gap-2.5">
+                                        <input
+                                          type="checkbox"
+                                          disabled={!isCommissioner}
+                                          checked={team.autodraft ?? false}
+                                          onChange={(e) => updateTeamField(team.id, "autodraft", e.target.checked)}
+                                          className="h-4 w-4 rounded accent-teal-500 disabled:opacity-40"
+                                        />
+                                        <span className="text-sm text-slate-300">Auto-pick when on clock</span>
+                                      </label>
+                                    </div>
+                                  </div>
+
+                                  <div>
+                                    <label className={labelCls}>Pre-draft notes</label>
+                                    <textarea
+                                      disabled={!isCommissioner}
+                                      rows={3}
+                                      maxLength={2000}
+                                      className={inputCls + " resize-y disabled:opacity-40"}
+                                      value={team.preDraftNotes ?? ""}
+                                      placeholder="Notes visible to the commissioner before the draft."
+                                      onChange={(e) => updateTeamField(team.id, "preDraftNotes", e.target.value)}
+                                    />
+                                  </div>
+
+                                  {/* Last season (collapsible) */}
                                   <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
                                     <button
                                       type="button"
@@ -1115,74 +1245,88 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     </button>
                                     {lastSeasonOpen.has(team.id) && (
                                       <div className="border-t border-slate-800 px-4 pb-4 pt-4">
-                                        {/* TODO: needs teams.last_season_pick, last_season_record, last_season_playoffs columns */}
                                         <div className="grid gap-3 sm:grid-cols-3">
                                           <div>
-                                            <label className={labelCls}>First round pick</label>
-                                            <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="e.g. 1.04" />
+                                            <label className={labelCls}>First round pick #</label>
+                                            <input
+                                              type="number"
+                                              min={1}
+                                              max={20}
+                                              disabled={!isCommissioner}
+                                              className={inputCls + " disabled:opacity-40"}
+                                              value={team.lastSeasonPick ?? ""}
+                                              placeholder="e.g. 4"
+                                              onChange={(e) => updateTeamField(team.id, "lastSeasonPick", e.target.value ? Number(e.target.value) : undefined)}
+                                            />
                                           </div>
                                           <div>
                                             <label className={labelCls}>Record</label>
-                                            <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="e.g. 9-4" />
+                                            <input
+                                              type="text"
+                                              maxLength={20}
+                                              disabled={!isCommissioner}
+                                              className={inputCls + " disabled:opacity-40"}
+                                              value={team.lastSeasonRecord ?? ""}
+                                              placeholder="e.g. 9-4"
+                                              onChange={(e) => updateTeamField(team.id, "lastSeasonRecord", e.target.value)}
+                                            />
                                           </div>
                                           <div>
-                                            <label className={labelCls}>Playoffs</label>
-                                            <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="e.g. Won" />
+                                            <label className={labelCls}>Made playoffs</label>
+                                            <select
+                                              disabled={!isCommissioner}
+                                              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white disabled:opacity-40"
+                                              value={team.lastSeasonPlayoffs === undefined ? "" : team.lastSeasonPlayoffs ? "yes" : "no"}
+                                              onChange={(e) => updateTeamField(team.id, "lastSeasonPlayoffs", e.target.value === "" ? undefined : e.target.value === "yes")}
+                                            >
+                                              <option value="">Unknown</option>
+                                              <option value="yes">Yes</option>
+                                              <option value="no">No</option>
+                                            </select>
                                           </div>
                                         </div>
-                                        <p className="mt-2 text-[10px] text-slate-600">Last season details coming soon.</p>
                                       </div>
                                     )}
-                                  </div>
-
-                                  {/* Walk-up songs */}
-                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
-                                    <div className="flex items-center justify-between px-4 py-3">
-                                      <span className="text-sm font-semibold text-white">Walk-up songs</span>
-                                      {/* TODO: implement walk-up songs (Phase 7) */}
-                                      <span className="text-xs text-slate-500">Coming in Phase 7</span>
-                                    </div>
-                                    <div className="border-t border-slate-800 px-4 py-4">
-                                      <p className="text-xs text-slate-600">Add up to 3 songs per team. Walk-up songs play when a team is on the clock.</p>
-                                      <button type="button" disabled className="mt-3 rounded-lg border border-dashed border-slate-700 px-4 py-2 text-xs font-medium text-slate-600 disabled:cursor-not-allowed">
-                                        + Add a song
-                                      </button>
-                                    </div>
                                   </div>
                                 </div>
 
                                 {/* Right — Owner + Images + Actions */}
                                 <div className="space-y-5">
+
                                   {/* Owner */}
-                                  <div>
-                                    <p className="text-sm font-bold text-white mb-3">Owner</p>
+                                  <div className="space-y-3">
+                                    <p className="text-sm font-bold text-white">Owner</p>
+                                    <div>
+                                      <label className={labelCls}>Owner name</label>
+                                      <input
+                                        type="text"
+                                        disabled={!isCommissioner}
+                                        maxLength={100}
+                                        className={inputCls}
+                                        value={team.ownerName ?? ""}
+                                        placeholder={owner ? owner.displayName : "e.g. Tyler"}
+                                        onChange={(e) => updateTeamField(team.id, "ownerName", e.target.value)}
+                                      />
+                                    </div>
                                     {owner ? (
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className={labelCls}>Owner name</label>
-                                          {/* TODO: editable owner name stored on teams.owner_name */}
-                                          <input type="text" disabled className={inputCls + " disabled:opacity-60"} value={owner.displayName} readOnly />
-                                        </div>
-                                        <div>
-                                          <label className={labelCls}>Owner email</label>
-                                          <input type="text" disabled className={inputCls + " disabled:opacity-60"} placeholder="Managed by account" />
+                                      <>
+                                        <div className="rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2.5">
+                                          <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Joined</p>
+                                          <p className="text-sm text-slate-300 truncate">{owner.displayName}</p>
                                         </div>
                                         {isCommissioner && canManageAssignments && !isCommissionerTeam && (
-                                          <button type="button" className="text-xs text-slate-500 hover:text-red-400 transition-colors" onClick={() => void updateAssignment(owner.id, "")}>
+                                          <button type="button" className="w-full rounded-lg border border-slate-700 py-2 text-xs font-semibold text-slate-400 hover:border-red-700 hover:text-red-400 transition-colors" onClick={() => void updateAssignment(owner.id, "")}>
                                             Remove owner
                                           </button>
                                         )}
-                                      </div>
+                                      </>
                                     ) : pending ? (
-                                      <div className="space-y-3">
-                                        <div>
-                                          <label className={labelCls}>Owner email</label>
-                                          <input type="text" disabled className={inputCls + " disabled:opacity-60"} value={pending.email} readOnly />
+                                      <div className="space-y-2">
+                                        <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5">
+                                          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 mb-0.5">Invited</p>
+                                          <p className="text-sm text-amber-300 truncate">{pending.email}</p>
                                         </div>
-                                        <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2 text-xs text-amber-400">
-                                          Invitation pending
-                                          <button type="button" className="ml-2 underline hover:text-amber-300 transition-colors" onClick={() => copyOwnerInvite(pending.id)}>Copy link</button>
-                                        </div>
+                                        <button type="button" className="text-xs text-slate-500 hover:text-slate-300 transition-colors" onClick={() => copyOwnerInvite(pending.id)}>Copy invite link</button>
                                       </div>
                                     ) : (
                                       <div className="space-y-2">
@@ -1196,78 +1340,96 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           </select>
                                         )}
                                         {isCommissioner && (
-                                          <>
-                                            <div>
-                                              <label className={labelCls}>Owner name</label>
-                                              <input type="text" disabled className={inputCls + " disabled:opacity-40"} placeholder="Coming soon" />
-                                            </div>
-                                            <div>
-                                              <label className={labelCls}>Owner email</label>
-                                              <input
-                                                type="email"
-                                                maxLength={320}
-                                                className={inputCls}
-                                                placeholder="owner@example.com"
-                                                value={inviteTeamId === team.id ? inviteEmail : ""}
-                                                onChange={(e) => { setInviteTeamId(team.id); setInviteEmail(e.target.value); }}
-                                              />
-                                            </div>
-                                          </>
+                                          <input
+                                            type="email"
+                                            maxLength={320}
+                                            className={inputCls}
+                                            placeholder="Invite by email"
+                                            value={inviteTeamId === team.id ? inviteEmail : ""}
+                                            onChange={(e) => { setInviteTeamId(team.id); setInviteEmail(e.target.value); }}
+                                          />
                                         )}
                                       </div>
                                     )}
                                   </div>
 
                                   {/* Images */}
-                                  <div>
-                                    <div className="flex items-center justify-between mb-3">
+                                  <div className="space-y-2">
+                                    <div className="flex items-center justify-between">
                                       <p className="text-sm font-bold text-white">Images</p>
                                       <span className="text-xs text-slate-500">4MB max</span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                       <div>
-                                        <p className={labelCls}>Team logo</p>
-                                        {/* TODO: implement logo upload (Supabase Storage) */}
-                                        <div className="h-20 w-full rounded-xl flex items-center justify-center text-xl font-bold text-white border-2 border-dashed border-slate-700 hover:border-teal-500 cursor-pointer transition-colors" style={{ backgroundColor: avatarColor + "33" }}>
-                                          {initials}
-                                        </div>
+                                        <label className={labelCls}>Team logo</label>
+                                        <label className="block cursor-pointer group">
+                                          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            try {
+                                              const url = await uploadDraftTeamLogo(setup.draft.id, team.id, file);
+                                              setSetup((prev) => prev ? { ...prev, teams: prev.teams.map((t) => t.id === team.id ? { ...t, logoUrl: url } : t) } : prev);
+                                            } catch { /* ignore */ }
+                                          }} />
+                                          <div className="h-20 w-full rounded-xl overflow-hidden flex items-center justify-center text-xl font-bold text-white border-2 border-dashed border-slate-700 group-hover:border-slate-500 transition-colors" style={{ backgroundColor: avatarColor + "33" }}>
+                                            {team.logoUrl
+                                              // eslint-disable-next-line @next/next/no-img-element
+                                              ? <img src={team.logoUrl} alt="" className="h-full w-full object-cover" />
+                                              : initials}
+                                          </div>
+                                        </label>
                                       </div>
                                       <div>
-                                        <p className={labelCls}>Owner photo</p>
-                                        {/* TODO: needs teams.owner_photo_url column */}
-                                        <div className="h-20 w-full rounded-xl flex items-center justify-center border-2 border-dashed border-slate-700 hover:border-teal-500 cursor-pointer transition-colors bg-slate-800/40">
-                                          <svg className="h-8 w-8 text-slate-600" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z"/></svg>
-                                        </div>
+                                        <label className={labelCls}>Owner photo</label>
+                                        <label className="block cursor-pointer group">
+                                          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                                            const file = e.target.files?.[0];
+                                            if (!file) return;
+                                            try {
+                                              const url = await uploadDraftOwnerPhoto(setup.draft.id, team.id, file);
+                                              setSetup((prev) => prev ? { ...prev, teams: prev.teams.map((t) => t.id === team.id ? { ...t, ownerPhotoUrl: url } : t) } : prev);
+                                            } catch { /* ignore */ }
+                                          }} />
+                                          <div className="h-20 w-full rounded-xl overflow-hidden flex items-center justify-center border-2 border-dashed border-slate-700 group-hover:border-slate-500 transition-colors bg-slate-800/40">
+                                            {team.ownerPhotoUrl
+                                              // eslint-disable-next-line @next/next/no-img-element
+                                              ? <img src={team.ownerPhotoUrl} alt="" className="h-full w-full object-cover" />
+                                              : <svg className="h-8 w-8 text-slate-600 group-hover:text-slate-400 transition-colors" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z"/></svg>}
+                                          </div>
+                                        </label>
                                       </div>
                                     </div>
-                                    <p className="mt-1.5 text-[10px] text-slate-600">Image uploads coming soon.</p>
+                                    <p className="text-[10px] text-slate-500">Click either image to upload · PNG, JPG, WEBP · 4MB max</p>
                                   </div>
 
                                   {/* Actions */}
                                   <div className="space-y-2 pt-1">
+                                    <p className="text-sm font-bold text-white">Actions</p>
                                     <button
                                       type="button"
                                       disabled={savingTeamId === team.id}
-                                      className="w-full rounded-xl bg-teal-500 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                                      className="w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                                      style={{ backgroundColor: primary, color: secondary }}
                                       onClick={() => void saveTeam(team.id)}
                                     >
                                       {savingTeamId === team.id ? "Saving..." : "Save team"}
                                     </button>
                                     {isCommissioner && !owner && !pending && (
-                                      <form onSubmit={(e) => { e.preventDefault(); setInviteTeamId(team.id); sendEmailInvitation(e); }}>
+                                      <form onSubmit={(e) => void sendEmailInvitation(e, team.id)}>
                                         <button
                                           type="submit"
                                           data-delivery="email"
                                           disabled={isInviting || !inviteEmail || inviteTeamId !== team.id}
-                                          className="w-full rounded-xl border border-teal-700 py-2.5 text-sm font-semibold text-teal-400 hover:bg-teal-950/40 disabled:opacity-40 transition-colors"
+                                          className="w-full rounded-xl border py-2.5 text-sm font-semibold disabled:opacity-40 transition-opacity hover:opacity-80"
+                                          style={{ borderColor: primary + "66", color: primary }}
                                         >
                                           {isInviting && inviteTeamId === team.id ? "Sending..." : "Save team & invite owner"}
                                         </button>
                                       </form>
                                     )}
                                   </div>
-                                </div>
 
+                                </div>
                               </div>
                             </div>
                           )}
@@ -1340,13 +1502,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         type="button"
                         className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
                         onClick={() => {
-                          const shuffled = [...teams].sort(() => Math.random() - 0.5);
-                          shuffled.forEach((t, i) => updateTeam(t.id, teams.find((o) => o.id === t.id)?.name ?? t.name));
-                          // reorder by swapping positions
-                          shuffled.forEach((_, i) => {
-                            const currentIdx = teams.findIndex((t) => t.id === shuffled[i].id);
-                            if (currentIdx !== i) moveTeam(currentIdx, i - currentIdx > 0 ? 1 : -1);
-                          });
+                          setTeams((prev) => [...prev].sort(() => Math.random() - 0.5));
                         }}
                       >
                         Randomize order
@@ -1354,7 +1510,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <button
                         type="button"
                         disabled={savingTeamId === "order"}
-                        className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                        className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                        style={{ backgroundColor: primary, color: secondary }}
                         onClick={async () => {
                           setSavingTeamId("order");
                           try { if (draftId) await updateTeamSetup(draftId, teams); }
@@ -1374,8 +1531,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
           </div>
 
-          {/* ── Sidebar ── */}
-          <aside className="lg:sticky lg:top-[108px] lg:self-start">
+          {/* ── Sidebar (desktop only, settings tab only) ── */}
+          <aside className={`hidden lg:sticky lg:top-[108px] lg:self-start ${tab === "settings" ? "lg:block" : ""}`}>
             <div className={cardCls}>
               <p className="text-sm font-bold text-white">Summary</p>
               <p className="mt-0.5 text-xs text-slate-600 mb-4">Your current setup at a glance.</p>
@@ -1392,10 +1549,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 <div>
                   <dt className="text-xs text-slate-500">Rounds</dt>
                   <dd className="mt-0.5 text-sm font-semibold text-white">{draft.rounds}</dd>
-                </div>
-                <div>
-                  <dt className="text-xs text-slate-500">Total picks</dt>
-                  <dd className="mt-0.5 text-sm font-semibold text-white">{draft.teamCount * draft.rounds}</dd>
                 </div>
                 <div>
                   <dt className="text-xs text-slate-500">Pick clock</dt>
@@ -1415,18 +1568,50 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 )}
               </dl>
 
-              <button
-                type="button"
-                onClick={() => void continueToDraft()}
-                disabled={isSaving}
-                className="mt-5 w-full rounded-xl bg-teal-500 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
-              >
-                {isSaving ? "Saving..." : "Enter Draft Room"}
-              </button>
+              {fromDraft && backToDraftHref ? (
+                <Link
+                  href={backToDraftHref}
+                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: primary, color: secondary }}
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                    <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  Back to Draft
+                </Link>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void saveTeams()}
+                  disabled={isSaving}
+                  className="mt-5 w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                  style={{ backgroundColor: primary, color: secondary }}
+                >
+                  {isSaving ? "Saving..." : "Save Changes"}
+                </button>
+              )}
             </div>
           </aside>
 
         </div>
+      </div>
+
+      {/* ── Mobile sticky save bar ── */}
+      <div className={`lg:hidden fixed bottom-0 inset-x-0 z-20 border-t border-slate-800 bg-slate-950/90 backdrop-blur-sm px-4 py-3 flex items-center gap-3 ${fromDraft ? "hidden" : ""}`}>
+        <div className="flex-1 min-w-0">
+          <p className="text-xs text-slate-500 truncate">
+            {draft.teamCount} teams · {draft.rounds} rounds · {formatClock(draft.pickSeconds)} clock
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={() => void saveTeams()}
+          disabled={isSaving}
+          className="shrink-0 rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+          style={{ backgroundColor: primary, color: secondary }}
+        >
+          {isSaving ? "Saving..." : "Save Changes"}
+        </button>
       </div>
     </div>
   );

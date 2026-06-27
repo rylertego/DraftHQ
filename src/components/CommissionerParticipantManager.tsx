@@ -17,6 +17,7 @@ interface CommissionerParticipantManagerProps {
   teams: Team[];
   onlineUserIds: string[];
   onChanged: () => Promise<void>;
+  leagueSlug?: string;
 }
 
 export default function CommissionerParticipantManager({
@@ -26,6 +27,7 @@ export default function CommissionerParticipantManager({
   teams,
   onlineUserIds,
   onChanged,
+  leagueSlug,
 }: CommissionerParticipantManagerProps) {
   const [busyParticipantId, setBusyParticipantId] = useState<string | null>(
     null
@@ -91,7 +93,7 @@ export default function CommissionerParticipantManager({
         </div>
         <Link
           className="text-sm text-blue-400 underline"
-          href={`/teams?draftId=${draftId}`}
+          href={`/teams?draftId=${draftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`}
         >
           Manage invitations
         </Link>

@@ -62,10 +62,10 @@ export default function HomePage() {
                 {isLoggedIn ? "Dashboard" : "Log In"}
               </Link>
               <Link
-                href="/create"
+                href={isLoggedIn ? "/leagues/new" : "/login"}
                 className="rounded-xl bg-teal-500 px-4 py-3 text-center text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
               >
-                Create Draft
+                Create League
               </Link>
             </div>
           </section>

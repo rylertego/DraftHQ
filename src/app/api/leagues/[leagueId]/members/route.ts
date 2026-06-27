@@ -16,14 +16,34 @@ async function getCommissioner(request: Request, leagueId: string) {
   const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(accessToken);
   if (userError || !userData.user) return { error: "Invalid authentication session.", status: 401, user: null };
 
-  const { data: membership } = await supabaseAdmin
+  const { data: membership, error: membershipError } = await supabaseAdmin
     .from("league_members")
     .select("role")
     .eq("league_id", leagueId)
     .eq("user_id", userData.user.id)
     .maybeSingle();
 
-  if (membership?.role !== "commissioner") {
+  if (membershipError) {
+    console.error("[members/route] league_members query error:", membershipError.message);
+  }
+
+  // Fallback: check owner_user_id on the league itself (covers cases where
+  // the service_role can't read league_members due to explicit REVOKE).
+  const { data: league, error: leagueError } = await supabaseAdmin
+    .from("leagues")
+    .select("owner_user_id")
+    .eq("id", leagueId)
+    .maybeSingle();
+
+  if (leagueError) {
+    console.error("[members/route] leagues query error:", leagueError.message);
+  }
+
+  const isCommissioner =
+    membership?.role === "commissioner" ||
+    league?.owner_user_id === userData.user.id;
+
+  if (!isCommissioner) {
     return { error: "Only the commissioner can manage members.", status: 403, user: null };
   }
 

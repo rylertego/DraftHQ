@@ -39,8 +39,8 @@ export interface Draft {
   scheduledTimezone: string | null;
   rosterPositions: RosterPosition[] | null;
   scoringType: "standard" | "ppr" | "half_ppr" | "superflex";
-  useWhammies: boolean;
-  whammyCount: number;
+  useLandmines: boolean;
+  landmineCount: number;
   hidePlayerRankings: boolean;
   createdAt: string;
   updatedAt: string;
@@ -54,6 +54,15 @@ export interface Team {
   logoUrl?: string;
   sleeperRosterId?: number;
   sleeperOwnerUserId?: string;
+  shortName?: string;
+  ttsName?: string;
+  autodraft?: boolean;
+  preDraftNotes?: string;
+  lastSeasonPick?: number;
+  lastSeasonRecord?: string;
+  lastSeasonPlayoffs?: boolean;
+  ownerName?: string;
+  ownerPhotoUrl?: string;
 }
 
 export interface Player {
@@ -63,6 +72,7 @@ export interface Player {
   fullName: string;
   position: PlayerPosition;
   nflTeam?: string;
+  rank?: number;
   active: boolean;
   createdAt: string;
   updatedAt: string;

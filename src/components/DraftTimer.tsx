@@ -69,46 +69,33 @@ export default function DraftTimer({
     draft.status === "active" &&
     !isExpired;
 
+  const urgent = (seconds <= 10 || isExpired) && draft.status === "active";
+
   return (
-    <section className="rounded-lg border border-gray-700 bg-gray-950 p-4 text-center">
-      <p className="text-xs uppercase tracking-wide text-gray-400">
-        Pick Clock
-      </p>
-      <p
-        className={`mt-1 font-mono text-4xl font-bold ${
-          (seconds <= 10 || isExpired) && draft.status === "active"
-            ? "text-red-400"
-            : "text-white"
-        }`}
-      >
+    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-center flex flex-col items-center justify-center gap-1">
+      <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Pick Clock</p>
+      <p className={`font-mono text-5xl font-bold tabular-nums leading-none ${urgent ? "text-red-400" : "text-white"}`}>
         {formatDraftClock(seconds)}
       </p>
-      <p
-        className={`mt-1 text-sm font-semibold ${
-          isExpired ? "text-red-400" : "capitalize text-gray-400"
-        }`}
-      >
+      <p className={`text-xs font-semibold capitalize ${isExpired ? "text-red-400" : "text-slate-500"}`}>
         {isExpired
           ? draft.timerBehavior === "auto_draft"
             ? "Auto-drafting..."
             : draft.timerBehavior === "skip"
-            ? "Skipping pick..."
-            : "Time expired"
+              ? "Skipping..."
+              : "Time expired"
           : draft.status}
       </p>
-
       {showExtend && (
         <button
           type="button"
           onClick={onExtend}
-          className="mt-3 rounded border border-gray-600 px-3 py-1 text-xs text-gray-300 hover:border-gray-400 hover:text-white"
+          className="mt-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-white transition-colors"
         >
           +{draft.clockExtensionSeconds}s
-          {extensionsLeft < draft.maxClockExtensions
-            ? ` (${extensionsLeft} left)`
-            : ""}
+          {extensionsLeft < draft.maxClockExtensions ? ` (${extensionsLeft} left)` : ""}
         </button>
       )}
-    </section>
+    </div>
   );
 }

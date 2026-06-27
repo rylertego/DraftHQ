@@ -1,5 +1,10 @@
 @import "tailwindcss";
 
+@keyframes ticker {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-50%); }
+}
+
 /* ── Brand tokens ──────────────────────────────────────────────────────── */
 :root {
   --background:       #020617;
@@ -68,6 +73,12 @@ select option {
 /* Radio accent color */
 input[type="radio"] {
   accent-color: var(--primary);
+}
+
+/* ── Toast slide-in animation ──────────────────────────────────────────── */
+@keyframes toast-in {
+  from { opacity: 0; transform: translate(-50%, -12px); }
+  to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
 /* Color inputs need a little extra care */

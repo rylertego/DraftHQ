@@ -15,6 +15,7 @@ export interface League {
   primaryColor: string | null;
   secondaryColor: string | null;
   theme: LeagueTheme;
+  teamCount: number;
   ownerUserId: string;
   createdAt: string;
   updatedAt: string;
@@ -27,6 +28,8 @@ export interface LeagueMember {
   role: LeagueRole;
   displayName: string;
   avatarUrl: string | null;
+  nickname: string | null;
+  bio: string | null;
   joinedAt: string;
 }
 
@@ -35,6 +38,7 @@ export interface LeagueSeasonDraft {
   name: string;
   status: "setup" | "active" | "paused" | "complete";
   joinCode: string;
+  scheduledAt: string | null;
 }
 
 export interface LeagueSeason {
@@ -45,6 +49,24 @@ export interface LeagueSeason {
   status: LeagueSeasonStatus;
   draftId: string | null;
   draft: LeagueSeasonDraft | null;
+}
+
+export interface LeagueTeam {
+  id: string;
+  leagueId: string;
+  name: string;
+  shortName: string | null;
+  logoUrl: string | null;
+  ownerUserId: string | null;
+  ownerDisplayName: string | null;
+  ownerAvatarUrl: string | null;
+  ownerName: string | null;
+  archivedAt: string | null;
+  hasSeasonHistory: boolean;
+  lastSeasonPick: number | null;
+  lastSeasonRecord: string | null;
+  lastSeasonPlayoffs: boolean | null;
+  createdAt: string;
 }
 
 export interface LeagueWorkspace {

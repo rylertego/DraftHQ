@@ -12,6 +12,15 @@ interface PickModalProps {
   onClose: () => void;
 }
 
+const POSITION_COLORS: Record<string, string> = {
+  QB: "bg-cyan-900/60 text-cyan-300",
+  RB: "bg-yellow-900/60 text-yellow-300",
+  WR: "bg-orange-900/60 text-orange-300",
+  TE: "bg-purple-900/60 text-purple-300",
+  K: "bg-green-900/60 text-green-300",
+  DST: "bg-red-900/60 text-red-300",
+};
+
 export default function PickModal({
   title = "Select Draft Pick",
   players,
@@ -24,111 +33,114 @@ export default function PickModal({
   const [position, setPosition] = useState("ALL");
   const [selectedPlayerId, setSelectedPlayerId] = useState<string | null>(null);
 
+  const positionTabs = useMemo(() => {
+    const present = new Set<string>(players.map((p) => p.position));
+    return ["QB", "RB", "WR", "TE", "K", "DST"].filter((p) => present.has(p));
+  }, [players]);
+
   const visiblePlayers = useMemo(() => {
     const query = search.trim().toLowerCase();
-
     return players
       .filter((player) => {
-        if (position !== "ALL" && player.position !== position) {
-          return false;
-        }
-
-        if (!query) {
-          return true;
-        }
-
+        if (position !== "ALL" && player.position !== position) return false;
+        if (!query) return true;
         return [player.fullName, player.position, player.nflTeam ?? ""]
           .join(" ")
           .toLowerCase()
           .includes(query);
       })
-      .slice(0, 50);
+      .slice(0, 60);
   }, [players, position, search]);
 
-  const selectedPlayer = players.find(
-    (player) => player.id === selectedPlayerId
-  );
+  const selectedPlayer = players.find((p) => p.id === selectedPlayerId);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 sm:items-center sm:p-4">
-      <div className="flex h-[100dvh] w-full flex-col bg-gray-900 p-4 sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-lg sm:p-6">
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-xl font-bold">{title}</h2>
-          <button
-            type="button"
-            disabled={isSaving}
-            className="rounded px-3 py-2 text-gray-300 disabled:opacity-50"
-            onClick={onClose}
-          >
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-4">
+      <div className="flex h-[95dvh] w-full flex-col rounded-t-2xl border border-slate-700 bg-slate-950 sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl">
+        {/* Header */}
+        <div className="flex items-center justify-between gap-4 border-b border-slate-800 px-5 py-4">
+          <h2 className="text-base font-bold text-white">{title}</h2>
+          <button type="button" disabled={isSaving} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-50 transition-colors" onClick={onClose}>
             Close
           </button>
         </div>
 
-        <input
-          autoFocus
-          className="mt-4 w-full rounded border border-gray-700 p-3 text-base"
-          placeholder="Search name, position, or NFL team"
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-        />
+        {/* Search */}
+        <div className="border-b border-slate-800 px-4 py-3">
+          <input
+            autoFocus
+            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-slate-500 focus:outline-none"
+            placeholder="Search name, position, or NFL team…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
 
-        <div className="mt-3 flex gap-2 overflow-x-auto pb-1">
-          {["ALL", "QB", "RB", "WR", "TE", "K", "DST"].map((value) => (
+        {/* Position tabs */}
+        <div className="flex gap-1.5 overflow-x-auto border-b border-slate-800 px-4 py-2.5">
+          {["ALL", ...positionTabs].map((val) => (
             <button
-              key={value}
+              key={val}
               type="button"
-              className={`shrink-0 rounded-full px-3 py-1.5 text-sm ${
-                position === value ? "bg-blue-600" : "bg-gray-800"
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+                position === val
+                  ? "bg-white text-slate-950"
+                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
               }`}
-              onClick={() => setPosition(value)}
+              onClick={() => setPosition(val)}
             >
-              {value === "ALL" ? "All" : value}
+              {val === "ALL" ? "All" : val}
             </button>
           ))}
         </div>
 
-        <div className="mt-4 flex-1 space-y-2 overflow-y-auto overscroll-contain sm:max-h-96">
+        {/* Player list */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2">
           {visiblePlayers.length === 0 ? (
-            <p className="text-gray-400 p-3">
-              {players.length === 0
-                ? "No active players are loaded in Supabase."
-                : "No available players match your search."}
+            <p className="p-4 text-sm text-slate-500">
+              {players.length === 0 ? "No players loaded in Supabase." : "No players match your search."}
             </p>
           ) : (
-            visiblePlayers.map((player) => (
-              <button
-                key={player.id}
-                type="button"
-                disabled={isSaving}
-                className={`w-full rounded border p-3 text-left disabled:opacity-50 ${
-                  selectedPlayerId === player.id
-                    ? "border-blue-400 bg-blue-950"
-                    : "border-gray-700 hover:bg-gray-800"
-                }`}
-                onClick={() => setSelectedPlayerId(player.id)}
-              >
-                <span className="font-semibold">{player.fullName}</span>
-                <span className="text-sm text-gray-400 ml-2">
-                  {player.position} | {player.nflTeam ?? "FA"}
-                </span>
-              </button>
-            ))
+            <div className="space-y-1">
+              {visiblePlayers.map((player) => {
+                const posClass = POSITION_COLORS[player.position] ?? "bg-slate-800 text-slate-400";
+                const isSelected = selectedPlayerId === player.id;
+                return (
+                  <button
+                    key={player.id}
+                    type="button"
+                    disabled={isSaving}
+                    className={`w-full rounded-xl border px-4 py-3 text-left transition-colors disabled:opacity-50 ${
+                      isSelected
+                        ? "border-white/30 bg-white/10"
+                        : "border-transparent hover:border-slate-700 hover:bg-slate-900"
+                    }`}
+                    onClick={() => setSelectedPlayerId(player.id)}
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${posClass}`}>
+                        {player.position}
+                      </span>
+                      <span className="font-semibold text-white">{player.fullName}</span>
+                      <span className="ml-auto text-xs text-slate-500 shrink-0">{player.nflTeam ?? "FA"}</span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
 
-        <div className="border-t border-gray-700 bg-gray-900 pt-4 pb-[max(0px,env(safe-area-inset-bottom))]">
-          {error && <p className="mb-3 text-red-500">{error}</p>}
+        {/* Footer */}
+        <div className="border-t border-slate-800 bg-slate-950 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
           <button
             type="button"
             disabled={isSaving || !selectedPlayer}
-            className="w-full rounded bg-blue-600 px-4 py-3 font-bold text-white disabled:opacity-40"
-            onClick={() => selectedPlayer && onSave(selectedPlayer.id)}
+            className="w-full rounded-xl bg-white py-3 text-sm font-bold text-slate-950 disabled:opacity-30 hover:bg-slate-100 transition-colors"
+            onClick={() => selectedPlayer && void onSave(selectedPlayer.id)}
           >
-            {isSaving
-              ? "Submitting pick..."
-              : selectedPlayer
-                ? `Draft ${selectedPlayer.fullName}`
-                : "Select a player"}
+            {isSaving ? "Submitting pick…" : selectedPlayer ? `Draft ${selectedPlayer.fullName}` : "Select a player"}
           </button>
         </div>
       </div>

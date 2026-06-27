@@ -26,10 +26,12 @@ interface SleeperImportFormProps {
     year: number;
     seasonName: string;
   };
+  leagueSlug?: string;
 }
 
 export default function SleeperImportForm({
   seasonContext,
+  leagueSlug,
 }: SleeperImportFormProps) {
   const router = useRouter();
   const [leagueId, setLeagueId] = useState("");
@@ -198,7 +200,7 @@ export default function SleeperImportForm({
         return;
       }
 
-      router.push(`/teams?draftId=${createdDraftIdValue}`);
+      router.push(`/teams?draftId=${createdDraftIdValue}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`);
     } catch (importError) {
       setError(
         importError instanceof Error
@@ -326,7 +328,7 @@ export default function SleeperImportForm({
         <button
           type="button"
           className="mt-3 rounded bg-gray-700 px-4 py-2"
-          onClick={() => router.push(`/teams?draftId=${createdDraftId}`)}
+          onClick={() => router.push(`/teams?draftId=${createdDraftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`)}
         >
           Continue to Team Setup
         </button>

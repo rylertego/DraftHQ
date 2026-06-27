@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Sora } from "next/font/google";
 import AccountNav from "@/components/AccountNav";
+import { LeagueThemeProvider } from "@/context/LeagueThemeContext";
 import "./globals.css";
 
 const geistSans = Geist({ variable: "--font-geist-sans", subsets: ["latin"] });
@@ -17,8 +18,10 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
   return (
     <html lang="en" className={`${geistSans.variable} ${geistMono.variable} ${sora.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <AccountNav />
-        {children}
+        <LeagueThemeProvider>
+          <AccountNav />
+          {children}
+        </LeagueThemeProvider>
       </body>
     </html>
   );

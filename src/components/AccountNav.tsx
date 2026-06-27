@@ -1,15 +1,30 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
+import DraftHQLogo from "@/components/DraftHQLogo";
+import { useLeagueTheme, DEFAULT_ACCENT } from "@/context/LeagueThemeContext";
 
 
 export default function AccountNav() {
   const router = useRouter();
+  const pathname = usePathname();
+  const { accentColor, setAccentColor } = useLeagueTheme();
+
+  if (pathname === "/draft") return null;
   const [user, setUser] = useState<User | null>(null);
+
+  // Reset theme when leaving league pages
+  useEffect(() => {
+    const isThemedPage =
+      (pathname.startsWith("/leagues/") && pathname !== "/leagues/new") ||
+      pathname.startsWith("/teams") ||
+      pathname.startsWith("/draft");
+    if (!isThemedPage) setAccentColor(DEFAULT_ACCENT);
+  }, [pathname, setAccentColor]);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -57,8 +72,7 @@ export default function AccountNav() {
 
         {/* Logo */}
         <Link href={hasAccount ? "/dashboard" : "/"} className="flex items-center py-2 hover:opacity-90 transition-opacity">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/branding/logo-primary photoroom.png" alt="DraftHQ" className="h-16 w-auto" />
+          <DraftHQLogo accentColor={accentColor} className="h-24 w-auto" />
         </Link>
 
         {/* Spacer */}

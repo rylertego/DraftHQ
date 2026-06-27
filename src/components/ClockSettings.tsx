@@ -89,9 +89,6 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
               </select>
             </div>
           </div>
-          <p className="mt-1.5 text-xs text-slate-500">
-            {PICK_CLOCK_OPTIONS.find((o) => o.seconds === draft.pickSeconds)?.label ?? `${draft.pickSeconds}s`}
-          </p>
         </div>
 
         {/* Clock Extensions */}
@@ -125,9 +122,6 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
               </select>
             </div>
           </div>
-          {draft.maxClockExtensions === 0 && (
-            <p className="mt-1.5 text-xs text-slate-500">Disabled</p>
-          )}
         </div>
 
         {/* When clock hits zero */}
