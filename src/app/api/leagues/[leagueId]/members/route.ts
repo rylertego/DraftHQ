@@ -1,6 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeEmail } from "@/lib/email";
+import { leagueInviteEmail } from "@/lib/emailTemplates";
 
 interface RouteContext {
   params: Promise<{ leagueId: string }>;
@@ -132,17 +133,33 @@ export async function POST(request: Request, { params }: RouteContext) {
   let targetUserId: string;
   let invited = false;
   let emailWarning: string | null = null;
+  let actionLink: string | null = null;
 
   if (existingUser) {
     targetUserId = existingUser.id;
-  } else {
-    // No account yet — create one via invite email, get the new user's ID immediately
-    const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "magiclink",
       email,
-      { redirectTo, data: { pending_league_id: leagueId, pending_league_slug: league.slug, pending_league_invitation_token: token } }
-    );
-    if (inviteError) return Response.json({ error: `Could not send invite: ${inviteError.message}` }, { status: 500 });
-    targetUserId = inviteData.user.id;
+      options: { redirectTo },
+    });
+    if (linkError) {
+      emailWarning = `Could not generate sign-in link: ${linkError.message}`;
+    } else {
+      actionLink = linkData.properties.action_link;
+    }
+  } else {
+    // No account yet — create one and get a one-time link, but suppress Supabase's own email
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: "invite",
+      email,
+      options: {
+        redirectTo,
+        data: { pending_league_id: leagueId, pending_league_slug: league.slug, pending_league_invitation_token: token },
+      },
+    });
+    if (linkError) return Response.json({ error: `Could not create invite: ${linkError.message}` }, { status: 500 });
+    targetUserId = linkData.user.id;
+    actionLink = linkData.properties.action_link;
     invited = true;
   }
 
@@ -185,16 +202,43 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   if (invitationError) return Response.json({ error: invitationError.message }, { status: 500 });
 
-  if (existingUser) {
-    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-    if (supabaseUrl && anonKey) {
-      const mailClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
-      const { error: mailError } = await mailClient.auth.signInWithOtp({
-        email,
-        options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+  if (actionLink) {
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      emailWarning = "The in-app invitation was created, but RESEND_API_KEY is not configured.";
+    } else {
+      let teamName: string | null = null;
+      if (leagueTeamId) {
+        const { data: teamRow } = await supabaseAdmin
+          .from("league_teams")
+          .select("name")
+          .eq("id", leagueTeamId)
+          .maybeSingle();
+        teamName = teamRow?.name ?? null;
+      }
+
+      const commissionerName =
+        (user.user_metadata?.display_name as string | undefined) ?? user.email ?? "The commissioner";
+
+      const { subject, html, text } = leagueInviteEmail({
+        leagueName: league.name,
+        teamName,
+        commissionerName,
+        inviteUrl: actionLink,
       });
-      if (mailError) emailWarning = `The in-app invitation was created, but email delivery failed: ${mailError.message}`;
+
+      const resend = new Resend(apiKey);
+      const { error: emailError } = await resend.emails.send({
+        from: "DraftHQ <onboarding@resend.dev>",
+        to: email,
+        subject,
+        html,
+        text,
+      });
+
+      if (emailError) {
+        emailWarning = `The in-app invitation was created, but email delivery failed: ${emailError.message}`;
+      }
     }
   }
 
