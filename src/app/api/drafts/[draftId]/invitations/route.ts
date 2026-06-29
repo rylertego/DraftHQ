@@ -1,5 +1,7 @@
+import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeEmail } from "@/lib/email";
+import { draftInviteEmail } from "@/lib/emailTemplates";
 
 interface InvitationRequest {
   email?: unknown;
@@ -57,11 +59,23 @@ export async function POST(
   }
 
   const { draftId } = await params;
-  const { data: draft, error: draftError } = await supabaseAdmin
-    .from("drafts")
-    .select("id,join_code,commissioner_user_id")
-    .eq("id", draftId)
-    .maybeSingle();
+
+  const [
+    { data: draft, error: draftError },
+    { data: team, error: teamError },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("drafts")
+      .select("id,name,join_code,commissioner_user_id")
+      .eq("id", draftId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("teams")
+      .select("id,name")
+      .eq("id", teamId)
+      .eq("draft_id", draftId)
+      .maybeSingle(),
+  ]);
 
   if (draftError) {
     return Response.json({ error: draftError.message }, { status: 500 });
@@ -78,53 +92,40 @@ export async function POST(
     );
   }
 
-  const [
-    { data: team, error: teamError },
-    { data: teamParticipant, error: teamParticipantError },
-    { data: reservedInvitation, error: reservedInvitationError },
-  ] = await Promise.all([
-      supabaseAdmin
-        .from("teams")
-        .select("id")
-        .eq("id", teamId)
-        .eq("draft_id", draftId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("draft_participants")
-        .select("id")
-        .eq("draft_id", draftId)
-        .eq("team_id", teamId)
-        .maybeSingle(),
-      supabaseAdmin
-        .from("draft_invitations")
-        .select("email")
-        .eq("draft_id", draftId)
-        .eq("team_id", teamId)
-        .eq("status", "pending")
-        .neq("email", email)
-        .maybeSingle(),
-    ]);
-
   if (teamError) {
     return Response.json({ error: teamError.message }, { status: 500 });
   }
 
+  if (!team) {
+    return Response.json({ error: "Team not found in this draft." }, { status: 404 });
+  }
+
+  const [
+    { data: teamParticipant, error: teamParticipantError },
+    { data: reservedInvitation, error: reservedInvitationError },
+  ] = await Promise.all([
+    supabaseAdmin
+      .from("draft_participants")
+      .select("id")
+      .eq("draft_id", draftId)
+      .eq("team_id", teamId)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("draft_invitations")
+      .select("email")
+      .eq("draft_id", draftId)
+      .eq("team_id", teamId)
+      .eq("status", "pending")
+      .neq("email", email)
+      .maybeSingle(),
+  ]);
+
   if (teamParticipantError) {
-    return Response.json(
-      { error: teamParticipantError.message },
-      { status: 500 }
-    );
+    return Response.json({ error: teamParticipantError.message }, { status: 500 });
   }
 
   if (reservedInvitationError) {
-    return Response.json(
-      { error: reservedInvitationError.message },
-      { status: 500 }
-    );
-  }
-
-  if (!team) {
-    return Response.json({ error: "Team not found in this draft." }, { status: 404 });
+    return Response.json({ error: reservedInvitationError.message }, { status: 500 });
   }
 
   if (teamParticipant || reservedInvitation) {
@@ -133,17 +134,14 @@ export async function POST(
 
   const { data: existingInvitation, error: existingInvitationError } =
     await supabaseAdmin
-    .from("draft_invitations")
-    .select("status")
-    .eq("draft_id", draftId)
-    .eq("email", email)
-    .maybeSingle();
+      .from("draft_invitations")
+      .select("status")
+      .eq("draft_id", draftId)
+      .eq("email", email)
+      .maybeSingle();
 
   if (existingInvitationError) {
-    return Response.json(
-      { error: existingInvitationError.message },
-      { status: 500 }
-    );
+    return Response.json({ error: existingInvitationError.message }, { status: 500 });
   }
 
   if (existingInvitation?.status === "accepted") {
@@ -175,29 +173,48 @@ export async function POST(
     return Response.json({ error: invitationError.message }, { status: 500 });
   }
 
-  let inviteError: { message: string } | null = null;
+  let inviteWarning: string | null = null;
 
   if (sendEmail) {
-    const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
-    const siteOrigin = configuredSiteUrl ?? new URL(request.url).origin;
-    const redirectTo = new URL(`/join/${draft.join_code}`, siteOrigin).toString();
-    const inviteResult = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-      redirectTo,
-      data: {
-        draft_id: draftId,
-        join_code: draft.join_code,
-        team_id: teamId,
-      },
-    });
-    inviteError = inviteResult.error;
+    const apiKey = process.env.RESEND_API_KEY;
+    if (!apiKey) {
+      inviteWarning = "Email not sent: RESEND_API_KEY is not configured.";
+    } else {
+      const configuredSiteUrl = process.env.NEXT_PUBLIC_SITE_URL;
+      const siteOrigin = configuredSiteUrl ?? new URL(request.url).origin;
+      const joinUrl = new URL(`/join/${draft.join_code}`, siteOrigin).toString();
+
+      const commissionerName =
+        userData.user.user_metadata?.display_name as string | undefined ??
+        userData.user.email ??
+        "The commissioner";
+
+      const { subject, html, text } = draftInviteEmail({
+        draftName: draft.name,
+        teamName: team.name,
+        commissionerName,
+        joinUrl,
+      });
+
+      const resend = new Resend(apiKey);
+      const { error: emailError } = await resend.emails.send({
+        from: "DraftHQ <onboarding@resend.dev>",
+        to: email,
+        subject,
+        html,
+        text,
+      });
+
+      if (emailError) {
+        inviteWarning = `Team reserved, but email delivery failed: ${emailError.message}`;
+      }
+    }
   }
 
   return Response.json(
     {
       invitation,
-      warning: inviteError
-        ? `The team was reserved, but email delivery failed: ${inviteError.message}`
-        : null,
+      warning: inviteWarning,
     },
     { status: 201 }
   );
