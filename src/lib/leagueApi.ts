@@ -6,6 +6,7 @@ import type {
   LeagueMember,
   LeagueRole,
   LeagueSeason,
+  LeagueSeasonStanding,
   LeagueSeasonStatus,
   LeagueSettings,
   LeagueTeam,
@@ -24,6 +25,9 @@ interface LeagueRow {
   theme: LeagueTheme;
   team_count: number;
   owner_user_id: string;
+  sleeper_league_id: string | null;
+  sleeper_last_synced_at: string | null;
+  active_integration: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -52,6 +56,22 @@ interface LeagueSeasonRow {
   name: string;
   status: LeagueSeasonStatus;
   draft_id: string | null;
+  sleeper_league_id: string | null;
+  champion_team_id: string | null;
+  sleeper_synced_at: string | null;
+}
+
+interface LeagueSeasonStandingRow {
+  league_season_id: string;
+  league_team_id: string;
+  sleeper_roster_id: number;
+  final_rank: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  points_for: number;
+  points_against: number;
+  playoff_finish: number | null;
 }
 
 interface SeasonDraftRow {
@@ -60,10 +80,14 @@ interface SeasonDraftRow {
   status: "setup" | "active" | "paused" | "complete";
   join_code: string;
   scheduled_at: string | null;
+  team_count: number;
+  rounds: number;
+  pick_seconds: number;
+  timer_behavior: "nothing" | "skip" | "auto_draft";
 }
 
 const leagueColumns =
-  "id,slug,name,logo_url,banner_url,primary_color,secondary_color,theme,team_count,owner_user_id,created_at,updated_at";
+  "id,slug,name,logo_url,banner_url,primary_color,secondary_color,theme,team_count,owner_user_id,sleeper_league_id,sleeper_last_synced_at,active_integration,created_at,updated_at";
 
 function mapLeague(row: LeagueRow): League {
   return {
@@ -77,6 +101,9 @@ function mapLeague(row: LeagueRow): League {
     theme: row.theme,
     teamCount: row.team_count ?? 12,
     ownerUserId: row.owner_user_id,
+    sleeperLeagueId: row.sleeper_league_id ?? null,
+    sleeperLastSyncedAt: row.sleeper_last_synced_at ?? null,
+    activeIntegration: (row.active_integration as "sleeper" | "espn" | "yahoo" | null) ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -84,7 +111,8 @@ function mapLeague(row: LeagueRow): League {
 
 function mapSeason(
   row: LeagueSeasonRow,
-  drafts: Map<string, SeasonDraftRow>
+  drafts: Map<string, SeasonDraftRow>,
+  standings: LeagueSeasonStanding[] = []
 ): LeagueSeason {
   const draft = row.draft_id ? drafts.get(row.draft_id) : undefined;
 
@@ -95,6 +123,10 @@ function mapSeason(
     name: row.name,
     status: row.status,
     draftId: row.draft_id,
+    sleeperLeagueId: row.sleeper_league_id ?? null,
+    championTeamId: row.champion_team_id ?? null,
+    sleeperSyncedAt: row.sleeper_synced_at ?? null,
+    standings,
     draft: draft
       ? {
           id: draft.id,
@@ -102,6 +134,10 @@ function mapSeason(
           status: draft.status,
           joinCode: draft.join_code,
           scheduledAt: draft.scheduled_at ?? null,
+          teamCount: draft.team_count,
+          rounds: draft.rounds,
+          pickSeconds: draft.pick_seconds,
+          timerBehavior: draft.timer_behavior,
         }
       : null,
   };
@@ -270,7 +306,8 @@ export async function getLeagueSettings(slug: string): Promise<LeagueSettings> {
       league.ownerUserId === user.id ||
       members.some(
         (member) =>
-          member.userId === user.id && member.role === "commissioner"
+          member.userId === user.id &&
+          (member.role === "commissioner" || member.role === "co-commissioner")
       ),
   };
 }
@@ -310,7 +347,7 @@ export async function getLeagueWorkspace(
   const settings = await getLeagueSettings(slug);
   const { data: seasonData, error: seasonError } = await supabase
     .from("league_seasons")
-    .select("id,league_id,year,name,status,draft_id")
+    .select("id,league_id,year,name,status,draft_id,sleeper_league_id,champion_team_id,sleeper_synced_at")
     .eq("league_id", settings.league.id)
     .order("year", { ascending: false });
 
@@ -323,11 +360,12 @@ export async function getLeagueWorkspace(
     season.draft_id ? [season.draft_id] : []
   );
   const drafts = new Map<string, SeasonDraftRow>();
+  const standingsBySeason = new Map<string, LeagueSeasonStanding[]>();
 
   if (draftIds.length > 0) {
     const { data: draftData, error: draftError } = await supabase
       .from("drafts")
-      .select("id,name,status,join_code,scheduled_at")
+      .select("id,name,status,join_code,scheduled_at,team_count,rounds,pick_seconds,timer_behavior")
       .in("id", draftIds);
 
     if (draftError) {
@@ -339,9 +377,68 @@ export async function getLeagueWorkspace(
     }
   }
 
+  if (seasonRows.length > 0) {
+    const seasonIds = seasonRows.map((season) => season.id);
+    const { data: standingData, error: standingError } = await supabase
+      .from("league_season_standings")
+      .select("league_season_id,league_team_id,sleeper_roster_id,final_rank,wins,losses,ties,points_for,points_against,playoff_finish")
+      .in("league_season_id", seasonIds)
+      .order("final_rank");
+
+    if (standingError) throw standingError;
+
+    const standingRows = standingData as LeagueSeasonStandingRow[];
+    const teamIds = [...new Set(standingRows.map((standing) => standing.league_team_id))];
+    const teams = new Map<string, { name: string; logo_url: string | null }>();
+    if (teamIds.length > 0) {
+      const { data: teamData, error: teamError } = await supabase
+        .from("league_teams")
+        .select("id,name,logo_url")
+        .in("id", teamIds);
+      if (teamError) throw teamError;
+      for (const team of teamData as Array<{ id: string; name: string; logo_url: string | null }>) {
+        teams.set(team.id, team);
+      }
+    }
+
+    for (const standing of standingRows) {
+      const team = teams.get(standing.league_team_id);
+      const mapped: LeagueSeasonStanding = {
+        leagueTeamId: standing.league_team_id,
+        teamName: team?.name ?? "Unknown team",
+        teamLogoUrl: team?.logo_url ?? null,
+        sleeperRosterId: standing.sleeper_roster_id,
+        finalRank: standing.final_rank,
+        wins: standing.wins,
+        losses: standing.losses,
+        ties: standing.ties,
+        pointsFor: Number(standing.points_for),
+        pointsAgainst: Number(standing.points_against),
+        playoffFinish: standing.playoff_finish,
+      };
+      const seasonStandings = standingsBySeason.get(standing.league_season_id) ?? [];
+      seasonStandings.push(mapped);
+      standingsBySeason.set(standing.league_season_id, seasonStandings);
+    }
+  }
+
+  const user = await requirePersistentUser();
+  const { data: myTeamData } = await supabase
+    .from("league_teams")
+    .select("id,name,logo_url")
+    .eq("league_id", settings.league.id)
+    .eq("owner_user_id", user.id)
+    .is("archived_at", null)
+    .maybeSingle();
+
+  const myTeam = myTeamData
+    ? { id: (myTeamData as { id: string; name: string; logo_url: string | null }).id, name: (myTeamData as { id: string; name: string; logo_url: string | null }).name, logoUrl: (myTeamData as { id: string; name: string; logo_url: string | null }).logo_url }
+    : null;
+
   return {
     ...settings,
-    seasons: seasonRows.map((season) => mapSeason(season, drafts)),
+    myTeam,
+    seasons: seasonRows.map((season) => mapSeason(season, drafts, standingsBySeason.get(season.id) ?? [])),
   };
 }
 
@@ -361,17 +458,77 @@ function getSingleSeason(data: unknown) {
   return mapSeason(row as LeagueSeasonRow, new Map());
 }
 
-export async function inviteLeagueMember(leagueId: string, email: string): Promise<{ invited: boolean }> {
+export interface LeagueInvitationResult {
+  invited: boolean;
+  inviteUrl: string;
+  warning: string | null;
+}
+
+export async function inviteLeagueMember(
+  leagueId: string,
+  email: string,
+  target: { leagueTeamId?: string; draftTeamId?: string } = {}
+): Promise<LeagueInvitationResult> {
   const { accessToken } = await requireAuthToken();
 
   const response = await fetch(`/api/leagues/${leagueId}/members`, {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, ...target }),
   });
-  const payload = (await response.json()) as { error?: string; invited?: boolean };
+  const payload = (await response.json()) as { error?: string; invited?: boolean; inviteUrl?: string; warning?: string | null };
   if (!response.ok) throw new Error(payload.error ?? "Unable to add member.");
-  return { invited: payload.invited ?? false };
+  return {
+    invited: payload.invited ?? false,
+    inviteUrl: payload.inviteUrl ?? "",
+    warning: payload.warning ?? null,
+  };
+}
+
+export interface LeagueInvitationInboxItem {
+  invitationId: string;
+  leagueId: string;
+  leagueSlug: string;
+  leagueName: string;
+  leagueLogoUrl: string | null;
+  leagueTeamId: string | null;
+  teamName: string | null;
+  teamLogoUrl: string | null;
+  invitedAt: string;
+}
+
+export async function getMyLeagueInvitations(): Promise<LeagueInvitationInboxItem[]> {
+  await requirePersistentUser();
+  const { data, error } = await supabase.rpc("get_my_league_invitations");
+  if (error) throw error;
+  return ((data ?? []) as Array<{
+    invitation_id: string; league_id: string; league_slug: string; league_name: string;
+    league_logo_url: string | null; league_team_id: string | null; team_name: string | null;
+    team_logo_url: string | null; invited_at: string;
+  }>).map((row) => ({
+    invitationId: row.invitation_id,
+    leagueId: row.league_id,
+    leagueSlug: row.league_slug,
+    leagueName: row.league_name,
+    leagueLogoUrl: row.league_logo_url,
+    leagueTeamId: row.league_team_id,
+    teamName: row.team_name,
+    teamLogoUrl: row.team_logo_url,
+    invitedAt: row.invited_at,
+  }));
+}
+
+export async function respondToLeagueInvitation(
+  invitationId: string,
+  response: "accepted" | "declined"
+): Promise<string | null> {
+  await requirePersistentUser();
+  const { data, error } = await supabase.rpc("respond_to_league_invitation", {
+    p_invitation_id: invitationId,
+    p_response: response,
+  });
+  if (error) throw error;
+  return typeof data === "string" ? data : null;
 }
 
 export async function removeLeagueMember(leagueId: string, memberId: string): Promise<void> {
@@ -384,6 +541,48 @@ export async function removeLeagueMember(leagueId: string, memberId: string): Pr
   });
   const payload = (await response.json()) as { error?: string };
   if (!response.ok) throw new Error(payload.error ?? "Unable to remove member.");
+}
+
+export async function setLeagueMemberRole(
+  leagueId: string,
+  memberId: string,
+  role: "co-commissioner" | "member"
+): Promise<void> {
+  await requirePersistentUser();
+  const { error } = await supabase.rpc("set_league_member_role", {
+    p_league_id: leagueId,
+    p_member_id: memberId,
+    p_role: role,
+  });
+  if (error) throw error;
+}
+
+export interface SleeperHistorySyncResult {
+  sleeperLeagueId: string;
+  seasonYear: number;
+  mappedTeams: number;
+  totalTeams: number;
+  championMapped: boolean;
+  unmappedTeams: string[];
+  draftHqTeamNames?: string[];
+  leagueTeamsError?: string | null;
+  leagueIdUsed?: string;
+  syncedAt: string;
+}
+
+export async function syncSleeperLeagueHistory(
+  leagueId: string,
+  sleeperLeagueId: string
+): Promise<SleeperHistorySyncResult> {
+  const { accessToken } = await requireAuthToken();
+  const response = await fetch(`/api/leagues/${leagueId}/sleeper/sync`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify({ sleeperLeagueId }),
+  });
+  const payload = (await response.json()) as SleeperHistorySyncResult & { error?: string };
+  if (!response.ok) throw new Error(payload.error ?? "Unable to sync Sleeper league history.");
+  return payload;
 }
 
 export async function updateLeagueMemberProfile(
@@ -649,6 +848,29 @@ export async function createLeagueTeam(leagueId: string, data: CreateLeagueTeamD
   return mapLeagueTeamRow(row as LeagueTeamRow, new Map(), new Set());
 }
 
+export async function importLeagueTeams(
+  leagueId: string,
+  teams: Array<{ name: string; ownerName?: string | null }>
+): Promise<LeagueTeam[]> {
+  if (teams.length === 0) throw new Error("The provider did not return any teams.");
+
+  const { data: rows, error } = await supabase
+    .from("league_teams")
+    .insert(
+      teams.map((team) => ({
+        league_id: leagueId,
+        name: team.name.trim(),
+        owner_name: team.ownerName?.trim() || null,
+      }))
+    )
+    .select(LEAGUE_TEAM_COLUMNS);
+
+  if (error) throw error;
+  return (rows as LeagueTeamRow[]).map((row) =>
+    mapLeagueTeamRow(row, new Map(), new Set())
+  );
+}
+
 export interface UpdateLeagueTeamDetailsData {
   name?: string;
   shortName?: string | null;
@@ -745,5 +967,12 @@ export async function assignLeagueTeamOwner(
     p_user_id: userId,
   });
 
+  if (error) throw error;
+}
+
+export async function disconnectLeagueIntegration(leagueId: string): Promise<void> {
+  const { error } = await supabase.rpc("disconnect_league_integration", {
+    p_league_id: leagueId,
+  });
   if (error) throw error;
 }

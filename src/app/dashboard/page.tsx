@@ -18,7 +18,7 @@ function groupByYear(workspaces: LeagueWorkspace[]): Map<number, SeasonRow[]> {
   for (const workspace of workspaces) {
     if (workspace.seasons.length === 0) {
       const rows = map.get(CURRENT_YEAR) ?? [];
-      rows.push({ workspace, season: { id: "", leagueId: workspace.league.id, year: CURRENT_YEAR, name: workspace.league.name, status: "upcoming", draftId: null, draft: null } });
+      rows.push({ workspace, season: { id: "", leagueId: workspace.league.id, year: CURRENT_YEAR, name: workspace.league.name, status: "upcoming", draftId: null, draft: null, sleeperLeagueId: null, championTeamId: null, sleeperSyncedAt: null, standings: [] } });
       map.set(CURRENT_YEAR, rows);
     } else {
       for (const season of workspace.seasons) {
@@ -100,40 +100,95 @@ function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueS
 function LeagueRow({ workspace, season, onDeleteClick }: SeasonRow & { onDeleteClick?: () => void }) {
   const { label, dot } = draftStatusLabel(season);
   const league = workspace.league;
+  const memberCount = workspace.members.length;
+  const draft = season.draft;
+  const role = workspace.canManage ? "Commissioner" : "Member";
+  const myTeam = workspace.myTeam;
 
   return (
     <Link
       href={`/leagues/${league.slug}`}
-      className="group flex items-center gap-4 border-b border-slate-800 px-5 py-3.5 hover:bg-slate-800/60 transition-colors last:border-b-0 first:rounded-t-xl last:rounded-b-xl"
+      className="group flex items-center gap-5 border-b border-slate-800 px-6 py-5 hover:bg-slate-800/40 transition-colors last:border-b-0"
     >
-      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg overflow-hidden bg-teal-900/30">
+      {/* Logo */}
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl overflow-hidden bg-slate-800 shadow-lg">
         {league.logoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={league.logoUrl} alt="" className="h-full w-full object-cover" />
         ) : (
-          <span className="text-sm font-bold text-teal-300">{league.name.slice(0, 2).toUpperCase()}</span>
+          <span className="text-2xl font-black text-slate-400">{league.name.slice(0, 2).toUpperCase()}</span>
         )}
       </div>
 
-      <span className="flex-1 font-semibold text-white group-hover:text-teal-300 transition-colors">
-        {league.name}
-        <span className="ml-2 font-normal text-slate-500">({season.year})</span>
-      </span>
+      {/* Content */}
+      <div className="min-w-0 flex-1">
+        <p className="text-lg font-bold text-white group-hover:text-teal-300 transition-colors truncate">
+          {league.name}
+        </p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-500">
+          {draft && (
+            <span className="flex items-center gap-1.5">
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              Regular Draft
+            </span>
+          )}
+          <span className="flex items-center gap-1.5">
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+              <circle cx="6" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M2 13c0-2.21 1.79-4 4-4s4 1.79 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              <circle cx="11" cy="5" r="2" stroke="currentColor" strokeWidth="1.3" />
+              <path d="M10 9.1c.32-.07.65-.1 1-.1 2.21 0 4 1.79 4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+            </svg>
+            {memberCount} {memberCount === 1 ? "member" : "members"}
+          </span>
+          {draft?.rounds && (
+            <span className="flex items-center gap-1.5">
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                <path d="M2 4h12M2 8h12M2 12h7" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              {draft.rounds} rounds
+            </span>
+          )}
+          <span className={`flex items-center gap-1.5 font-semibold ${workspace.canManage ? "text-teal-400" : "text-slate-400"}`}>
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+              <path d="M8 2l1.5 3H13l-2.75 2 1 3.5L8 8.75 4.75 10.5l1-3.5L3 5h3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+            </svg>
+            {role}
+          </span>
+          {myTeam && (
+            <Link
+              href={`/leagues/${league.slug}/my-team`}
+              onClick={(e) => e.stopPropagation()}
+              className="flex items-center gap-1.5 font-semibold text-amber-400 hover:text-amber-300 transition-colors"
+            >
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                <circle cx="8" cy="5" r="3" stroke="currentColor" strokeWidth="1.3" />
+                <path d="M2 14c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" />
+              </svg>
+              Team Owner
+            </Link>
+          )}
+        </div>
+      </div>
 
-      <span className="flex items-center gap-2 text-xs text-slate-500">
-        <span className={`h-2 w-2 rounded-full ${dot}`} />
-        {label}
-      </span>
-
-      {onDeleteClick && (
-        <LeagueRowMenu onDelete={onDeleteClick} leagueSlug={league.slug} />
-      )}
-
-      {!onDeleteClick && (
-        <svg className="h-4 w-4 text-slate-700 group-hover:text-teal-500 transition-colors" viewBox="0 0 16 16" fill="none">
-          <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      )}
+      {/* Status + menu */}
+      <div className="flex shrink-0 items-center gap-3">
+        <span className="hidden sm:flex items-center gap-2 text-sm text-slate-500">
+          <span className={`h-2 w-2 rounded-full ${dot}`} />
+          {label}
+        </span>
+        {onDeleteClick && (
+          <LeagueRowMenu onDelete={onDeleteClick} leagueSlug={league.slug} />
+        )}
+        {!onDeleteClick && (
+          <svg className="h-4 w-4 text-slate-700 group-hover:text-teal-500 transition-colors" viewBox="0 0 16 16" fill="none">
+            <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        )}
+      </div>
     </Link>
   );
 }
@@ -243,8 +298,7 @@ export default function DashboardPage() {
 
   const byYear = groupByYear(workspaces);
   if (!byYear.has(CURRENT_YEAR)) byYear.set(CURRENT_YEAR, []);
-  const years = [...byYear.keys()].sort((a, b) => b - a);
-  if (!years.includes(CURRENT_YEAR)) years.unshift(CURRENT_YEAR);
+  const currentRows = byYear.get(CURRENT_YEAR) ?? [];
 
   return (
     <div className="flex-1">
@@ -265,67 +319,56 @@ export default function DashboardPage() {
                 ))}
               </div>
             ) : (
-              years.map((year) => {
-                const rows = byYear.get(year) ?? [];
-                const isCurrent = year === CURRENT_YEAR;
+              <section>
+                <div className="mb-3 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-white">Leagues</h2>
+                  <Link
+                    href="/leagues/new"
+                    className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
+                  >
+                    + Create League
+                  </Link>
+                </div>
 
-                return (
-                  <section key={year}>
-                    <div className="mb-3 flex items-center justify-between">
-                      <h2 className="text-xl font-bold text-white">
-                        {isCurrent ? "Leagues" : year}
-                      </h2>
-                      {isCurrent && (
-                        <Link
-                          href="/leagues/new"
-                          className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
-                        >
-                          + Create League
-                        </Link>
-                      )}
+                {currentRows.length === 0 && (
+                  <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center">
+                    <p className="font-semibold text-white">You don&apos;t have any leagues yet.</p>
+                    <p className="mt-1 text-sm text-slate-500">
+                      Create a new league or{" "}
+                      <Link href="/join" className="text-teal-400 underline hover:text-teal-300">
+                        join one with an invite
+                      </Link>
+                      .
+                    </p>
+                    <div className="mt-5 flex items-center justify-center gap-3">
+                      <Link
+                        href="/leagues/new"
+                        className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
+                      >
+                        Create League
+                      </Link>
+                      <Link
+                        href="/create"
+                        className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
+                      >
+                        Standalone Draft
+                      </Link>
                     </div>
+                  </div>
+                )}
 
-                    {isCurrent && rows.length === 0 && (
-                      <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center">
-                        <p className="font-semibold text-white">You don&apos;t have any leagues yet.</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          Create a new league or{" "}
-                          <Link href="/join" className="text-teal-400 underline hover:text-teal-300">
-                            join one with an invite
-                          </Link>
-                          .
-                        </p>
-                        <div className="mt-5 flex items-center justify-center gap-3">
-                          <Link
-                            href="/leagues/new"
-                            className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
-                          >
-                            Create League
-                          </Link>
-                          <Link
-                            href="/create"
-                            className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                          >
-                            Standalone Draft
-                          </Link>
-                        </div>
-                      </div>
-                    )}
-
-                    {rows.length > 0 && (
-                      <div className="rounded-xl border border-slate-800 bg-slate-900">
-                        {rows.map((row) => (
-                          <LeagueRow
-                            key={`${row.workspace.league.id}-${row.season.id}`}
-                            {...row}
-                            onDeleteClick={row.workspace.canManage ? () => setDeleteTarget(row.workspace) : undefined}
-                          />
-                        ))}
-                      </div>
-                    )}
-                  </section>
-                );
-              })
+                {currentRows.length > 0 && (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
+                    {currentRows.map((row) => (
+                      <LeagueRow
+                        key={`${row.workspace.league.id}-${row.season.id}`}
+                        {...row}
+                        onDeleteClick={row.workspace.canManage ? () => setDeleteTarget(row.workspace) : undefined}
+                      />
+                    ))}
+                  </div>
+                )}
+              </section>
             )}
           </div>
 

@@ -22,6 +22,7 @@ describe("transformNflversePlayers", () => {
       latest_team: "JAC",
       status: "ACT",
       last_season: "2026",
+      headshot: "https://example.com/qb.png",
     },
     {
       gsis_id: "00-2",
@@ -68,12 +69,14 @@ describe("transformNflversePlayers", () => {
       full_name: "Current Quarterback",
       position: "QB",
       nfl_team: "JAX",
+      headshot_url: "https://example.com/qb.png",
     });
     expect(result.players).toContainEqual({
       external_id: "DST-BUF",
       full_name: "Buffalo Bills",
       position: "DST",
       nfl_team: "BUF",
+      headshot_url: null,
     });
     expect(
       result.players.some((player) => player.external_id === "00-3")
@@ -103,6 +106,7 @@ describe("transformNflversePlayers", () => {
         full_name: "Updated Quarterback",
         position: "QB",
         nfl_team: "JAX",
+        headshot_url: "https://example.com/qb.png",
       },
     ]);
   });

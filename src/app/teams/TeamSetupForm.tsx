@@ -8,8 +8,13 @@ import {
   configureDraftTimer,
   getDraftSetup,
   inviteOwner,
+  resetDraft,
   updateDraftName,
   updateDraftExtras,
+  updateDraftAudio,
+  updateDraftPresentation,
+  uploadDraftSfx,
+  uploadDraftPresentationAudio,
   updateDraftRounds,
   updateDraftRosterPositions,
   updateDraftSchedule,
@@ -27,8 +32,12 @@ import { moveDraftTeam } from "@/lib/teamSetupLogic";
 import { supabase } from "@/lib/supabase";
 import { getLeagueBranding, inviteLeagueMember } from "@/lib/leagueApi";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
+import { getAnnouncerVoiceProfile, resolveAnnouncerVoice } from "@/lib/speech";
 import ClockSettings from "@/components/ClockSettings";
-import type { DraftInvitation, RosterPosition, Team, TimerBehavior } from "@/types/draft";
+import SongPicker from "@/components/SongPicker";
+import ResetDraftModal from "@/components/ResetDraftModal";
+import { initiateSpotifyPopup, isSpotifyConnected, disconnectSpotify, consumeSpotifyCallback } from "@/lib/spotifyAuth";
+import type { DraftInvitation, RosterPosition, Team, TimerBehavior, WalkUpSong } from "@/types/draft";
 
 const DEFAULT_ROSTER_POSITIONS: RosterPosition[] = [
   { id: "QB", label: "Quarterbacks", abbrev: "QB", enabled: true, min: 0, max: 9, color: "#67E8F9" },
@@ -49,7 +58,7 @@ const DEFAULT_ROSTER_POSITIONS: RosterPosition[] = [
 ];
 const ROSTER_POSITIONS_COLLAPSED = 7;
 
-type Tab = "settings" | "teams" | "draft-order";
+type Tab = "settings" | "teams" | "draft-order" | "audio";
 
 interface TeamSetupFormProps {
   draftId: string | null;
@@ -99,6 +108,7 @@ function LockIcon() {
   );
 }
 
+
 export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -107,7 +117,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const fromDraft = searchParams.get("fromDraft") === "1";
   const backHref = leagueSlug ? `/leagues/${leagueSlug}` : "/dashboard";
   const backToDraftHref = draftId
-    ? `/draft?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`
+    ? `/draft/lobby?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`
     : null;
   const [tab, setTab] = useState<Tab>(initialTab);
   const [setup, setSetup] = useState<DraftSetup | null>(null);
@@ -121,6 +131,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [inviteTeamId, setInviteTeamId] = useState("");
   const [isInviting, setIsInviting] = useState(false);
   const [isSavingClock, setIsSavingClock] = useState(false);
+  const [showResetDraft, setShowResetDraft] = useState(false);
 
   // Settings tab — draft name / format editing
   const [draftName, setDraftName] = useState("");
@@ -129,6 +140,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [savingTeamId, setSavingTeamId] = useState<string | null>(null);
   const [lastSeasonOpen, setLastSeasonOpen] = useState<Set<string>>(new Set());
+  const [songPickerTeamId, setSongPickerTeamId] = useState<string | null>(null);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  useEffect(() => {
+    // Consume OAuth tokens from URL fragment after redirect back from Spotify
+    if (consumeSpotifyCallback()) setSpotifyConnected(true);
+    else setSpotifyConnected(isSpotifyConnected());
+  }, []);
   const [rounds, setRounds] = useState(15);
   const [isSavingRounds, setIsSavingRounds] = useState(false);
   const [teamCount, setTeamCount] = useState(10);
@@ -144,6 +162,27 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [scoringType, setScoringType] = useState<"standard" | "ppr" | "half_ppr" | "superflex">("standard");
   const [useLandmines, setUseLandmines] = useState(false);
   const [landmineCount, setLandmineCount] = useState(3);
+  const [sfx1Url, setSfx1Url] = useState("");
+  const [sfx2Url, setSfx2Url] = useState("");
+  const [posReactions, setPosReactions] = useState(["That was a great pick!", "What a steal!", "Excellent choice!"]);
+  const [negReactions, setNegReactions] = useState(["Oh no! What were you thinking?", "Really? You chose him?", "That was a horrible pick!"]);
+  const [isSavingAudio, setIsSavingAudio] = useState(false);
+  const [sfxUploading, setSfxUploading] = useState<{ 1: boolean; 2: boolean }>({ 1: false, 2: false });
+  // Presentation settings
+  const [pickIsInEnabled, setPickIsInEnabled] = useState(true);
+  const [pickIsInSfxUrl, setPickIsInSfxUrl] = useState<string | null>(null);
+  const [pickIsInUploading, setPickIsInUploading] = useState(false);
+  const [draftStartAudioUrl, setDraftStartAudioUrl] = useState<string | null>(null);
+  const [draftStartUploading, setDraftStartUploading] = useState(false);
+  // Round slide settings
+  const [showRoundSlide, setShowRoundSlide] = useState(true);
+  const [roundSlideSeconds, setRoundSlideSeconds] = useState(7);
+  const [roundSlidePausesClock, setRoundSlidePausesClock] = useState(false);
+  // Announcer voice
+  const [announcerVoiceUri, setAnnouncerVoiceUri] = useState<string | null>(null);
+  const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  const [settingsSaveState, setSettingsSaveState] = useState<"idle" | "saving" | "saved">("idle");
+  const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const [error, setError] = useState("");
 
@@ -174,6 +213,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         setScoringType(s.draft.scoringType ?? "standard");
         setUseLandmines(s.draft.useLandmines ?? false);
         setLandmineCount(s.draft.landmineCount ?? 3);
+        if (s.draft.sfx1Url) setSfx1Url(s.draft.sfx1Url);
+        if (s.draft.sfx2Url) setSfx2Url(s.draft.sfx2Url);
+        if (s.draft.posReactions?.length) setPosReactions(s.draft.posReactions);
+        if (s.draft.negReactions?.length) setNegReactions(s.draft.negReactions);
+        setPickIsInEnabled(s.draft.pickIsInEnabled ?? true);
+        setPickIsInSfxUrl(s.draft.pickIsInSfxUrl ?? null);
+        setDraftStartAudioUrl(s.draft.draftStartAudioUrl ?? null);
+        setShowRoundSlide(s.draft.showRoundSlide ?? true);
+        setRoundSlideSeconds(s.draft.roundSlideSeconds ?? 7);
+        setRoundSlidePausesClock(s.draft.roundSlidePausesClock ?? false);
+        setAnnouncerVoiceUri(s.draft.announcerVoiceUri ?? null);
         if (s.draft.rosterPositions?.length) {
           setRosterPositions(
             DEFAULT_ROSTER_POSITIONS.map((def) => {
@@ -191,6 +241,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
     return () => { cancelled = true; };
   }, [draftId, router]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !window.speechSynthesis) return;
+    const load = () => setAvailableVoices(window.speechSynthesis.getVoices());
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+    return () => { window.speechSynthesis.onvoiceschanged = null; };
+  }, []);
 
   useEffect(() => {
     if (!draftId) return;
@@ -315,17 +373,23 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       // Save the team state first so name changes are persisted
       await updateTeamSetup(draftId, teams);
 
-      // Invite to the league when this draft belongs to one
       if (setup.draft.leagueId) {
-        try {
-          await inviteLeagueMember(setup.draft.leagueId, inviteEmail.trim());
-        } catch (leagueErr) {
-          // Non-fatal: they may already be a league member
-          const msg = leagueErr instanceof Error ? leagueErr.message : "";
-          if (!msg.includes("already a member")) {
-            console.warn("League invite warning:", msg);
-          }
+        const leagueInvitation = await inviteLeagueMember(
+          setup.draft.leagueId,
+          inviteEmail.trim(),
+          { draftTeamId: targetTeamId }
+        );
+        const invitedTeam = teams.find((team) => team.id === targetTeamId);
+        if (!sendEmail && invitedTeam) {
+          const message = `You are invited to join ${setup.draft.name} in DraftHQ as ${invitedTeam.name}.\n\nOpen DraftHQ to accept or decline:\n${leagueInvitation.inviteUrl}`;
+          setCopyStatus((await copyText(message)) ? `Invite for ${inviteEmail.trim()} copied.` : `Copy manually:\n${message}`);
+        } else {
+          setCopyStatus(leagueInvitation.warning ?? "League invitation sent. They must accept before joining or receiving the team.");
         }
+        setInviteEmail("");
+        setInviteTeamId("");
+        setTimeout(() => setCopyStatus(""), 4500);
+        return;
       }
 
       const result = await inviteOwner(draftId, inviteEmail.trim(), targetTeamId, { sendEmail });
@@ -373,6 +437,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   }) {
     if (!draftId || !setup) return;
     setIsSavingClock(true);
+    setSettingsSaveState("saving");
     try {
       const updated = await configureDraftTimer(draftId, settings.pickSeconds, {
         timerBehavior: settings.timerBehavior,
@@ -380,8 +445,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         maxClockExtensions: settings.maxClockExtensions,
       });
       setSetup({ ...setup, draft: updated });
+      flashSaved();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to save clock settings.");
+      setSettingsSaveState("idle");
     } finally {
       setIsSavingClock(false);
     }
@@ -392,7 +459,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setSavingTeamId(teamId);
     try {
       const team = teams.find((t) => t.id === teamId);
-      await updateTeamSetup(draftId, teams);
+      // updateTeamSetup (name/order) is only allowed before the draft starts
+      if (setup?.draft.status === "setup") {
+        await updateTeamSetup(draftId, teams);
+      }
       if (team) {
         await updateTeamDetails(draftId, teamId, {
           shortName: team.shortName,
@@ -403,21 +473,39 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           lastSeasonRecord: team.lastSeasonRecord,
           lastSeasonPlayoffs: team.lastSeasonPlayoffs,
           ownerName: team.ownerName,
+          lastSeasonPickPlayer: team.lastSeasonPickPlayer,
+          walkUpSongs: (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []),
         });
       }
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save team.");
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save team.");
     } finally {
       setSavingTeamId(null);
     }
   }
 
+  async function saveWalkUpSongs(teamId: string, songs: WalkUpSong[]) {
+    if (!draftId) return;
+    try {
+      await updateTeamDetails(draftId, teamId, { walkUpSongs: songs });
+    } catch (e) {
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save songs.");
+    }
+  }
+
+  function flashSaved() {
+    if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
+    setSettingsSaveState("saved");
+    settingsSaveTimerRef.current = setTimeout(() => setSettingsSaveState("idle"), 2000);
+  }
+
   function saveRosterPositions(updated: RosterPosition[]) {
     setRosterPositions(updated);
     if (!draftId || !setup) return;
+    setSettingsSaveState("saving");
     updateDraftRosterPositions(draftId, updated)
-      .then((draft) => setSetup({ ...setup, draft }))
-      .catch((e) => setError(e instanceof Error ? e.message : "Unable to save roster positions."));
+      .then((draft) => { setSetup({ ...setup, draft }); flashSaved(); })
+      .catch((e) => { setError(e instanceof Error ? e.message : "Unable to save roster positions."); setSettingsSaveState("idle"); });
   }
 
   async function saveTeams() {
@@ -427,7 +515,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     try {
       await updateTeamSetup(draftId, teams);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save teams.");
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save teams.");
     } finally {
       setIsSaving(false);
     }
@@ -439,9 +527,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setError(""); setIsSaving(true);
     try {
       await updateTeamSetup(draftId, teams);
-      router.push(`/draft?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`);
+      router.push(`/draft/lobby?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to save teams.");
+      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save teams.");
       setIsSaving(false);
     }
   }
@@ -474,6 +562,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     { id: "settings", label: "Settings" },
     { id: "teams", label: "Teams" },
     { id: "draft-order", label: "Draft Order" },
+    { id: "audio", label: "Audio / Video" },
   ];
 
   const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-teal-500 focus:outline-none disabled:opacity-50 transition-colors";
@@ -481,6 +570,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const cardCls = "rounded-2xl border border-slate-800 bg-slate-900 p-6";
 
   return (
+    <>
     <div className="flex-1 text-white">
 
       {/* ── Header ── */}
@@ -526,6 +616,15 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   </svg>
                   Enter Draft Room
                 </button>
+                {isCommissioner && leagueSlug && (
+                  <button
+                    type="button"
+                    onClick={() => setShowResetDraft(true)}
+                    className="rounded-lg border border-red-800/70 px-4 py-2 text-sm font-semibold text-red-400 transition-colors hover:bg-red-950/40 hover:text-red-300"
+                  >
+                    Reset Draft
+                  </button>
+                )}
               </>
             )}
           </div>
@@ -551,6 +650,21 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           </nav>
         </div>
       </header>
+
+      {showResetDraft && draftId && (
+        <ResetDraftModal
+          onClose={() => setShowResetDraft(false)}
+          onConfirm={async () => {
+            await resetDraft(draftId);
+            const freshSetup = await getDraftSetup(draftId);
+            setSetup(freshSetup);
+            setTeams(freshSetup.teams);
+            setTab("settings");
+            router.replace(`/teams?draftId=${draftId}&tab=settings&leagueSlug=${leagueSlug}`);
+          }}
+          onReset={() => undefined}
+        />
+      )}
 
       {/* ── Body ── */}
       <div className="mx-auto max-w-5xl px-6 py-8 pb-24 lg:pb-8">
@@ -937,7 +1051,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                   );
                                   setRosterPositions(next);
                                 }}
-                                onBlur={() => saveRosterPositions(rosterPositions)}
+                                onBlur={(e) => {
+                                  const next = rosterPositions.map((p) =>
+                                    p.id === pos.id ? { ...p, color: e.target.value } : p
+                                  );
+                                  saveRosterPositions(next);
+                                }}
                                 className="h-8 w-14 cursor-pointer rounded border border-slate-700 bg-transparent p-0.5 disabled:opacity-40"
                                 title={`Color for ${pos.label}`}
                               />
@@ -1186,15 +1305,35 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                   <div className="grid gap-3 sm:grid-cols-2">
                                     <div>
                                       <label className={labelCls}>Text-to-speech name <span className="normal-case font-normal text-slate-500">(Optional)</span></label>
-                                      <input
-                                        type="text"
-                                        disabled={!isCommissioner}
-                                        maxLength={60}
-                                        className={inputCls}
-                                        value={team.ttsName ?? ""}
-                                        placeholder="Pronunciation for announcer"
-                                        onChange={(e) => updateTeamField(team.id, "ttsName", e.target.value)}
-                                      />
+                                      <div className="flex gap-2">
+                                        <input
+                                          type="text"
+                                          disabled={!isCommissioner}
+                                          maxLength={60}
+                                          className={inputCls + " flex-1"}
+                                          value={team.ttsName ?? ""}
+                                          placeholder="Pronunciation for announcer"
+                                          onChange={(e) => updateTeamField(team.id, "ttsName", e.target.value)}
+                                        />
+                                        <button
+                                          type="button"
+                                          title="Preview voice"
+                                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
+                                          onClick={() => {
+                                            if (typeof window === "undefined" || !window.speechSynthesis) return;
+                                            window.speechSynthesis.cancel();
+                                            const utt = new SpeechSynthesisUtterance(team.ttsName?.trim() || team.name);
+                                            const voices = window.speechSynthesis.getVoices();
+                                            const voice = resolveAnnouncerVoice(voices, setup?.draft.announcerVoiceUri);
+                                            if (voice) utt.voice = voice;
+                                            window.speechSynthesis.speak(utt);
+                                          }}
+                                        >
+                                          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
+                                            <path d="M3 3.5l10 4.5-10 4.5V3.5z"/>
+                                          </svg>
+                                        </button>
+                                      </div>
                                     </div>
                                     <div>
                                       <label className={labelCls}>Autodraft</label>
@@ -1247,16 +1386,15 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                       <div className="border-t border-slate-800 px-4 pb-4 pt-4">
                                         <div className="grid gap-3 sm:grid-cols-3">
                                           <div>
-                                            <label className={labelCls}>First round pick #</label>
+                                            <label className={labelCls}>First round pick</label>
                                             <input
-                                              type="number"
-                                              min={1}
-                                              max={20}
+                                              type="text"
+                                              maxLength={80}
                                               disabled={!isCommissioner}
                                               className={inputCls + " disabled:opacity-40"}
-                                              value={team.lastSeasonPick ?? ""}
-                                              placeholder="e.g. 4"
-                                              onChange={(e) => updateTeamField(team.id, "lastSeasonPick", e.target.value ? Number(e.target.value) : undefined)}
+                                              value={team.lastSeasonPickPlayer ?? ""}
+                                              placeholder="e.g. Justin Jefferson"
+                                              onChange={(e) => updateTeamField(team.id, "lastSeasonPickPlayer", e.target.value || undefined)}
                                             />
                                           </div>
                                           <div>
@@ -1287,6 +1425,97 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                         </div>
                                       </div>
                                     )}
+                                  </div>
+
+                                  {/* Walk-up songs */}
+                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
+                                    <div className="flex items-center justify-between px-4 py-3">
+                                      <div>
+                                        <span className="text-sm font-semibold text-white">Team songs</span>
+                                        <span className="ml-2 text-xs text-slate-500">Walk-up songs</span>
+                                      </div>
+                                      <span className="text-xs text-slate-500">{(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length} of 3 songs</span>
+                                    </div>
+                                    {/* Spotify connect */}
+                                    <div className="flex items-center justify-between border-t border-slate-800 px-4 py-2.5">
+                                      {spotifyConnected ? (
+                                        <div className="flex items-center gap-2">
+                                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 text-green-400 shrink-0"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+                                          <span className="text-xs text-green-400 font-medium">Spotify connected</span>
+                                          <button type="button" onClick={() => {
+                                              disconnectSpotify();
+                                              setSpotifyConnected(false);
+                                              // Remove Spotify songs from all teams
+                                              setTeams((prev) => prev.map((t) => {
+                                                const filtered = (Array.isArray(t.walkUpSongs) ? t.walkUpSongs : []).filter((s) => s.platform !== "spotify");
+                                                if (filtered.length !== (t.walkUpSongs ?? []).length) {
+                                                  void saveWalkUpSongs(t.id, filtered);
+                                                  return { ...t, walkUpSongs: filtered };
+                                                }
+                                                return t;
+                                              }));
+                                            }}
+                                            className="text-xs text-slate-500 hover:text-red-400 underline transition-colors ml-1">
+                                            Disconnect
+                                          </button>
+                                        </div>
+                                      ) : (
+                                        <div className="flex flex-col gap-0.5">
+                                          <button type="button"
+                                            onClick={() => initiateSpotifyPopup(() => setSpotifyConnected(true))}
+                                            className="flex items-center gap-2 rounded-lg bg-[#1DB954] px-3 py-1.5 text-xs font-bold text-black hover:bg-[#1ed760] transition-colors">
+                                            <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 shrink-0"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
+                                            Connect Spotify
+                                            <span className="font-normal opacity-70">(Optional)</span>
+                                          </button>
+                                          <span className="text-[10px] text-slate-600">Spotify Premium required · YouTube works without it</span>
+                                        </div>
+                                      )}
+                                    </div>
+
+                                    <div className="border-t border-slate-800 px-4 pb-4 pt-3 space-y-2">
+                                      {(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length === 0 ? (
+                                        <p className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-3 text-sm text-slate-500">
+                                          No walk-up songs added yet.
+                                        </p>
+                                      ) : (
+                                        (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).map((song, si) => (
+                                          <div key={si} className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
+                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-slate-400">
+                                              <path d="M6 2v9.27A3 3 0 1 0 7 14V5h5V2H6z"/>
+                                            </svg>
+                                            <span className="flex-1 truncate text-sm text-slate-300">{song.title || song.url}</span>
+                                            {isCommissioner && (
+                                              <button
+                                                type="button"
+                                                className="shrink-0 text-slate-500 hover:text-red-400 transition-colors"
+                                                onClick={() => {
+                                                  const next = (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).filter((_, i) => i !== si);
+                                                  updateTeamField(team.id, "walkUpSongs", next);
+                                                  void saveWalkUpSongs(team.id, next);
+                                                }}
+                                              >
+                                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4">
+                                                  <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round"/>
+                                                </svg>
+                                              </button>
+                                            )}
+                                          </div>
+                                        ))
+                                      )}
+                                      {isCommissioner && (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length < 3 && (
+                                        <button
+                                          type="button"
+                                          onClick={() => setSongPickerTeamId(team.id)}
+                                          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:border-slate-500 hover:text-slate-300 transition-colors"
+                                        >
+                                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5">
+                                            <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
+                                          </svg>
+                                          Add a song
+                                        </button>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
 
@@ -1527,6 +1756,494 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               </div>
             )}
 
+            {/* AUDIO / VIDEO TAB */}
+            {tab === "audio" && (
+              <div className="space-y-5">
+
+                {/* ── Announcer Voice ── */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Announcer Voice</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Choose the text-to-speech voice used for pick announcements.</p>
+                  <div className="flex items-center gap-3">
+                    <select
+                      disabled={!isCommissioner || availableVoices.length === 0}
+                      value={getAnnouncerVoiceProfile(announcerVoiceUri)}
+                      onChange={async (e) => {
+                        const uri = e.target.value;
+                        setAnnouncerVoiceUri(uri);
+                        if (!draftId || !setup) return;
+                        try {
+                          const updated = await updateDraftPresentation(draftId, { announcerVoiceUri: uri });
+                          setSetup({ ...setup, draft: updated });
+                          flashSaved();
+                        } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                      }}
+                      className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+                    >
+                      <option value="drafthq:male">DraftHQ Male Announcer</option>
+                      <option value="drafthq:female">DraftHQ Female Announcer</option>
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const utt = new SpeechSynthesisUtterance("With pick one, your team selects a player");
+                        utt.rate = 0.85; utt.pitch = 0.95;
+                        const voice = resolveAnnouncerVoice(availableVoices, announcerVoiceUri);
+                        if (voice) utt.voice = voice;
+                        window.speechSynthesis?.cancel();
+                        window.speechSynthesis?.speak(utt);
+                      }}
+                      className="shrink-0 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 hover:bg-slate-700 transition-colors"
+                    >
+                      Test Voice
+                    </button>
+                  </div>
+                  {availableVoices.length === 0 && (
+                    <p className="mt-2 text-xs text-slate-600">No voices found — your browser may load them after a moment.</p>
+                  )}
+                </div>
+
+                {/* ── Draft Presentation ── */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Draft Presentation</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Configure pick announcements, draft start audio, and player videos.</p>
+
+                  <div className="space-y-5">
+                    {/* Pick is in toggle + custom SFX */}
+                    <div>
+                      <label className="flex cursor-pointer items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={pickIsInEnabled}
+                          disabled={!isCommissioner}
+                          onChange={async (e) => {
+                            const val = e.target.checked;
+                            setPickIsInEnabled(val);
+                            if (!draftId || !setup) return;
+                            try {
+                              const updated = await updateDraftPresentation(draftId, { pickIsInEnabled: val });
+                              setSetup({ ...setup, draft: updated });
+                              flashSaved();
+                            } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                          }}
+                          className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-white">Use "Pick is in…" feature</p>
+                          <p className="text-xs text-slate-500">Plays a sound when a player is staged for selection.</p>
+                        </div>
+                      </label>
+                      {pickIsInEnabled && (
+                        <div className="mt-3 ml-7">
+                          <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Pick is in sound effect</p>
+                          <div className="flex items-center gap-2">
+                            {isCommissioner && (
+                              <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-700 ${pickIsInUploading ? "opacity-50 pointer-events-none" : ""}`}>
+                                <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0">
+                                  <path d="M8 11V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                  <path d="M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                </svg>
+                                {pickIsInUploading ? "Uploading…" : "Upload custom"}
+                                <input type="file" accept="audio/*" className="sr-only" disabled={!draftId || pickIsInUploading}
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file || !draftId || !setup) return;
+                                    setPickIsInUploading(true);
+                                    try {
+                                      const url = await uploadDraftPresentationAudio(draftId, "pickIsIn", file);
+                                      setPickIsInSfxUrl(url);
+                                      const updated = await updateDraftPresentation(draftId, { pickIsInSfxUrl: url });
+                                      setSetup({ ...setup, draft: updated });
+                                      flashSaved();
+                                    } catch (err) { setError(err instanceof Error ? err.message : "Upload failed."); }
+                                    finally { setPickIsInUploading(false); e.target.value = ""; }
+                                  }}
+                                />
+                              </label>
+                            )}
+                            {pickIsInSfxUrl ? (
+                              <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
+                                <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-teal-400">
+                                  <rect x="0" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+                                  <rect x="3" y="1" width="2" height="12" rx="1" fill="currentColor"/>
+                                  <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+                                  <rect x="9" y="0" width="2" height="14" rx="1" fill="currentColor"/>
+                                  <rect x="12" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+                                  <rect x="15" y="1" width="2" height="12" rx="1" fill="currentColor"/>
+                                  <rect x="18" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+                                </svg>
+                                <span className="min-w-0 flex-1 truncate text-xs text-slate-300">
+                                  {(() => { try { return decodeURIComponent(new URL(pickIsInSfxUrl).pathname.split("/").pop() ?? pickIsInSfxUrl); } catch { return pickIsInSfxUrl; } })()}
+                                </span>
+                                <button type="button" title="Preview" onClick={() => { const a = new Audio(pickIsInSfxUrl); a.play().catch(() => {}); }} className="shrink-0 text-slate-400 hover:text-white transition-colors">
+                                  <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M2 2l8 4-8 4z"/></svg>
+                                </button>
+                                {isCommissioner && (
+                                  <button type="button" title="Remove — revert to default"
+                                    onClick={async () => {
+                                      setPickIsInSfxUrl(null);
+                                      if (!draftId || !setup) return;
+                                      try {
+                                        const updated = await updateDraftPresentation(draftId, { pickIsInSfxUrl: null });
+                                        setSetup({ ...setup, draft: updated });
+                                        flashSaved();
+                                      } catch (err) { setError(err instanceof Error ? err.message : "Unable to remove."); }
+                                    }}
+                                    className="shrink-0 text-slate-500 hover:text-red-400 transition-colors">
+                                    <svg viewBox="0 0 12 12" fill="none" className="h-3.5 w-3.5"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                                  </button>
+                                )}
+                              </div>
+                            ) : (
+                              <p className="flex-1 text-xs text-slate-500 italic">Default sound</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="border-t border-slate-800" />
+
+                    {/* Draft start audio */}
+                    <div>
+                      <p className="mb-1 text-sm font-semibold text-white">Draft start audio</p>
+                      <p className="mb-2.5 text-xs text-slate-500">Sound effect played the moment the draft begins.</p>
+                      <div className="flex items-center gap-2">
+                        {isCommissioner && (
+                          <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-700 ${draftStartUploading ? "opacity-50 pointer-events-none" : ""}`}>
+                            <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0">
+                              <path d="M8 11V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                              <path d="M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                            </svg>
+                            {draftStartUploading ? "Uploading…" : "Upload"}
+                            <input type="file" accept="audio/*" className="sr-only" disabled={!draftId || draftStartUploading}
+                              onChange={async (e) => {
+                                const file = e.target.files?.[0];
+                                if (!file || !draftId || !setup) return;
+                                setDraftStartUploading(true);
+                                try {
+                                  const url = await uploadDraftPresentationAudio(draftId, "draftStart", file);
+                                  setDraftStartAudioUrl(url);
+                                  const updated = await updateDraftPresentation(draftId, { draftStartAudioUrl: url });
+                                  setSetup({ ...setup, draft: updated });
+                                  flashSaved();
+                                } catch (err) { setError(err instanceof Error ? err.message : "Upload failed."); }
+                                finally { setDraftStartUploading(false); e.target.value = ""; }
+                              }}
+                            />
+                          </label>
+                        )}
+                        {draftStartAudioUrl ? (
+                          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
+                            <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-teal-400">
+                              <rect x="0" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+                              <rect x="3" y="1" width="2" height="12" rx="1" fill="currentColor"/>
+                              <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+                              <rect x="9" y="0" width="2" height="14" rx="1" fill="currentColor"/>
+                              <rect x="12" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+                              <rect x="15" y="1" width="2" height="12" rx="1" fill="currentColor"/>
+                              <rect x="18" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+                            </svg>
+                            <span className="min-w-0 flex-1 truncate text-xs text-slate-300">
+                              {(() => { try { return decodeURIComponent(new URL(draftStartAudioUrl).pathname.split("/").pop() ?? draftStartAudioUrl); } catch { return draftStartAudioUrl; } })()}
+                            </span>
+                            <button type="button" title="Preview" onClick={() => { const a = new Audio(draftStartAudioUrl); a.play().catch(() => {}); }} className="shrink-0 text-slate-400 hover:text-white transition-colors">
+                              <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M2 2l8 4-8 4z"/></svg>
+                            </button>
+                            {isCommissioner && (
+                              <button type="button" title="Remove"
+                                onClick={async () => {
+                                  setDraftStartAudioUrl(null);
+                                  if (!draftId || !setup) return;
+                                  try {
+                                    const updated = await updateDraftPresentation(draftId, { draftStartAudioUrl: null });
+                                    setSetup({ ...setup, draft: updated });
+                                    flashSaved();
+                                  } catch (err) { setError(err instanceof Error ? err.message : "Unable to remove."); }
+                                }}
+                                className="shrink-0 text-slate-500 hover:text-red-400 transition-colors">
+                                <svg viewBox="0 0 12 12" fill="none" className="h-3.5 w-3.5"><path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                              </button>
+                            )}
+                          </div>
+                        ) : (
+                          <p className="flex-1 text-xs text-slate-500 italic">No file — no sound on draft start</p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="border-t border-slate-800" />
+
+                    {/* Player videos — coming soon */}
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-semibold text-white">Player videos</p>
+                        <p className="text-xs text-slate-500">Show a video clip when a specific player is drafted.</p>
+                      </div>
+                      <span className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Coming soon</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ── End of Round Slide ── */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">End of round slide</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Show a recap at the end of each round before the next round begins.</p>
+
+                  <label className="flex cursor-pointer items-center gap-3 mb-4">
+                    <input
+                      type="checkbox"
+                      checked={showRoundSlide}
+                      disabled={!isCommissioner}
+                      onChange={async (e) => {
+                        const val = e.target.checked;
+                        setShowRoundSlide(val);
+                        if (!draftId || !setup) return;
+                        try {
+                          const updated = await updateDraftPresentation(draftId, { showRoundSlide: val });
+                          setSetup({ ...setup, draft: updated });
+                          flashSaved();
+                        } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                      }}
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
+                    />
+                    <span className="text-sm font-semibold text-white">Show end of round slide</span>
+                  </label>
+
+                  {showRoundSlide && (
+                    <div className="space-y-4 ml-7">
+                      {/* Slide duration */}
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-semibold text-slate-400">Display for</span>
+                        <select
+                          disabled={!isCommissioner}
+                          value={roundSlideSeconds}
+                          onChange={async (e) => {
+                            const val = Number(e.target.value);
+                            setRoundSlideSeconds(val);
+                            if (!draftId || !setup) return;
+                            try {
+                              const updated = await updateDraftPresentation(draftId, { roundSlideSeconds: val });
+                              setSetup({ ...setup, draft: updated });
+                              flashSaved();
+                            } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                          }}
+                          className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-sm text-white disabled:opacity-50"
+                        >
+                          {[3, 5, 7, 10, 15, 20, 30].map((s) => (
+                            <option key={s} value={s}>{s}</option>
+                          ))}
+                        </select>
+                        <span className="text-xs font-semibold text-slate-400">seconds</span>
+                      </div>
+                      {/* Pause clock */}
+                      <label className="flex cursor-pointer items-center gap-3">
+                        <input
+                          type="checkbox"
+                          checked={roundSlidePausesClock}
+                          disabled={!isCommissioner}
+                          onChange={async (e) => {
+                            const val = e.target.checked;
+                            setRoundSlidePausesClock(val);
+                            if (!draftId || !setup) return;
+                            try {
+                              const updated = await updateDraftPresentation(draftId, { roundSlidePausesClock: val });
+                              setSetup({ ...setup, draft: updated });
+                              flashSaved();
+                            } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                          }}
+                          className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
+                        />
+                        <div>
+                          <p className="text-sm text-white">Pause clock while showing the slide</p>
+                          <p className="text-xs text-slate-500">Clock pausing during round slides is coming soon.</p>
+                        </div>
+                      </label>
+                    </div>
+                  )}
+                </div>
+
+                {/* Custom Sound Effects */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Custom Sound Effects</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Audio clips played when SFX 1 / SFX 2 are clicked on the pick reveal card. Upload an MP3, WAV, or OGG (max 8 MB).</p>
+
+                  <div className="space-y-4">
+                    {([
+                      { label: "SFX 1", slot: 1 as const, url: sfx1Url, setUrl: setSfx1Url },
+                      { label: "SFX 2", slot: 2 as const, url: sfx2Url, setUrl: setSfx2Url },
+                    ]).map(({ label, slot, url, setUrl }) => (
+                      <div key={label}>
+                        <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
+                        <div className="flex items-center gap-2">
+                          {isCommissioner && (
+                            <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-700 ${sfxUploading[slot] ? "opacity-50 pointer-events-none" : ""}`}>
+                              <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0">
+                                <path d="M8 11V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                                <path d="M2 13h12" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                              </svg>
+                              {sfxUploading[slot] ? "Uploading…" : "Upload"}
+                              <input
+                                type="file"
+                                accept="audio/mpeg,audio/mp3,audio/wav,audio/ogg,audio/x-m4a,audio/mp4,audio/aac"
+                                className="sr-only"
+                                disabled={!draftId || sfxUploading[slot]}
+                                onChange={async (e) => {
+                                  const file = e.target.files?.[0];
+                                  if (!file || !draftId) return;
+                                  setSfxUploading((s) => ({ ...s, [slot]: true }));
+                                  try {
+                                    const uploadedUrl = await uploadDraftSfx(draftId, slot, file);
+                                    setUrl(uploadedUrl);
+                                    const updated = await updateDraftAudio(draftId, {
+                                      sfx1Url: slot === 1 ? uploadedUrl : (sfx1Url || null),
+                                      sfx2Url: slot === 2 ? uploadedUrl : (sfx2Url || null),
+                                    });
+                                    if (setup) setSetup({ ...setup, draft: updated });
+                                    flashSaved();
+                                  } catch (err) {
+                                    setError(err instanceof Error ? err.message : "Upload failed.");
+                                  } finally {
+                                    setSfxUploading((s) => ({ ...s, [slot]: false }));
+                                    e.target.value = "";
+                                  }
+                                }}
+                              />
+                            </label>
+                          )}
+
+                          {url ? (
+                            <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
+                              {/* waveform icon */}
+                              <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-teal-400">
+                                <rect x="0" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+                                <rect x="3" y="1" width="2" height="12" rx="1" fill="currentColor"/>
+                                <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+                                <rect x="9" y="0" width="2" height="14" rx="1" fill="currentColor"/>
+                                <rect x="12" y="3" width="2" height="8" rx="1" fill="currentColor"/>
+                                <rect x="15" y="1" width="2" height="12" rx="1" fill="currentColor"/>
+                                <rect x="18" y="4" width="2" height="6" rx="1" fill="currentColor"/>
+                              </svg>
+                              <span className="min-w-0 flex-1 truncate text-xs text-slate-300">
+                                {(() => {
+                                  try { return decodeURIComponent(new URL(url).pathname.split("/").pop() ?? url); } catch { return url; }
+                                })()}
+                              </span>
+                              <button type="button" title="Preview"
+                                onClick={() => { const a = new Audio(url); a.play().catch(() => {}); }}
+                                className="shrink-0 text-slate-400 hover:text-white transition-colors">
+                                <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M2 2l8 4-8 4z"/></svg>
+                              </button>
+                              {isCommissioner && (
+                                <button type="button" title="Remove"
+                                  onClick={async () => {
+                                    setUrl("");
+                                    if (!draftId || !setup) return;
+                                    try {
+                                      const updated = await updateDraftAudio(draftId, {
+                                        sfx1Url: slot === 1 ? null : (sfx1Url || null),
+                                        sfx2Url: slot === 2 ? null : (sfx2Url || null),
+                                      });
+                                      setSetup({ ...setup, draft: updated });
+                                      flashSaved();
+                                    } catch (err) {
+                                      setError(err instanceof Error ? err.message : "Unable to remove.");
+                                    }
+                                  }}
+                                  className="shrink-0 text-slate-500 hover:text-red-400 transition-colors">
+                                  <svg viewBox="0 0 12 12" fill="none" className="h-3.5 w-3.5">
+                                    <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                  </svg>
+                                </button>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="flex-1 text-xs text-slate-600 italic">No file uploaded</p>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Voice Reactions */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Voice Reactions</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">TTS phrases spoken when the 😄 or 😤 buttons are clicked. One phrase is chosen at random.</p>
+
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {/* Positive */}
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-green-500">👍 Positive</p>
+                      <div className="space-y-2">
+                        {posReactions.map((phrase, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={phrase}
+                              onChange={(e) => setPosReactions((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
+                              className={inputCls}
+                              disabled={!isCommissioner}
+                            />
+                            <button type="button" title="Preview"
+                              onClick={() => { const u = new SpeechSynthesisUtterance(phrase); window.speechSynthesis?.speak(u); }}
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                              <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M2 2l8 4-8 4z"/></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Negative */}
+                    <div>
+                      <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-red-500">👎 Negative</p>
+                      <div className="space-y-2">
+                        {negReactions.map((phrase, i) => (
+                          <div key={i} className="flex gap-2">
+                            <input
+                              type="text"
+                              value={phrase}
+                              onChange={(e) => setNegReactions((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
+                              className={inputCls}
+                              disabled={!isCommissioner}
+                            />
+                            <button type="button" title="Preview"
+                              onClick={() => { const u = new SpeechSynthesisUtterance(phrase); window.speechSynthesis?.speak(u); }}
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                              <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M2 2l8 4-8 4z"/></svg>
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  {isCommissioner && (
+                    <button type="button"
+                      disabled={isSavingAudio}
+                      onClick={async () => {
+                        if (!draftId || !setup) return;
+                        setIsSavingAudio(true);
+                        try {
+                          const updated = await updateDraftAudio(draftId, { posReactions, negReactions });
+                          setSetup({ ...setup, draft: updated });
+                        } catch (err) {
+                          setError(err instanceof Error ? err.message : "Unable to save.");
+                        } finally {
+                          setIsSavingAudio(false);
+                        }
+                      }}
+                      className="mt-4 rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-500 disabled:opacity-50 transition-colors">
+                      {isSavingAudio ? "Saving…" : "Save Reactions"}
+                    </button>
+                  )}
+                </div>
+
+
+              </div>
+            )}
+
             {/* CLOCK TAB */}
 
           </div>
@@ -1558,6 +2275,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   <dt className="text-xs text-slate-500">On expiry</dt>
                   <dd className="mt-0.5 text-sm font-semibold text-white">{BEHAVIOR_LABELS[draft.timerBehavior] ?? "Nothing"}</dd>
                 </div>
+                <div>
+                  <dt className="text-xs text-slate-500">Rankings</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">
+                    {{ standard: "Standard", ppr: "PPR", half_ppr: "Half-PPR", superflex: "Superflex" }[draft.scoringType] ?? "Standard"}
+                  </dd>
+                </div>
                 {draft.maxClockExtensions > 0 && (
                   <div className="col-span-2">
                     <dt className="text-xs text-slate-500">Extensions</dt>
@@ -1568,27 +2291,62 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 )}
               </dl>
 
-              {fromDraft && backToDraftHref ? (
-                <Link
-                  href={backToDraftHref}
-                  className="mt-5 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: primary, color: secondary }}
-                >
-                  <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-                    <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                  </svg>
-                  Back to Draft
-                </Link>
+              {/* Save state indicator */}
+              {settingsSaveState !== "idle" && (
+                <div className={`mt-4 flex items-center gap-1.5 text-xs font-semibold transition-opacity ${settingsSaveState === "saved" ? "text-emerald-400" : "text-slate-400"}`}>
+                  {settingsSaveState === "saving" ? (
+                    <>
+                      <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-amber-400" />
+                      Saving…
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
+                        <path d="M3 8l3.5 3.5L13 5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Saved
+                    </>
+                  )}
+                </div>
+              )}
+
+              {fromDraft && setup?.draft.status !== "setup" ? (
+                /* Draft in progress — teams locked, settings auto-save */
+                backToDraftHref && (
+                  <Link
+                    href={backToDraftHref}
+                    className="mt-4 flex w-full items-center justify-center gap-2 rounded-xl py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: primary, color: secondary }}
+                  >
+                    <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                      <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                    </svg>
+                    Back to Draft
+                  </Link>
+                )
               ) : (
-                <button
-                  type="button"
-                  onClick={() => void saveTeams()}
-                  disabled={isSaving}
-                  className="mt-5 w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
-                  style={{ backgroundColor: primary, color: secondary }}
-                >
-                  {isSaving ? "Saving..." : "Save Changes"}
-                </button>
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void saveTeams()}
+                    disabled={isSaving}
+                    className="mt-4 w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: primary, color: secondary }}
+                  >
+                    {isSaving ? "Saving..." : "Save Changes"}
+                  </button>
+                  {fromDraft && backToDraftHref && (
+                    <Link
+                      href={backToDraftHref}
+                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-xl border border-white/10 py-2.5 text-sm font-bold text-slate-300 transition-colors hover:bg-white/5"
+                    >
+                      <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                        <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Back to Draft
+                    </Link>
+                  )}
+                </>
               )}
             </div>
           </aside>
@@ -1614,5 +2372,22 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         </button>
       </div>
     </div>
+
+    {/* Walk-up song picker modal */}
+    {songPickerTeamId && (
+      <SongPicker
+        onSelect={(song) => {
+          const team = teams.find((t) => t.id === songPickerTeamId);
+          if (team) {
+            const next = [...(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []), song];
+            updateTeamField(songPickerTeamId, "walkUpSongs", next);
+            void saveWalkUpSongs(songPickerTeamId, next);
+          }
+          setSongPickerTeamId(null);
+        }}
+        onClose={() => setSongPickerTeamId(null)}
+      />
+    )}
+    </>
   );
 }

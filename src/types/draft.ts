@@ -42,6 +42,17 @@ export interface Draft {
   useLandmines: boolean;
   landmineCount: number;
   hidePlayerRankings: boolean;
+  sfx1Url: string | null;
+  sfx2Url: string | null;
+  posReactions: string[] | null;
+  negReactions: string[] | null;
+  pickIsInEnabled: boolean;
+  pickIsInSfxUrl: string | null;
+  draftStartAudioUrl: string | null;
+  showRoundSlide: boolean;
+  roundSlideSeconds: number;
+  roundSlidePausesClock: boolean;
+  announcerVoiceUri: string | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -63,6 +74,21 @@ export interface Team {
   lastSeasonPlayoffs?: boolean;
   ownerName?: string;
   ownerPhotoUrl?: string;
+  clockExtensionsUsed?: number;
+  lastSeasonPickPlayer?: string;
+  walkUpSongs?: WalkUpSong[];
+}
+
+export interface WalkUpSong {
+  platform: "youtube" | "spotify";
+  trackId: string;
+  url: string;
+  title: string;
+  artist?: string;
+  thumbnail?: string;
+  startSeconds?: number;
+  previewUrl?: string | null;
+  youtubeTrackId?: string | null; // YouTube fallback for Spotify songs
 }
 
 export interface Player {
@@ -73,6 +99,7 @@ export interface Player {
   position: PlayerPosition;
   nflTeam?: string;
   rank?: number;
+  headshotUrl?: string;
   active: boolean;
   createdAt: string;
   updatedAt: string;

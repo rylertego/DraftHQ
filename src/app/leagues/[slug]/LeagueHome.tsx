@@ -1,7 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
+import LeagueCommandCenter from "@/components/LeagueCommandCenter";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { createDraftForSeason, resetSeasonDraft } from "@/lib/leagueApi";
@@ -13,7 +14,7 @@ function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onC
   const [confirm, setConfirm] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
 
-  useState(() => { setTimeout(() => inputRef.current?.focus(), 50); });
+  useEffect(() => { inputRef.current?.focus(); }, []);
 
   async function handleReset() {
     if (confirm !== "RESET") return;
@@ -41,7 +42,7 @@ function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onC
           <div>
             <h2 className="font-bold text-white">Reset Draft?</h2>
             <p className="mt-1 text-sm text-slate-400">
-              This will permanently delete the draft and all its picks. The season will return to "no draft" state. This cannot be undone.
+              This will permanently delete the draft and all its picks. The season will return to &quot;no draft&quot; state. This cannot be undone.
             </p>
           </div>
         </div>
@@ -81,16 +82,14 @@ function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onC
 
 function CreateDraftModal({
   season,
-  leagueId,
   maxTeams,
   onClose,
   onCreated,
 }: {
   season: LeagueSeason;
-  leagueId: string;
   maxTeams: number;
   onClose: () => void;
-  onCreated: () => void;
+  onCreated: (draftId: string) => void;
 }) {
   const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const currentYear = season.year;
@@ -100,22 +99,19 @@ function CreateDraftModal({
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    setTeamCount(maxTeams);
-  }, [maxTeams]);
-
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
     setIsCreating(true);
     setError("");
     try {
-      await createDraftForSeason({
+      const createdSeason = await createDraftForSeason({
         seasonId: season.id,
         draftName,
         teamCount,
         rounds,
       });
-      onCreated();
+      if (!createdSeason.draftId) throw new Error("The season was created without a draft.");
+      onCreated(createdSeason.draftId);
       onClose();
     } catch (err) {
       const msg = err instanceof Error ? err.message : (err as { message?: string })?.message ?? "Unable to create draft.";
@@ -127,7 +123,7 @@ function CreateDraftModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-5 text-base font-bold text-white">Create Draft — {season.name}</h2>
+        <h2 className="mb-5 text-base font-bold text-white">Create Draft â€” {season.name}</h2>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Draft Name</label>
@@ -165,148 +161,45 @@ function CreateDraftModal({
   );
 }
 
-function SeasonStatusBadge({ status }: { status: LeagueSeason["status"] }) {
-  const map: Record<LeagueSeason["status"], string> = {
-    complete: "bg-slate-700 text-slate-300",
-    active: "bg-teal-900/60 text-teal-300",
-    drafting: "bg-yellow-900/60 text-yellow-300",
-    upcoming: "bg-slate-800 text-slate-400",
-  };
-  return (
-    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize ${map[status]}`}>
-      {status}
-    </span>
-  );
-}
-
 export default function LeagueHome({ slug }: { slug: string }) {
-  const { workspace, reload } = useWorkspace();
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
+  const router = useRouter();
+  const { workspace, isLoading, error, reload } = useWorkspace();
   const [showReset, setShowReset] = useState(false);
   const [showCreateDraft, setShowCreateDraft] = useState(false);
-  const [pastOpen, setPastOpen] = useState(false);
 
-  if (!workspace) return null;
+  if (isLoading && !workspace) {
+    return (
+      <div className="space-y-6" aria-label="Loading league dashboard">
+        <div className="h-56 animate-pulse rounded-2xl bg-slate-900" />
+        <div className="grid gap-4 lg:grid-cols-3">
+          {[0, 1, 2].map((item) => <div key={item} className="h-64 animate-pulse rounded-2xl bg-slate-900" />)}
+        </div>
+      </div>
+    );
+  }
 
-  const [currentSeason, ...pastSeasons] = workspace.seasons;
-  const draft = currentSeason?.draft;
-  const draftIsLive = draft?.status === "active" || draft?.status === "paused";
+  if (error || !workspace) {
+    return (
+      <div className="rounded-2xl border border-red-800 bg-red-950/30 p-6">
+        <h1 className="font-bold text-red-300">Unable to load league dashboard</h1>
+        <p className="mt-2 text-sm text-red-400">{error || "League not found."}</p>
+        <button type="button" onClick={reload} className="mt-4 rounded-xl border border-red-800 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/50">
+          Try again
+        </button>
+      </div>
+    );
+  }
+
+  const currentSeason = workspace.seasons[0];
 
   return (
     <>
-      {/* Current Season */}
-      <section className="rounded-2xl border p-6 bg-slate-900" style={{ borderColor: primary + "55" }}>
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-2xl font-bold text-white">
-            {currentSeason ? currentSeason.name : `${new Date().getFullYear()} Season`}
-          </h2>
-          <div className="flex items-center gap-4">
-            {currentSeason && <SeasonStatusBadge status={currentSeason.status} />}
-            {workspace.canManage && draft && (
-              <button type="button" onClick={() => setShowReset(true)}
-                className="text-sm font-medium text-red-500 hover:text-red-400 transition-colors">
-                Reset Draft
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          {!currentSeason && (
-            <p className="text-sm text-slate-400">No season yet.</p>
-          )}
-
-          {currentSeason && !draft && workspace.canManage && (
-            <button
-              type="button"
-              onClick={() => setShowCreateDraft(true)}
-              className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: primary, color: secondary }}
-            >
-              Create Draft
-            </button>
-          )}
-
-          {draft && (
-            <>
-              <Link
-                href={draftIsLive ? `/draft?draftId=${draft.id}&leagueSlug=${slug}` : `/teams?draftId=${draft.id}&tab=settings&leagueSlug=${slug}`}
-                className="inline-flex items-center gap-2 rounded-xl px-5 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-                style={{ backgroundColor: primary, color: secondary }}
-              >
-                {draftIsLive ? "Enter Draft Room" : "Configure Draft"}
-              </Link>
-              {!draftIsLive && draft.status === "setup" && (
-                <Link
-                  href={`/draft?draftId=${draft.id}&leagueSlug=${slug}`}
-                  className="inline-flex items-center gap-2 rounded-xl border px-5 py-2.5 text-sm font-semibold transition-opacity hover:opacity-80"
-                  style={{ borderColor: primary, color: primary, backgroundColor: `${secondary}33` }}
-                >
-                  Pre-Draft Lobby
-                </Link>
-              )}
-              {!draftIsLive && draft.scheduledAt && (
-                <span className="text-sm text-slate-400">
-                  Draft on{" "}
-                  <span className="font-semibold text-white">
-                    {new Date(draft.scheduledAt).toLocaleDateString(undefined, {
-                      weekday: "short", month: "short", day: "numeric", year: "numeric",
-                    })}
-                  </span>
-                </span>
-              )}
-            </>
-          )}
-        </div>
-      </section>
-
-      {/* Past Seasons — collapsible */}
-      {pastSeasons.length > 0 && (
-        <div className="rounded-2xl border border-slate-800 bg-slate-900/40 overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setPastOpen((o) => !o)}
-            className="flex w-full items-center justify-between px-5 py-4 text-left transition-colors hover:bg-slate-800/40"
-          >
-            <span className="text-sm font-semibold text-slate-400">
-              Past Seasons <span className="ml-1.5 rounded-full bg-slate-800 px-2 py-0.5 text-xs text-slate-500">{pastSeasons.length}</span>
-            </span>
-            <svg
-              className={`h-4 w-4 text-slate-500 transition-transform ${pastOpen ? "rotate-180" : ""}`}
-              viewBox="0 0 16 16" fill="none"
-            >
-              <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
-          </button>
-
-          {pastOpen && (
-            <div className="border-t border-slate-800 divide-y divide-slate-800">
-              {pastSeasons.map((season) => (
-                <div key={season.id} className="flex items-center justify-between gap-4 px-5 py-3">
-                  <div className="flex items-center gap-3">
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-xs font-bold text-slate-400">
-                      {season.year}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold text-white">{season.name}</p>
-                      <p className="text-xs text-slate-500">{workspace.members.length} members</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <SeasonStatusBadge status={season.status} />
-                    {season.draft && (
-                      <Link href={`/draft?draftId=${season.draft.id}`}
-                        className="text-sm font-medium text-teal-400 hover:text-teal-300 transition-colors whitespace-nowrap">
-                        View Draft →
-                      </Link>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
+      <LeagueCommandCenter
+        workspace={workspace}
+        slug={slug}
+        onConfigureDraft={() => setShowCreateDraft(true)}
+        onResetDraft={() => setShowReset(true)}
+      />
 
       {showReset && currentSeason && (
         <ResetDraftModal seasonId={currentSeason.id} onClose={() => setShowReset(false)} onReset={reload} />
@@ -315,10 +208,9 @@ export default function LeagueHome({ slug }: { slug: string }) {
       {showCreateDraft && currentSeason && (
         <CreateDraftModal
           season={currentSeason}
-          leagueId={workspace.league.id}
           maxTeams={workspace.league.teamCount}
           onClose={() => setShowCreateDraft(false)}
-          onCreated={reload}
+          onCreated={(draftId) => router.push(`/teams?draftId=${draftId}&tab=settings&leagueSlug=${slug}`)}
         />
       )}
     </>

@@ -1,5 +1,9 @@
+"use client";
+import { useState } from "react";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
-import type { DraftStatus, Pick, Team } from "@/types/draft";
+import { buildPositionColorMap, positionCellColors } from "@/lib/positionColors";
+import type { PositionCellColors } from "@/lib/positionColors";
+import type { DraftStatus, Pick, RosterPosition, Team } from "@/types/draft";
 
 interface DraftBoardProps {
   teams: string[];
@@ -11,26 +15,30 @@ interface DraftBoardProps {
   canUndoPick: boolean;
   myTeamName?: string;
   byeWeeks?: Map<string, number>;
+  playerNameSize?: number;
+  teamMap?: Map<string, string>;
+  rosterPositions?: RosterPosition[] | null;
   onSlotClick: () => void;
   onUndoPick: () => void;
+  onEditPick?: (pick: Pick) => void;
 }
 
-const POSITION_COLORS: Record<string, string> = {
-  QB: "#67E8F9",
-  RB: "#FCD34D",
-  WR: "#F97316",
-  TE: "#A78BFA",
-  K: "#4ADE80",
-  DST: "#F87171",
-};
+const NAME_SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
+function splitBoardName(fullName: string): { first: string; last: string } {
+  const parts = fullName.trim().split(" ");
+  if (parts.length === 1) return { first: "", last: parts[0] };
+  const last = parts[parts.length - 1];
+  if (parts.length >= 3 && NAME_SUFFIXES.has(last.toLowerCase().replace(".", ""))) {
+    return { first: parts[0], last: parts.slice(1).join(" ") };
+  }
+  return { first: parts[0], last: parts.slice(1).join(" ") };
+}
 
-const POSITION_CELL: Record<string, { bg: string; text: string; sub: string }> = {
-  QB: { bg: "#164e63", text: "#e0f7ff", sub: "#67E8F9" },
-  RB: { bg: "#78350f", text: "#fef9c3", sub: "#FCD34D" },
-  WR: { bg: "#7c2d12", text: "#ffedd5", sub: "#FB923C" },
-  TE: { bg: "#3b0764", text: "#f5f3ff", sub: "#C4B5FD" },
-  K:  { bg: "#14532d", text: "#dcfce7", sub: "#4ADE80" },
-  DST:{ bg: "#7f1d1d", text: "#fee2e2", sub: "#FCA5A5" },
+const NAME_SIZE_REM = [0.8, 1.0, 1.25, 1.5, 1.75, 2.0, 2.35, 2.75, 3.2, 3.75];
+
+const DEFAULT_POSITION_ACCENTS: Record<string, string> = {
+  QB: "#67E8F9", RB: "#FCD34D", WR: "#FB923C",
+  TE: "#A78BFA", K: "#4ADE80", DST: "#FCA5A5",
 };
 
 export default function DraftBoard({
@@ -41,12 +49,25 @@ export default function DraftBoard({
   draftStatus,
   myTeamName,
   byeWeeks,
+  playerNameSize = 6,
+  teamMap,
+  rosterPositions,
+  onEditPick,
 }: DraftBoardProps) {
+  const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
+
+  const posColorMap = buildPositionColorMap(rosterPositions, DEFAULT_POSITION_ACCENTS);
+  function getCell(position: string): PositionCellColors {
+    return posColorMap.get(position) ?? positionCellColors(DEFAULT_POSITION_ACCENTS[position] ?? "#94A3B8");
+  }
+
   const teamObjects: Team[] = teams.map((name, index) => ({
     id: String(index + 1),
     draftId: "local",
     name,
     draftPosition: index + 1,
+    clockExtensionsUsed: 0,
+    walkUpSongs: [],
   }));
 
   const slots = generateSnakeDraftOrder(teamObjects, rounds);
@@ -55,10 +76,11 @@ export default function DraftBoard({
     return picks.find((pick) => pick.overallPickNumber === overallPickNumber);
   }
 
-  const rowHeight = "52px";
+  // Row height: top padding (6) + first-name row (14) + gap (2) + last-name text + bottom breathing room (10)
+  const rowHeight = `${Math.round(32 + NAME_SIZE_REM[playerNameSize - 1] * 18)}px`;
 
   return (
-    <section className="flex h-full flex-col">
+    <section className="flex h-full flex-col" onClick={() => setPopupPick(null)}>
       <div className="min-h-0 flex-1 overflow-auto [touch-action:pan-x_pan-y]">
         <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
           <colgroup>
@@ -99,22 +121,22 @@ export default function DraftBoard({
                   {roundSlots.map((slot) => {
                     const pick = getPick(slot.overallPickNumber);
                     const isCurrent = slot.overallPickNumber === currentPickNumber;
-                    const cell = pick ? (POSITION_CELL[pick.playerPosition] ?? null) : null;
-                    const posColor = pick ? (POSITION_COLORS[pick.playerPosition] ?? "#94A3B8") : null;
+                    const isSkipped = !pick && slot.overallPickNumber < currentPickNumber;
+                    const cell = pick ? getCell(pick.playerPosition) : null;
                     const byeWeek = pick?.nflTeam ? (byeWeeks?.get(pick.nflTeam) ?? null) : null;
 
-                    const nameParts = pick ? pick.playerName.split(" ") : [];
-                    const lastName = nameParts.slice(1).join(" ") || nameParts[0] || "";
-                    const firstName = nameParts.length > 1 ? nameParts[0] : "";
+                    const { first: firstName, last: lastName } = pick ? splitBoardName(pick.playerName) : { first: "", last: "" };
 
                     return (
                       <td
                         key={slot.overallPickNumber}
-                        className="border-r border-b border-slate-800 px-1.5 align-middle overflow-hidden"
+                        className="relative border-r border-b border-slate-800 px-1.5 align-top overflow-hidden"
                         style={{
                           height: rowHeight,
                           backgroundColor: cell
                             ? cell.bg
+                            : isSkipped
+                            ? "rgba(71,20,20,0.5)"
                             : isCurrent
                             ? "rgba(30,58,138,0.3)"
                             : emptyBg,
@@ -122,21 +144,34 @@ export default function DraftBoard({
                         }}
                       >
                         {pick ? (
-                          <>
-                            <div className="flex items-baseline justify-between gap-1 leading-none mb-0.5">
-                              <span className="w-1/2 truncate text-[10px] font-semibold uppercase leading-none" style={{ color: cell?.sub ?? posColor ?? "#94A3B8", opacity: 0.75 }}>
+                          <div
+                            className={`w-full pt-1.5${onEditPick ? " cursor-pointer" : ""}`}
+                            onClick={onEditPick ? (e) => {
+                              e.stopPropagation();
+                              const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
+                              setPopupPick({ pick, x: rect.left + rect.width / 2, y: rect.bottom + 4 });
+                            } : undefined}
+                          >
+                            <div className="flex items-center justify-between gap-1 leading-none mb-0.5">
+                              <span className="truncate text-[10px] font-semibold uppercase leading-none" style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.75 }}>
                                 {firstName}
                               </span>
-                              <span className="w-1/2 text-right text-[10px] font-bold leading-none whitespace-nowrap overflow-hidden" style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.8 }}>
+                              <span className="shrink-0 text-[10px] font-bold leading-none whitespace-nowrap" style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.8 }}>
                                 {byeWeek && <span className="mr-0.5">{byeWeek}</span>}
                                 <span>{pick.nflTeam}</span>
                                 <span className="font-black ml-0.5">{pick.playerPosition}</span>
                               </span>
                             </div>
-                            <div className="truncate text-2xl font-black leading-tight tracking-tight" style={{ color: cell?.text ?? "#fff" }}>
+                            <div className="truncate font-black leading-tight tracking-tight" style={{ color: cell?.text ?? "#fff", fontSize: `${NAME_SIZE_REM[playerNameSize - 1]}rem` }}>
                               {lastName}
                             </div>
-                          </>
+                          </div>
+                        ) : isSkipped ? (
+                          <div className="flex h-full items-center justify-center">
+                            <span className="text-[10px] font-black uppercase tracking-widest text-red-400/70">
+                              Skipped
+                            </span>
+                          </div>
                         ) : (
                           <div className="flex h-full items-center justify-center">
                             {isCurrent && (
@@ -146,6 +181,17 @@ export default function DraftBoard({
                             )}
                           </div>
                         )}
+                        {/* Changed-team badge */}
+                        {pick && teamMap && (() => {
+                          const expectedName = teams[parseInt(slot.teamId) - 1];
+                          const actualName = teamMap.get(pick.teamId);
+                          if (!actualName || actualName === expectedName) return null;
+                          return (
+                            <span className="absolute bottom-1 right-1 rounded-sm bg-teal-500 px-1 py-px text-[8px] font-black uppercase leading-none text-black">
+                              {actualName}
+                            </span>
+                          );
+                        })()}
                       </td>
                     );
                   })}
@@ -155,6 +201,30 @@ export default function DraftBoard({
           </tbody>
         </table>
       </div>
+
+      {/* Floating popup */}
+      {popupPick && onEditPick && (
+        <div
+          className="fixed z-50 min-w-[140px] rounded-xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden"
+          style={{ left: popupPick.x, top: popupPick.y, transform: "translateX(-50%)" }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="px-3 pt-2.5 pb-1">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+              {popupPick.pick.playerPosition} · {popupPick.pick.nflTeam}
+            </p>
+            <p className="font-black text-white leading-tight">{popupPick.pick.playerName}</p>
+            <p className="text-[10px] text-slate-500">Rnd {popupPick.pick.round}, Pk {popupPick.pick.pickNumber}</p>
+          </div>
+          <button
+            type="button"
+            onClick={() => { onEditPick(popupPick.pick); setPopupPick(null); }}
+            className="w-full bg-slate-800 px-3 py-2 text-left text-xs font-black uppercase tracking-wider text-teal-400 hover:bg-slate-700 transition-colors"
+          >
+            Edit Pick
+          </button>
+        </div>
+      )}
     </section>
   );
 }

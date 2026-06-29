@@ -12,7 +12,9 @@ import type {
   RosterPosition,
   Team,
   TimerBehavior,
+  WalkUpSong,
 } from "@/types/draft";
+import { buildByeWeekLookup } from "@/lib/nflTeams";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
 import type { SleeperLeaguePreview } from "@/lib/sleeper";
@@ -43,6 +45,17 @@ interface DraftRow {
   use_landmines: boolean;
   landmine_count: number;
   hide_player_rankings: boolean;
+  sfx_1_url: string | null;
+  sfx_2_url: string | null;
+  pos_reactions: string[] | null;
+  neg_reactions: string[] | null;
+  pick_is_in_enabled: boolean;
+  pick_is_in_sfx_url: string | null;
+  draft_start_audio_url: string | null;
+  show_round_slide: boolean;
+  round_slide_seconds: number;
+  round_slide_pauses_clock: boolean;
+  announcer_voice_uri: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -86,6 +99,9 @@ interface TeamRow {
   last_season_playoffs: boolean | null;
   owner_name: string | null;
   owner_photo_url: string | null;
+  clock_extensions_used: number;
+  last_season_pick_player: string | null;
+  walk_up_songs: WalkUpSong[];
 }
 
 interface PlayerRow {
@@ -96,6 +112,7 @@ interface PlayerRow {
   position: PlayerPosition;
   nfl_team: string | null;
   rank: number | null;
+  headshot_url: string | null;
   active: boolean;
   created_at: string;
   updated_at: string;
@@ -171,6 +188,17 @@ function mapDraft(row: DraftRow): Draft {
     useLandmines: row.use_landmines ?? false,
     landmineCount: row.landmine_count ?? 3,
     hidePlayerRankings: row.hide_player_rankings ?? false,
+    sfx1Url: row.sfx_1_url ?? null,
+    sfx2Url: row.sfx_2_url ?? null,
+    posReactions: row.pos_reactions ?? null,
+    negReactions: row.neg_reactions ?? null,
+    pickIsInEnabled: row.pick_is_in_enabled ?? true,
+    pickIsInSfxUrl: row.pick_is_in_sfx_url ?? null,
+    draftStartAudioUrl: row.draft_start_audio_url ?? null,
+    showRoundSlide: row.show_round_slide ?? true,
+    roundSlideSeconds: row.round_slide_seconds ?? 7,
+    roundSlidePausesClock: row.round_slide_pauses_clock ?? false,
+    announcerVoiceUri: row.announcer_voice_uri ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -220,6 +248,9 @@ function mapTeam(row: TeamRow): Team {
     lastSeasonPlayoffs: row.last_season_playoffs ?? undefined,
     ownerName: row.owner_name ?? undefined,
     ownerPhotoUrl: row.owner_photo_url ?? undefined,
+    clockExtensionsUsed: row.clock_extensions_used ?? 0,
+    lastSeasonPickPlayer: row.last_season_pick_player ?? undefined,
+    walkUpSongs: Array.isArray(row.walk_up_songs) ? (row.walk_up_songs as WalkUpSong[]) : [],
   };
 }
 
@@ -232,6 +263,7 @@ function mapPlayer(row: PlayerRow): Player {
     position: row.position,
     nflTeam: row.nfl_team ?? undefined,
     rank: row.rank ?? undefined,
+    headshotUrl: row.headshot_url ?? undefined,
     active: row.active,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
@@ -351,13 +383,13 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_landmines,landmine_count,hide_player_rankings,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_landmines,landmine_count,hide_player_rankings,sfx_1_url,sfx_2_url,pos_reactions,neg_reactions,pick_is_in_enabled,pick_is_in_sfx_url,draft_start_audio_url,show_round_slide,round_slide_seconds,round_slide_pauses_clock,announcer_voice_uri,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
     supabase
       .from("teams")
-      .select("id,draft_id,name,draft_position,logo_url,owner_photo_url,sleeper_roster_id,sleeper_owner_user_id,short_name,tts_name,autodraft,pre_draft_notes,last_season_pick,last_season_record,last_season_playoffs,owner_name")
+      .select("id,draft_id,name,draft_position,logo_url,owner_photo_url,sleeper_roster_id,sleeper_owner_user_id,short_name,tts_name,autodraft,pre_draft_notes,last_season_pick,last_season_record,last_season_playoffs,owner_name,clock_extensions_used,last_season_pick_player,walk_up_songs")
       .eq("draft_id", draftId)
       .order("draft_position"),
     supabase
@@ -518,6 +550,32 @@ export async function getDraftServerTimeOffsetMs(draftId: string): Promise<numbe
   return serverTimeMs - (startedAt + completedAt) / 2;
 }
 
+async function getActivePlayersWithOptionalHeadshots() {
+  const runQuery = (columns: string) => supabase
+    .from("players")
+    .select(columns)
+    .eq("active", true)
+    .order("rank", { ascending: true, nullsFirst: false })
+    .order("full_name");
+
+  const withHeadshots = await runQuery(
+    "id,source,external_id,full_name,position,nfl_team,rank,headshot_url,active,created_at,updated_at"
+  );
+
+  if (
+    !withHeadshots.error ||
+    (withHeadshots.error.code !== "42703" && !withHeadshots.error.message.includes("headshot_url"))
+  ) {
+    return withHeadshots;
+  }
+
+  // Keep active draft rooms usable while the additive headshot migration is
+  // rolling out. Once the column exists, the first query is used normally.
+  return runQuery(
+    "id,source,external_id,full_name,position,nfl_team,rank,active,created_at,updated_at"
+  );
+}
+
 export async function getDraftRoomSnapshot(
   draftId: string
 ): Promise<DraftRoomSnapshot> {
@@ -552,14 +610,7 @@ export async function getDraftRoomSnapshot(
         )
         .eq("draft_id", draftId)
         .order("overall_pick_number"),
-      supabase
-        .from("players")
-        .select(
-          "id,source,external_id,full_name,position,nfl_team,rank,active,created_at,updated_at"
-        )
-        .eq("active", true)
-        .order("rank", { ascending: true, nullsFirst: false })
-        .order("full_name"),
+      getActivePlayersWithOptionalHeadshots(),
       serverTimePromise,
     ]);
 
@@ -574,7 +625,7 @@ export async function getDraftRoomSnapshot(
   return {
     ...setup,
     picks: (picksResult.data as unknown as PickRow[]).map(mapPick),
-    players: (playersResult.data as PlayerRow[]).map(mapPlayer),
+    players: (playersResult.data as unknown as PlayerRow[]).map(mapPlayer),
     serverTimeOffsetMs,
   };
 }
@@ -634,7 +685,8 @@ export async function commissionerMakePick(
 export async function commissionerEditPick(
   draftId: string,
   overallPickNumber: number,
-  newPlayerId: string
+  newPlayerId: string,
+  newTeamId?: string
 ) {
   await ensureAnonymousUser();
 
@@ -642,6 +694,7 @@ export async function commissionerEditPick(
     p_draft_id: draftId,
     p_overall_pick_number: overallPickNumber,
     p_new_player_id: newPlayerId,
+    p_new_team_id: newTeamId ?? null,
   });
 
   if (error) {
@@ -717,6 +770,49 @@ export async function updateDraftRosterPositions(draftId: string, positions: Ros
   return mapDraft(data as DraftRow);
 }
 
+export async function updateDraftAudio(
+  draftId: string,
+  audio: Partial<{ sfx1Url: string | null; sfx2Url: string | null; posReactions: string[]; negReactions: string[] }>
+): Promise<Draft> {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.rpc("update_draft_extras", {
+    p_draft_id: draftId,
+    p_sfx_1_url: audio.sfx1Url ?? null,
+    p_sfx_2_url: audio.sfx2Url ?? null,
+    p_pos_reactions: audio.posReactions ?? null,
+    p_neg_reactions: audio.negReactions ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return mapDraft(data as DraftRow);
+}
+
+export async function updateDraftPresentation(
+  draftId: string,
+  settings: Partial<{
+    pickIsInEnabled: boolean;
+    pickIsInSfxUrl: string | null;
+    draftStartAudioUrl: string | null;
+    showRoundSlide: boolean;
+    roundSlideSeconds: number;
+    roundSlidePausesClock: boolean;
+    announcerVoiceUri: string | null;
+  }>
+): Promise<Draft> {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.rpc("update_draft_extras", {
+    p_draft_id: draftId,
+    p_pick_is_in_enabled: settings.pickIsInEnabled ?? null,
+    p_pick_is_in_sfx_url: settings.pickIsInSfxUrl ?? null,
+    p_draft_start_audio_url: settings.draftStartAudioUrl ?? null,
+    p_show_round_slide: settings.showRoundSlide ?? null,
+    p_round_slide_seconds: settings.roundSlideSeconds ?? null,
+    p_round_slide_pauses_clock: settings.roundSlidePausesClock ?? null,
+    p_announcer_voice_uri: settings.announcerVoiceUri ?? null,
+  });
+  if (error) throw new Error(error.message);
+  return mapDraft(data as DraftRow);
+}
+
 export async function updateDraftExtras(
   draftId: string,
   extras: Partial<{ scoringType: Draft["scoringType"]; useLandmines: boolean; landmineCount: number; hidePlayerRankings: boolean }>
@@ -745,6 +841,8 @@ export async function updateTeamDetails(
     lastSeasonRecord: string;
     lastSeasonPlayoffs: boolean;
     ownerName: string;
+    lastSeasonPickPlayer: string;
+    walkUpSongs: WalkUpSong[];
   }>
 ): Promise<Team> {
   await ensureAnonymousUser();
@@ -759,6 +857,8 @@ export async function updateTeamDetails(
     p_last_season_record: details.lastSeasonRecord ?? null,
     p_last_season_playoffs: details.lastSeasonPlayoffs ?? null,
     p_owner_name: details.ownerName ?? null,
+    p_last_season_pick_player: details.lastSeasonPickPlayer ?? null,
+    p_walk_up_songs: details.walkUpSongs !== undefined ? details.walkUpSongs : null,
   });
   if (error) throw new Error(error.message);
   return mapTeam(data as TeamRow);
@@ -792,17 +892,38 @@ export async function uploadDraftOwnerPhoto(draftId: string, teamId: string, fil
   return url;
 }
 
+export async function uploadDraftSfx(draftId: string, slot: 1 | 2, file: File): Promise<string> {
+  await ensureAnonymousUser();
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp3";
+  const path = `${draftId}/sfx${slot}.${ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from("draft-audio")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (uploadError) throw uploadError;
+  const { data } = supabase.storage.from("draft-audio").getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+export async function uploadDraftPresentationAudio(draftId: string, slot: "pickIsIn" | "draftStart", file: File): Promise<string> {
+  await ensureAnonymousUser();
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp3";
+  const path = `${draftId}/${slot}.${ext}`;
+  const { error: uploadError } = await supabase.storage
+    .from("draft-audio")
+    .upload(path, file, { upsert: true, contentType: file.type });
+  if (uploadError) throw uploadError;
+  const { data } = supabase.storage.from("draft-audio").getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
 export async function updateDraftRounds(draftId: string, rounds: number): Promise<Draft> {
   await ensureAnonymousUser();
-  if (rounds < 1 || rounds > 50) throw new Error("Rounds must be between 1 and 50.");
-  const { data, error } = await supabase
-    .from("drafts")
-    .update({ rounds })
-    .eq("id", draftId)
-    .select()
-    .single<DraftRow>();
+  const { data, error } = await supabase.rpc("update_draft_extras", {
+    p_draft_id: draftId,
+    p_rounds: rounds,
+  });
   if (error) throw new Error(error.message);
-  return mapDraft(data);
+  return mapDraft(data as DraftRow);
 }
 
 export async function updateDraftTeamCount(draftId: string, teamCount: number): Promise<Draft> {
@@ -832,27 +953,24 @@ export async function updateDraftTeamCount(draftId: string, teamCount: number): 
     if (deleteError) throw new Error(deleteError.message);
   }
 
-  const { data, error } = await supabase
-    .from("drafts")
-    .update({ team_count: teamCount })
-    .eq("id", draftId)
-    .select()
-    .single<DraftRow>();
+  const { data, error } = await supabase.rpc("update_draft_extras", {
+    p_draft_id: draftId,
+    p_team_count: teamCount,
+  });
   if (error) throw new Error(error.message);
-  return mapDraft(data);
+  return mapDraft(data as DraftRow);
 }
 
 export async function updateDraftName(draftId: string, name: string): Promise<Draft> {
+  await ensureAnonymousUser();
   const trimmed = name.trim();
   if (!trimmed) throw new Error("Draft name cannot be empty.");
-  const { data, error } = await supabase
-    .from("drafts")
-    .update({ name: trimmed })
-    .eq("id", draftId)
-    .select()
-    .single<DraftRow>();
+  const { data, error } = await supabase.rpc("update_draft_extras", {
+    p_draft_id: draftId,
+    p_name: trimmed,
+  });
   if (error) throw new Error(error.message);
-  return mapDraft(data);
+  return mapDraft(data as DraftRow);
 }
 
 export async function startDraft(draftId: string) {
@@ -906,11 +1024,10 @@ export async function expireCurrentPick(draftId: string, expectedPick: number) {
   return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
 }
 
-export async function resetDraft(draftId: string): Promise<Draft> {
+export async function resetDraft(draftId: string): Promise<void> {
   await ensureAnonymousUser();
-  const { data, error } = await supabase.rpc("reset_draft", { p_draft_id: draftId });
+  const { error } = await supabase.rpc("reset_draft", { p_draft_id: draftId });
   if (error) throw new Error(error.message);
-  return mapDraft(data as DraftRow);
 }
 
 export async function resetPickTimer(draftId: string) {
@@ -977,6 +1094,19 @@ export async function getDraftMessages(
 }
 
 export async function getByeWeeks(seasonYear: number): Promise<Map<string, number>> {
+  try {
+    const response = await fetch(`/api/nfl/bye-weeks?year=${seasonYear}`);
+    if (response.ok) {
+      const payload = await response.json() as {
+        byeWeeks: Array<{ nfl_team: string; bye_week: number }>;
+      };
+      if (payload.byeWeeks.length === 32) return buildByeWeekLookup(payload.byeWeeks);
+    }
+  } catch {
+    // Fall back to the locally stored snapshot below when the schedule source
+    // or application server is temporarily unavailable.
+  }
+
   const { data, error } = await supabase
     .from("nfl_bye_weeks")
     .select("nfl_team, bye_week")
@@ -984,11 +1114,7 @@ export async function getByeWeeks(seasonYear: number): Promise<Map<string, numbe
 
   if (error) throw error;
 
-  const map = new Map<string, number>();
-  for (const row of data ?? []) {
-    map.set(row.nfl_team as string, row.bye_week as number);
-  }
-  return map;
+  return buildByeWeekLookup((data ?? []) as Array<{ nfl_team: string; bye_week: number }>);
 }
 
 export async function upsertByeWeeks(

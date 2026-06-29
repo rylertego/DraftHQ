@@ -36,6 +36,8 @@ export default function LoginPage() {
     <main className="flex flex-1 items-center justify-center px-4 py-12">
       <div className="w-full max-w-md">
         <div className="mb-8 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/branding/logo-primary.png" alt="DraftHQ" className="mx-auto mb-6 h-56 w-auto" />
           <h1 className="text-3xl font-bold text-white">Welcome back</h1>
           <p className="mt-2 text-slate-400">Log in to your DraftHQ account.</p>
         </div>

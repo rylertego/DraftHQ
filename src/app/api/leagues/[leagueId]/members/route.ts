@@ -1,3 +1,4 @@
+import { createClient } from "@supabase/supabase-js";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { normalizeEmail } from "@/lib/email";
 
@@ -55,36 +56,82 @@ export async function POST(request: Request, { params }: RouteContext) {
   const { error, status, user } = await getCommissioner(request, leagueId);
   if (error || !user) return Response.json({ error }, { status });
 
-  let body: { email?: unknown };
+  let body: { email?: unknown; leagueTeamId?: unknown; draftTeamId?: unknown };
   try {
-    body = (await request.json()) as { email?: unknown };
+    body = (await request.json()) as { email?: unknown; leagueTeamId?: unknown; draftTeamId?: unknown };
   } catch {
     return Response.json({ error: "Invalid request body." }, { status: 400 });
   }
 
   const email = normalizeEmail(body.email);
   if (!email) return Response.json({ error: "Enter a valid email address." }, { status: 400 });
+  const requestedLeagueTeamId = typeof body.leagueTeamId === "string" ? body.leagueTeamId : null;
+  const requestedDraftTeamId = typeof body.draftTeamId === "string" ? body.draftTeamId : null;
 
   // Look up the league slug for the redirect URL
   const { data: league, error: leagueError } = await supabaseAdmin
     .from("leagues")
-    .select("slug")
+    .select("slug,name")
     .eq("id", leagueId)
     .maybeSingle();
 
   if (leagueError || !league) return Response.json({ error: "League not found." }, { status: 404 });
 
   const siteOrigin = process.env.NEXT_PUBLIC_SITE_URL ?? new URL(request.url).origin;
-  const redirectTo = `${siteOrigin}/leagues/${league.slug as string}`;
+  const token = crypto.randomUUID();
+  const redirectTo = `${siteOrigin}/dashboard?invitation=${token}`;
+
+  let leagueTeamId = requestedLeagueTeamId;
+  let draftId: string | null = null;
+  const draftTeamId: string | null = requestedDraftTeamId;
+
+  if (requestedLeagueTeamId) {
+    const { data: team, error: teamError } = await supabaseAdmin
+      .from("league_teams")
+      .select("id,owner_user_id")
+      .eq("id", requestedLeagueTeamId)
+      .eq("league_id", leagueId)
+      .maybeSingle();
+    if (teamError) return Response.json({ error: `Unable to validate league team: ${teamError.message}` }, { status: 500 });
+    if (!team) return Response.json({ error: "League team not found." }, { status: 404 });
+    if (team.owner_user_id) return Response.json({ error: "That team already has an owner." }, { status: 409 });
+  } else if (requestedDraftTeamId) {
+    const { data: draftTeam, error: draftTeamError } = await supabaseAdmin
+      .from("teams")
+      .select("draft_id")
+      .eq("id", requestedDraftTeamId)
+      .maybeSingle();
+    if (draftTeamError) return Response.json({ error: `Unable to validate draft team: ${draftTeamError.message}` }, { status: 500 });
+    if (!draftTeam) return Response.json({ error: "Draft team not found." }, { status: 404 });
+    draftId = draftTeam.draft_id;
+    const { data: season, error: seasonError } = await supabaseAdmin
+      .from("league_seasons")
+      .select("id")
+      .eq("league_id", leagueId)
+      .eq("draft_id", draftId)
+      .maybeSingle();
+    if (seasonError) return Response.json({ error: `Unable to validate league season: ${seasonError.message}` }, { status: 500 });
+    if (!season) return Response.json({ error: "Draft does not belong to this league." }, { status: 400 });
+    const { data: link, error: linkError } = await supabaseAdmin
+      .from("league_team_seasons")
+      .select("league_team_id")
+      .eq("league_season_id", season.id)
+      .eq("draft_team_id", requestedDraftTeamId)
+      .maybeSingle();
+    if (linkError) return Response.json({ error: `Unable to validate franchise assignment: ${linkError.message}` }, { status: 500 });
+    if (!link) return Response.json({ error: "Unable to match that draft team to a franchise." }, { status: 400 });
+    leagueTeamId = link.league_team_id;
+  }
 
   // Check if user already exists
-  const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers();
+  const { data: listData, error: listError } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
   if (listError) return Response.json({ error: listError.message }, { status: 500 });
 
   const existingUser = listData.users.find((u) => u.email?.toLowerCase() === email.toLowerCase());
 
   let targetUserId: string;
   let invited = false;
+  let emailWarning: string | null = null;
 
   if (existingUser) {
     targetUserId = existingUser.id;
@@ -92,32 +139,66 @@ export async function POST(request: Request, { params }: RouteContext) {
     // No account yet — create one via invite email, get the new user's ID immediately
     const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(
       email,
-      { redirectTo, data: { pending_league_id: leagueId, pending_league_slug: league.slug } }
+      { redirectTo, data: { pending_league_id: leagueId, pending_league_slug: league.slug, pending_league_invitation_token: token } }
     );
     if (inviteError) return Response.json({ error: `Could not send invite: ${inviteError.message}` }, { status: 500 });
     targetUserId = inviteData.user.id;
     invited = true;
   }
 
-  // Check if already a member
-  const { data: existing } = await supabaseAdmin
+  const { data: existingMember } = await supabaseAdmin
     .from("league_members")
     .select("id")
     .eq("league_id", leagueId)
     .eq("user_id", targetUserId)
     .maybeSingle();
 
-  if (existing) return Response.json({ error: "That person is already a member of this league." }, { status: 409 });
+  if (existingMember && !leagueTeamId) return Response.json({ error: "That person is already a member of this league." }, { status: 409 });
 
-  const { data: member, error: insertError } = await supabaseAdmin
-    .from("league_members")
-    .insert({ league_id: leagueId, user_id: targetUserId, role: "member" })
-    .select("id,league_id,user_id,role,joined_at")
+  const { data: existingInvitation } = await supabaseAdmin
+    .from("league_invitations")
+    .select("id")
+    .eq("league_id", leagueId)
+    .eq("invited_user_id", targetUserId)
+    .eq("status", "pending")
+    .maybeSingle();
+
+  const invitationValues = {
+    league_id: leagueId,
+    league_team_id: leagueTeamId,
+    draft_id: draftId,
+    draft_team_id: draftTeamId,
+    email,
+    invited_user_id: targetUserId,
+    invited_by_user_id: user.id,
+    token,
+    status: "pending",
+    invited_at: new Date().toISOString(),
+    responded_at: null,
+  };
+  const invitationQuery = existingInvitation
+    ? supabaseAdmin.from("league_invitations").update(invitationValues).eq("id", existingInvitation.id)
+    : supabaseAdmin.from("league_invitations").insert(invitationValues);
+  const { data: invitation, error: invitationError } = await invitationQuery
+    .select("id,league_id,league_team_id,email,status,invited_at")
     .single();
 
-  if (insertError) return Response.json({ error: insertError.message }, { status: 500 });
+  if (invitationError) return Response.json({ error: invitationError.message }, { status: 500 });
 
-  return Response.json({ member, invited }, { status: 201 });
+  if (existingUser) {
+    const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+    const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+    if (supabaseUrl && anonKey) {
+      const mailClient = createClient(supabaseUrl, anonKey, { auth: { persistSession: false } });
+      const { error: mailError } = await mailClient.auth.signInWithOtp({
+        email,
+        options: { shouldCreateUser: false, emailRedirectTo: redirectTo },
+      });
+      if (mailError) emailWarning = `The in-app invitation was created, but email delivery failed: ${mailError.message}`;
+    }
+  }
+
+  return Response.json({ invitation, invited, inviteUrl: redirectTo, warning: emailWarning }, { status: 201 });
 }
 
 export async function DELETE(request: Request, { params }: RouteContext) {

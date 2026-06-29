@@ -9,11 +9,14 @@ const FANTASY_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K"]);
 const EXCLUDED_STATUSES = new Set(["CUT", "RET"]);
 
 const TEAM_ALIASES = {
+  AZ: "ARI",
+  ARZ: "ARI",
   JAC: "JAX",
   LA: "LAR",
   OAK: "LV",
   SD: "LAC",
   STL: "LAR",
+  WSH: "WAS",
 };
 
 const NFL_TEAMS = [
@@ -94,6 +97,7 @@ export function transformNflversePlayers(rows) {
       full_name: fullName,
       position,
       nfl_team: normalizeTeam(row.latest_team),
+      headshot_url: (row.headshot_url ?? row.headshot)?.trim() || null,
     });
   }
 
@@ -103,6 +107,7 @@ export function transformNflversePlayers(rows) {
       full_name: fullName,
       position: "DST",
       nfl_team: team,
+      headshot_url: null,
     });
   }
 

@@ -1,4 +1,4 @@
-export type LeagueRole = "commissioner" | "member";
+export type LeagueRole = "commissioner" | "co-commissioner" | "member";
 export type LeagueTheme = "classic" | "broadcast" | "dark" | "modern";
 export type LeagueSeasonStatus =
   | "upcoming"
@@ -17,6 +17,9 @@ export interface League {
   theme: LeagueTheme;
   teamCount: number;
   ownerUserId: string;
+  sleeperLeagueId: string | null;
+  sleeperLastSyncedAt: string | null;
+  activeIntegration: "sleeper" | "espn" | "yahoo" | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -39,6 +42,10 @@ export interface LeagueSeasonDraft {
   status: "setup" | "active" | "paused" | "complete";
   joinCode: string;
   scheduledAt: string | null;
+  teamCount: number;
+  rounds: number;
+  pickSeconds: number;
+  timerBehavior: "nothing" | "skip" | "auto_draft";
 }
 
 export interface LeagueSeason {
@@ -49,6 +56,24 @@ export interface LeagueSeason {
   status: LeagueSeasonStatus;
   draftId: string | null;
   draft: LeagueSeasonDraft | null;
+  sleeperLeagueId: string | null;
+  championTeamId: string | null;
+  sleeperSyncedAt: string | null;
+  standings: LeagueSeasonStanding[];
+}
+
+export interface LeagueSeasonStanding {
+  leagueTeamId: string;
+  teamName: string;
+  teamLogoUrl: string | null;
+  sleeperRosterId: number;
+  finalRank: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointsFor: number;
+  pointsAgainst: number;
+  playoffFinish: number | null;
 }
 
 export interface LeagueTeam {
@@ -74,6 +99,7 @@ export interface LeagueWorkspace {
   members: LeagueMember[];
   seasons: LeagueSeason[];
   canManage: boolean;
+  myTeam: { id: string; name: string; logoUrl: string | null } | null;
 }
 
 export interface LeagueSettings {

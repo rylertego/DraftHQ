@@ -16,7 +16,10 @@ export function useLeagueWorkspace(slug: string) {
 
     void getLeagueWorkspace(slug)
       .then((result) => {
-        if (active) setWorkspace(result);
+        if (active) {
+          setWorkspace(result);
+          setError("");
+        }
       })
       .catch((loadError) => {
         if (active) {

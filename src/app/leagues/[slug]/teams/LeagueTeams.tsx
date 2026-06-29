@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import LeagueImportModal from "@/components/LeagueImportModal";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import {
@@ -54,7 +56,7 @@ function AddTeamModal({
         ownerName: ownerName.trim() || undefined,
       });
       if (inviteEmail.trim() && !ownerUserId) {
-        await inviteLeagueMember(leagueId, inviteEmail.trim());
+        await inviteLeagueMember(leagueId, inviteEmail.trim(), { leagueTeamId: team.id });
       }
       onAdded(team);
     } catch (err) {
@@ -105,7 +107,7 @@ function AddTeamModal({
                 />
                 {inviteEmail.trim() && (
                   <p className="mt-1 text-xs text-slate-500">
-                    A league invite will be sent to this address. Assign as owner once they join.
+                    They&apos;ll be assigned to this team automatically after accepting the invitation.
                   </p>
                 )}
               </div>
@@ -453,6 +455,7 @@ function TeamCard({
   team,
   members,
   canManage,
+  teamChangesLocked,
   onRequestDelete,
   onArchive,
   onEdit,
@@ -460,6 +463,7 @@ function TeamCard({
   team: LeagueTeam;
   members: LeagueMember[];
   canManage: boolean;
+  teamChangesLocked: boolean;
   onRequestDelete: (team: LeagueTeam) => void;
   onArchive: (teamId: string) => Promise<void>;
   onEdit: (team: LeagueTeam) => void;
@@ -470,8 +474,19 @@ function TeamCard({
 
   const menuItems = canManage ? [
     { label: "Edit team", onClick: () => onEdit(team) },
-    { label: "Archive", onClick: () => void onArchive(team.id) },
-    { label: "Delete", danger: true, onClick: () => onRequestDelete(team) },
+    {
+      label: "Archive",
+      disabled: teamChangesLocked,
+      title: "Teams cannot be archived while a draft is active.",
+      onClick: () => void onArchive(team.id),
+    },
+    {
+      label: "Delete",
+      danger: true,
+      disabled: teamChangesLocked,
+      title: "Teams cannot be deleted while a draft is active.",
+      onClick: () => onRequestDelete(team),
+    },
   ] : [];
 
   return (
@@ -527,7 +542,8 @@ function TeamCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function LeagueTeams({ slug }: { slug: string }) {
+export default function LeagueTeams(_: { slug: string }) {
+  const router = useRouter();
   const { workspace, isLoading: loading, error } = useWorkspace();
   const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
@@ -535,12 +551,17 @@ export default function LeagueTeams({ slug }: { slug: string }) {
   const [teamsError, setTeamsError] = useState("");
   const [actionError, setActionError] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
   const [pendingDelete, setPendingDelete] = useState<LeagueTeam | null>(null);
   const [editingTeam, setEditingTeam] = useState<LeagueTeam | null>(null);
 
   const league = workspace?.league;
   const canManage = workspace?.canManage ?? false;
   const members = workspace?.members ?? [];
+  const teamChangesLocked = workspace?.seasons.some(
+    (season) => season.draft?.status === "active" || season.draft?.status === "paused"
+  ) ?? false;
 
   useEffect(() => {
     if (!league) return;
@@ -559,6 +580,10 @@ export default function LeagueTeams({ slug }: { slug: string }) {
 
   async function handleDelete(teamId: string) {
     if (!league) return;
+    if (teamChangesLocked) {
+      setActionError("Teams cannot be deleted while a draft is active.");
+      return;
+    }
     setActionError("");
     try {
       await deleteLeagueTeam(league.id, teamId);
@@ -572,14 +597,28 @@ export default function LeagueTeams({ slug }: { slug: string }) {
 
   async function handleArchive(teamId: string) {
     if (!league) return;
+    if (teamChangesLocked) {
+      setActionError("Teams cannot be archived while a draft is active.");
+      return;
+    }
     await archiveLeagueTeam(league.id, teamId);
     setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, archivedAt: new Date().toISOString() } : t));
   }
 
   async function handleUnarchive(teamId: string) {
     if (!league) return;
+    if (teamChangesLocked) {
+      setActionError("Teams cannot be unarchived while a draft is active.");
+      return;
+    }
     await unarchiveLeagueTeam(league.id, teamId);
     setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, archivedAt: null } : t));
+  }
+
+  async function refreshTeams() {
+    if (!league) return;
+    setTeams(await getLeagueTeams(league.id));
+    router.refresh();
   }
 
 
@@ -626,11 +665,24 @@ export default function LeagueTeams({ slug }: { slug: string }) {
             handleTeamSaved(editingTeam.id, updates);
             setEditingTeam((prev) => prev ? { ...prev, ...updates } : null);
           }}
-          onInvite={async (email) => { await inviteLeagueMember(editingTeam.leagueId, email); }}
+          onInvite={async (email) => { await inviteLeagueMember(editingTeam.leagueId, email, { leagueTeamId: editingTeam.id }); }}
         />
       )}
 
-      <div className="flex items-center justify-between">
+      {showImportModal && league && (
+        <LeagueImportModal
+          leagueId={league.id}
+          availableSlots={league.teamCount - teams.filter((team) => !team.archivedAt).length}
+          onClose={() => setShowImportModal(false)}
+          onImported={async (count) => {
+            await refreshTeams();
+            setShowImportModal(false);
+            setSuccessMessage(`${count} team${count === 1 ? "" : "s"} imported successfully.`);
+          }}
+        />
+      )}
+
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-xl font-bold text-white">Franchise Teams</h2>
           <p className="text-sm text-slate-500">
@@ -642,22 +694,32 @@ export default function LeagueTeams({ slug }: { slug: string }) {
           </p>
         </div>
         {canManage && (
-          <button
-            onClick={() => setShowAddModal(true)}
-            disabled={atCapacity}
-            title={atCapacity ? `League is at capacity (${teamMax} teams). Archive or delete a team first, or raise the limit in Settings.` : undefined}
-            className="rounded-xl px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-            style={{ backgroundColor: primary, color: secondary }}
-          >
-            + Add Team
-          </button>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <button
+              onClick={() => setShowImportModal(true)}
+              disabled={atCapacity || teamChangesLocked}
+              title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
+              className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+            >
+              Import League
+            </button>
+            <button
+              onClick={() => setShowAddModal(true)}
+              disabled={atCapacity || teamChangesLocked}
+              title={teamChangesLocked ? "Teams cannot be added while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams). Archive or delete a team first, or raise the limit in Settings.` : undefined}
+              className="rounded-xl px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              style={{ backgroundColor: primary, color: secondary }}
+            >
+              + Add Team
+            </button>
+          </div>
         )}
       </div>
 
-      {canManage && atCapacity && activeTeams.length > 0 && (
-        <div className="rounded-xl border px-4 py-3 text-sm" style={{ borderColor: primary + "44", backgroundColor: primary + "12", color: primary }}>
-          League is at capacity — {teamMax} of {teamMax} active teams. Archive or delete a team to add another, or raise the limit in{" "}
-          <a href={`/leagues/${slug}/settings`} className="underline underline-offset-2">Settings</a>.
+      {successMessage && (
+        <div className="flex items-center justify-between rounded-xl border border-emerald-700/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300" role="status">
+          <span>{successMessage}</span>
+          <button type="button" onClick={() => setSuccessMessage("")} className="ml-3 underline opacity-70 hover:opacity-100">Dismiss</button>
         </div>
       )}
 
@@ -695,7 +757,9 @@ export default function LeagueTeams({ slug }: { slug: string }) {
           {canManage && (
             <button
               onClick={() => setShowAddModal(true)}
-              className="mt-4 rounded-xl px-5 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
+              disabled={teamChangesLocked}
+              title={teamChangesLocked ? "Teams cannot be added while a draft is active." : undefined}
+              className="mt-4 rounded-xl px-5 py-2.5 text-sm font-bold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
               style={{ backgroundColor: primary, color: secondary }}
             >
               + Add First Team
@@ -706,7 +770,8 @@ export default function LeagueTeams({ slug }: { slug: string }) {
         <>
           {canManage && assignedOwnerIds.size < activeTeams.length && (
             <div className="rounded-xl border border-yellow-700/40 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-400">
-              {activeTeams.length - assignedOwnerIds.size} team{activeTeams.length - assignedOwnerIds.size !== 1 ? "s" :  " "} without an owner — assign owners so they&apos;re automatically placed in their draft slots when a new season is created.
+              {activeTeams.length - assignedOwnerIds.size} team{activeTeams.length - assignedOwnerIds.size !== 1 ? "s" : ""}{" "}
+              without an owner — assign owners so they&apos;re automatically placed in their draft slots when a new season is created.
             </div>
           )}
           <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -716,6 +781,7 @@ export default function LeagueTeams({ slug }: { slug: string }) {
                 team={team}
                 members={members}
                 canManage={canManage}
+                teamChangesLocked={teamChangesLocked}
                 onRequestDelete={setPendingDelete}
                 onArchive={handleArchive}
                 onEdit={setEditingTeam}
@@ -738,10 +804,17 @@ export default function LeagueTeams({ slug }: { slug: string }) {
                       <h3 className="text-base font-bold text-slate-400 leading-tight">{team.name}</h3>
                       {canManage && (
                         <KebabMenu items={[
-                          { label: "Unarchive", onClick: () => void handleUnarchive(team.id) },
+                          {
+                            label: "Unarchive",
+                            disabled: teamChangesLocked,
+                            title: "Teams cannot be unarchived while a draft is active.",
+                            onClick: () => void handleUnarchive(team.id),
+                          },
                           {
                             label: "Delete",
                             danger: true,
+                            disabled: teamChangesLocked,
+                            title: "Teams cannot be deleted while a draft is active.",
                             onClick: () => setPendingDelete(team),
                           },
                         ]} />

@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 
-const ESPN_BASE = "https://fantasy.espn.com/apis/v3/games/ffl";
+const ESPN_URL =
+  "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leaguedefaults/3?view=kona_player_info";
 
 // ESPN position IDs → fantasy position abbreviation
 const ESPN_POS: Record<number, string> = {
@@ -17,31 +18,34 @@ const ESPN_TEAM: Record<number, string> = {
   33: "BAL", 34: "HOU",
 };
 
-// ESPN rankType key → our scoring_type
-const RANK_TYPE: Record<string, string> = {
-  standard: "STANDARD",
-  ppr: "PPR",
-  half_ppr: "HALF_PPR",
-};
+// X-Fantasy-Filter to get top 600 draftable players sorted by standard rank
+const FANTASY_FILTER = JSON.stringify({
+  players: {
+    limit: 600,
+    sortDraftRanks: { sortPriority: 100, sortAsc: true, value: "STANDARD" },
+    filterSlotIds: { value: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 23, 24] },
+  },
+});
 
 export async function POST(request: Request) {
   const { searchParams } = new URL(request.url);
   const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()), 10);
 
-  // Fetch the PPR leaguedefaults view — it includes draftRanksByRankType for all formats
-  const url =
-    `${ESPN_BASE}/seasons/${year}/segments/0/leaguedefaults/3` +
-    `?view=kona_player_info`;
+  const url = ESPN_URL.replace("{year}", String(year));
 
-  let raw: { players?: EspnPlayer[] };
+  let raw: { players?: EspnEntry[] };
   try {
     const res = await fetch(url, {
-      headers: { Accept: "application/json" },
-      // no cache — we want fresh data
+      headers: {
+        Accept: "application/json",
+        "User-Agent": "Mozilla/5.0",
+        "X-Fantasy-Filter": FANTASY_FILTER,
+      },
       cache: "no-store",
     });
     if (!res.ok) {
-      return Response.json({ error: `ESPN returned ${res.status}` }, { status: 502 });
+      const body = await res.text().catch(() => "");
+      return Response.json({ error: `ESPN returned ${res.status}`, body: body.slice(0, 200) }, { status: 502 });
     }
     raw = await res.json();
   } catch (err) {
@@ -51,64 +55,52 @@ export async function POST(request: Request) {
     );
   }
 
-  const players = raw.players ?? [];
-  if (players.length === 0) {
+  const entries = raw.players ?? [];
+  if (entries.length === 0) {
     return Response.json({ error: "ESPN returned no players" }, { status: 502 });
   }
 
-  // Build rows for each scoring type
   const rows: EspnRankingRow[] = [];
   const now = new Date().toISOString();
 
-  for (const p of players) {
-    const espnId = p.id;
-    const name = p.player?.fullName ?? "Unknown";
-    const nflTeam = ESPN_TEAM[p.onTeamId ?? 0] ?? null;
-    const position = ESPN_POS[p.player?.defaultPositionId ?? 0] ?? null;
-    const ranksByType = p.draftRanksByRankType ?? {};
+  for (const entry of entries) {
+    const p = entry.player;
+    if (!p) continue;
 
-    for (const [scoringType, espnKey] of Object.entries(RANK_TYPE)) {
-      const rank = ranksByType[espnKey]?.rank;
-      if (!rank) continue;
-      rows.push({
-        season_year: year,
-        scoring_type: scoringType,
-        espn_player_id: espnId,
-        player_name: name,
-        nfl_team: nflTeam,
-        position,
-        rank,
-        fetched_at: now,
-      });
+    const espnId = p.id ?? entry.id;
+    const name = p.fullName ?? "Unknown";
+    const nflTeam = ESPN_TEAM[p.proTeamId ?? 0] ?? null;
+    const position = ESPN_POS[p.defaultPositionId ?? 0] ?? null;
+    const ranks = p.draftRanksByRankType ?? {};
+
+    const standardRank = ranks["STANDARD"]?.rank;
+    const pprRank = ranks["PPR"]?.rank;
+
+    if (standardRank) {
+      rows.push({ season_year: year, scoring_type: "standard", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: standardRank, fetched_at: now });
     }
-
-    // Superflex: copy from standard but promote QBs (rank stays same — just tag it)
-    const stdRank = ranksByType["STANDARD"]?.rank;
-    if (stdRank) {
-      rows.push({
-        season_year: year,
-        scoring_type: "superflex",
-        espn_player_id: espnId,
-        player_name: name,
-        nfl_team: nflTeam,
-        position,
-        rank: stdRank,
-        fetched_at: now,
-      });
+    if (pprRank) {
+      rows.push({ season_year: year, scoring_type: "ppr", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: pprRank, fetched_at: now });
+    }
+    // Derive HALF_PPR by averaging standard and PPR ranks
+    if (standardRank && pprRank) {
+      rows.push({ season_year: year, scoring_type: "half_ppr", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: Math.round((standardRank + pprRank) / 2), fetched_at: now });
+    }
+    // Superflex: same as standard but QBs are boosted (re-ranked below)
+    if (standardRank) {
+      rows.push({ season_year: year, scoring_type: "superflex", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: standardRank, fetched_at: now });
     }
   }
 
-  // For superflex: re-rank QBs by boosting them toward the top
+  // Re-rank superflex: interleave QBs roughly every 3rd pick
   const sfRows = rows.filter((r) => r.scoring_type === "superflex");
   const qbRows = sfRows.filter((r) => r.position === "QB").sort((a, b) => a.rank - b.rank);
   const nonQbRows = sfRows.filter((r) => r.position !== "QB").sort((a, b) => a.rank - b.rank);
-  // Interleave: every other slot gets a QB until QBs run out
   let sfRank = 1;
   const qbIter = qbRows[Symbol.iterator]();
   const nonQbIter = nonQbRows[Symbol.iterator]();
   let qbNext = qbIter.next();
   let nonQbNext = nonQbIter.next();
-  // Put QB roughly every 3rd pick in superflex (approximate)
   while (!qbNext.done || !nonQbNext.done) {
     if (!qbNext.done && (sfRank % 3 === 0 || nonQbNext.done)) {
       qbNext.value.rank = sfRank++;
@@ -124,20 +116,23 @@ export async function POST(request: Request) {
     .upsert(rows, { onConflict: "season_year,scoring_type,espn_player_id" });
 
   if (error) {
+    console.error("[rankings/sync] Supabase upsert error:", error);
     return Response.json({ error: error.message }, { status: 500 });
   }
 
   return Response.json({ synced: rows.length, year });
 }
 
-interface EspnPlayer {
+interface EspnEntry {
   id: number;
   onTeamId?: number;
   player?: {
+    id?: number;
     fullName?: string;
     defaultPositionId?: number;
+    proTeamId?: number;
+    draftRanksByRankType?: Record<string, { rank?: number }>;
   };
-  draftRanksByRankType?: Record<string, { rank?: number; auctionValue?: number }>;
 }
 
 interface EspnRankingRow {

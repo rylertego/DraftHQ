@@ -76,7 +76,7 @@ export default function JoinDraftForm({ initialJoinCode = "" }: JoinDraftFormPro
     setIsJoining(true);
     try {
       const participant = await joinDraft(code, displayName.trim());
-      router.push(`/draft?draftId=${participant.draftId}`);
+      router.push(`/draft/lobby?draftId=${participant.draftId}`);
     } catch (joinError) {
       setError(joinError instanceof Error ? joinError.message : "Unable to join the draft.");
       setIsJoining(false);

@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import DraftHQLogo from "@/components/DraftHQLogo";
+import LeagueInvitationInbox from "@/components/LeagueInvitationInbox";
 import { useLeagueTheme, DEFAULT_ACCENT } from "@/context/LeagueThemeContext";
 
 
@@ -14,7 +15,7 @@ export default function AccountNav() {
   const pathname = usePathname();
   const { accentColor, setAccentColor } = useLeagueTheme();
 
-  if (pathname === "/draft") return null;
+  const hideNav = pathname.startsWith("/draft");
   const [user, setUser] = useState<User | null>(null);
 
   // Reset theme when leaving league pages
@@ -66,8 +67,10 @@ export default function AccountNav() {
   const displayEmail = user?.email ?? "";
   const shortEmail = displayEmail.length > 22 ? displayEmail.slice(0, 20) + "…" : displayEmail;
 
+  if (hideNav) return null;
+
   return (
-    <header className="border-b border-slate-800 bg-slate-950">
+    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950">
       <nav className="flex items-center gap-6 px-6 py-0">
 
         {/* Logo */}
@@ -87,6 +90,8 @@ export default function AccountNav() {
             >
               Join Draft
             </Link>
+
+            <LeagueInvitationInbox userId={user.id} />
 
             {/* User dropdown */}
             <div className="relative" ref={dropdownRef}>

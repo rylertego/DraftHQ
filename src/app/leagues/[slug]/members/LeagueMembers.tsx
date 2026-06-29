@@ -6,6 +6,7 @@ import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import {
   inviteLeagueMember,
   removeLeagueMember,
+  setLeagueMemberRole,
   updateLeagueMemberProfile,
   uploadLeagueMemberAvatar,
 } from "@/lib/leagueApi";
@@ -27,10 +28,10 @@ function InviteMemberModal({ leagueId, onClose, onAdded }: { leagueId: string; o
     setLoading(true);
     setError("");
     try {
-      const { invited } = await inviteLeagueMember(leagueId, email.trim());
+      await inviteLeagueMember(leagueId, email.trim());
       onAdded();
-      if (invited) { setSentInvite(true); setLoading(false); }
-      else onClose();
+      setSentInvite(true);
+      setLoading(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to add member.");
       setLoading(false);
@@ -48,7 +49,7 @@ function InviteMemberModal({ leagueId, onClose, onAdded }: { leagueId: string; o
           </div>
           <h2 className="text-lg font-bold text-white">Invitation sent</h2>
           <p className="mt-2 text-sm text-slate-400">
-            <span className="text-white">{email}</span> doesn&apos;t have a DraftHQ account yet. We&apos;ve sent them an invite — they&apos;ll be added to the league as soon as they sign up.
+            <span className="text-white">{email}</span> has been invited. They will only join the league after accepting from their DraftHQ invitation inbox.
           </p>
           <button type="button" onClick={onClose}
             className="mt-5 w-full rounded-xl py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
@@ -64,7 +65,7 @@ function InviteMemberModal({ leagueId, onClose, onAdded }: { leagueId: string; o
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
         <h2 className="text-lg font-bold text-white">Add Member</h2>
-        <p className="mt-1 text-sm text-slate-400">Enter the email address of the person you want to add. They must already have a DraftHQ account.</p>
+        <p className="mt-1 text-sm text-slate-400">They&apos;ll receive a pending invitation and can join or decline from DraftHQ.</p>
         <form onSubmit={(e) => void handleSubmit(e)} className="mt-5 space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email address</label>
@@ -79,7 +80,7 @@ function InviteMemberModal({ leagueId, onClose, onAdded }: { leagueId: string; o
             <button type="submit" disabled={loading || !email.trim()}
               className="flex-1 rounded-xl py-2.5 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:opacity-90"
               style={{ backgroundColor: primary, color: secondary }}>
-              {loading ? "Adding..." : "Add Member"}
+              {loading ? "Sending..." : "Send Invitation"}
             </button>
           </div>
         </form>
@@ -282,27 +283,43 @@ function EditMemberProfileModal({
   );
 }
 
+const ROLE_LABELS: Record<string, string> = {
+  commissioner: "Commissioner",
+  "co-commissioner": "Co-Commissioner",
+  member: "Member",
+};
+
 // ── Member card ───────────────────────────────────────────────────────────────
 
 function MemberCard({
   member,
   canManage,
+  isMainCommissioner,
   isSelf,
   onRemove,
   onEditProfile,
+  onSetRole,
 }: {
   member: LeagueMember;
   canManage: boolean;
+  isMainCommissioner: boolean;
   isSelf: boolean;
   onRemove: () => void;
   onEditProfile: () => void;
+  onSetRole: (role: "co-commissioner" | "member") => void;
 }) {
   const { accentColor: primary } = useLeagueTheme();
   const [menuOpen, setMenuOpen] = useState(false);
   const initials = member.displayName.slice(0, 1).toUpperCase();
 
+  const isCommissioner = member.role === "commissioner";
+  const isCoCommissioner = member.role === "co-commissioner";
+  const showMenu = canManage && !isSelf && !isCommissioner;
+
+  const isElevated = isCommissioner || isCoCommissioner;
+
   return (
-    <article className="group relative flex items-center gap-3 rounded-2xl border bg-slate-900 p-4" style={{ borderColor: primary + "44" }}>
+    <article className="group relative flex items-center gap-3 rounded-2xl border bg-slate-900 p-4" style={{ borderColor: isElevated ? primary + "44" : "rgba(100,116,139,0.2)" }}>
       {member.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={member.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
@@ -316,7 +333,9 @@ function MemberCard({
           <h3 className="truncate font-semibold text-white">{member.displayName}</h3>
           {isSelf && <span className="text-xs text-slate-500">(you)</span>}
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{member.role}</p>
+        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: isElevated ? primary : "#64748b" }}>
+          {ROLE_LABELS[member.role] ?? member.role}
+        </p>
         {member.bio && <p className="mt-1 truncate text-xs text-slate-500">{member.bio}</p>}
       </div>
 
@@ -330,7 +349,7 @@ function MemberCard({
             Edit profile
           </button>
         )}
-        {canManage && !isSelf && member.role !== "commissioner" && (
+        {showMenu && (
           <div className="relative" onMouseLeave={() => setMenuOpen(false)}>
             <button type="button" onClick={() => setMenuOpen((o) => !o)}
               className={`flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-colors ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
@@ -339,7 +358,21 @@ function MemberCard({
               </svg>
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-9 z-20 min-w-[140px] rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-xl">
+              <div className="absolute right-0 top-full z-20 min-w-[180px] rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-xl">
+                {isMainCommissioner && (
+                  isCoCommissioner ? (
+                    <button type="button" onClick={() => { setMenuOpen(false); onSetRole("member"); }}
+                      className="w-full px-4 py-2 text-left text-sm text-slate-300 hover:bg-slate-800 hover:text-white transition-colors">
+                      Remove Co-Commissioner
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => { setMenuOpen(false); onSetRole("co-commissioner"); }}
+                      className="w-full px-4 py-2 text-left text-sm transition-colors hover:bg-slate-800"
+                      style={{ color: primary }}>
+                      Make Co-Commissioner
+                    </button>
+                  )
+                )}
                 <button type="button" onClick={() => { setMenuOpen(false); onRemove(); }}
                   className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
                   Remove member
@@ -362,6 +395,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
   const [showInvite, setShowInvite] = useState(false);
   const [removingMember, setRemovingMember] = useState<LeagueMember | null>(null);
   const [editingProfile, setEditingProfile] = useState<LeagueMember | null>(null);
+  const [roleError, setRoleError] = useState("");
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -369,8 +403,21 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
     });
   }, []);
 
+  async function handleSetRole(member: LeagueMember, role: "co-commissioner" | "member") {
+    if (!workspace) return;
+    setRoleError("");
+    try {
+      await setLeagueMemberRole(workspace.league.id, member.id, role);
+      reload();
+    } catch (err) {
+      setRoleError(err instanceof Error ? err.message : "Unable to update role.");
+    }
+  }
+
   if (isLoading) return <div className="p-8 text-slate-400">Loading members...</div>;
   if (error || !workspace) return <div className="p-8 text-red-400">{error || "League not found."}</div>;
+
+  const isMainCommissioner = workspace.league.ownerUserId === currentUserId;
 
   const content = (
     <div className="space-y-6">
@@ -388,15 +435,25 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
             </button>
           )}
         </div>
+
+        {roleError && (
+          <p className="mt-3 rounded-xl border border-red-800 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+            {roleError}
+            <button type="button" className="ml-3 underline opacity-70 hover:opacity-100" onClick={() => setRoleError("")}>Dismiss</button>
+          </p>
+        )}
+
         <div className="mt-4 grid gap-3 sm:grid-cols-2">
           {workspace.members.map((member) => (
             <MemberCard
               key={member.id}
               member={member}
               canManage={workspace.canManage}
+              isMainCommissioner={isMainCommissioner}
               isSelf={member.userId === currentUserId}
               onRemove={() => setRemovingMember(member)}
               onEditProfile={() => setEditingProfile(member)}
+              onSetRole={(role) => void handleSetRole(member, role)}
             />
           ))}
         </div>

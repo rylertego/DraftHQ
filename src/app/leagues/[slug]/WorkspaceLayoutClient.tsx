@@ -173,14 +173,13 @@ export default function WorkspaceLayoutClient({
 
   return (
     <LeagueWorkspaceContext.Provider value={ctx}>
-      <div className="flex flex-1">
+      <div className="flex min-h-0 flex-1 overflow-hidden">
 
         {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
         <aside
           className="hidden sm:flex w-60 shrink-0 flex-col border-r border-slate-800/60 bg-slate-950"
-          style={{ minHeight: "calc(100vh - 64px)" }}
         >
-          <div className="sticky top-0 flex flex-col h-screen max-h-[calc(100vh-64px)]">
+          <div className="flex h-full flex-col">
 
             {/* ── Full-bleed identity panel ── */}
             <div
@@ -244,23 +243,11 @@ export default function WorkspaceLayoutClient({
               )}
             </div>
 
-            {/* ── Back to dashboard ── */}
-            <div className="border-t border-slate-800/60 p-3">
-              <Link
-                href="/dashboard"
-                className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium text-slate-600 hover:text-slate-400 transition-colors"
-              >
-                <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5">
-                  <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                </svg>
-                All Leagues
-              </Link>
-            </div>
           </div>
         </aside>
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 p-4 sm:p-6 pb-20 sm:pb-6">
+        <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 pb-20 sm:pb-6">
           {children}
         </div>
       </div>

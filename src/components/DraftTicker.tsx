@@ -21,6 +21,7 @@ interface DraftTickerProps {
   onBoardViewChange?: (v: BoardView) => void;
   posFilter?: string;
   onPosFilterChange?: (pos: string) => void;
+  enabledPositions?: string[];
 }
 
 const SPEEDS = [120, 80, 50, 30, 18];
@@ -33,7 +34,7 @@ const BOARD_BUTTONS: { label: string; value: BoardView }[] = [
   { label: "Rounds",      value: "rounds" },
 ];
 
-const POS_BUTTONS = ["All", "QB", "RB", "WR", "TE", "K", "DST"];
+const DEFAULT_POS_BUTTONS = ["QB", "RB", "WR", "TE", "K", "DST"];
 
 const POS_COLORS: Record<string, string> = {
   QB: "#38BDF8", RB: "#FCD34D", WR: "#FB923C",
@@ -54,7 +55,9 @@ export default function DraftTicker({
   onBoardViewChange,
   posFilter = "ALL",
   onPosFilterChange,
+  enabledPositions,
 }: DraftTickerProps) {
+  const posButtons = ["All", ...(enabledPositions ?? DEFAULT_POS_BUTTONS)];
   const [speedIndex, setSpeedIndex] = useState(DEFAULT_SPEED_INDEX);
 
   const teamMap = new Map(teams.map((t) => [t.id, t.name]));
@@ -151,7 +154,7 @@ export default function DraftTicker({
         /* Nav mode: position pills | divider | board view pills */
         <div className="min-w-0 flex-1 flex items-center gap-1.5 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Position filter buttons */}
-          {POS_BUTTONS.map((pos) => {
+          {posButtons.map((pos) => {
             const key = pos === "All" ? "ALL" : pos;
             const active = posFilter === key;
             const color = POS_COLORS[pos];

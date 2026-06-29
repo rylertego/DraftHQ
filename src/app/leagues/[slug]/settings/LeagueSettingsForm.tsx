@@ -1,8 +1,9 @@
 "use client";
 
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
-import { getLeagueSettings, updateLeagueSettings } from "@/lib/leagueApi";
+import { useRouter, useSearchParams } from "next/navigation";
+import { disconnectLeagueIntegration, getLeagueSettings, syncSleeperLeagueHistory, updateLeagueSettings } from "@/lib/leagueApi";
+import type { SleeperHistorySyncResult } from "@/lib/leagueApi";
 import { supabase } from "@/lib/supabase";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
@@ -189,11 +190,6 @@ function ColorPairPicker({
   disabled?: boolean;
   onChange: (primary: string, secondary: string) => void;
 }) {
-  const selected = COLOR_PAIRS.find(
-    (p) => p.primary.toLowerCase() === primaryColor.toLowerCase() &&
-           p.secondary.toLowerCase() === secondaryColor.toLowerCase()
-  );
-
   return (
     <div>
       <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">League Colors</p>
@@ -245,6 +241,7 @@ function ColorPairPicker({
 // ── Main form ─────────────────────────────────────────────────────────────────
 export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { reload: reloadWorkspace } = useWorkspace();
   const { setAccentColor, setBgColor } = useLeagueTheme();
   const [leagueId, setLeagueId] = useState("");
@@ -258,7 +255,16 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const [canManage, setCanManage] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
-  const [tab, setTab] = useState<"general" | "members">("general");
+  const [tab, setTab] = useState<"general" | "members" | "integrations">(
+    () => (searchParams.get("tab") as "general" | "members" | "integrations" | null) ?? "general"
+  );
+  const [sleeperLeagueId, setSleeperLeagueId] = useState("");
+  const [sleeperLastSyncedAt, setSleeperLastSyncedAt] = useState<string | null>(null);
+  const [isSyncingSleeper, setIsSyncingSleeper] = useState(false);
+  const [sleeperResult, setSleeperResult] = useState<SleeperHistorySyncResult | null>(null);
+  const [activeIntegration, setActiveIntegration] = useState<"sleeper" | "espn" | "yahoo" | null>(null);
+  const [isDisconnecting, setIsDisconnecting] = useState(false);
+  const [appIcons, setAppIcons] = useState<Record<string, string | null>>({ sleeper: null, espn: null, yahoo: null });
 
   const [pendingLogo, setPendingLogo] = useState<{ file: File; preview: string } | null>(null);
   const [pendingBanner, setPendingBanner] = useState<{ file: File; preview: string } | null>(null);
@@ -292,12 +298,48 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         setAccentColor(primary);
         setBgColor(secondary);
         setTeamCount(s.league.teamCount ?? 12);
+        setSleeperLeagueId(s.league.sleeperLeagueId ?? "");
+        setSleeperLastSyncedAt(s.league.sleeperLastSyncedAt);
+        setActiveIntegration(s.league.activeIntegration);
         setCanManage(s.canManage);
       })
       .catch(() => { if (active) router.replace("/login"); })
       .finally(() => { if (active) setIsLoading(false); });
     return () => { active = false; };
   }, [router, slug, setAccentColor, setBgColor]);
+
+  useEffect(() => {
+    let active = true;
+    Promise.all(["sleeper", "espn", "yahoo"].map(async (app) => {
+      try {
+        const res = await fetch(`/api/app-icon?app=${app}`);
+        const data = await res.json() as { url: string | null };
+        return [app, data.url] as const;
+      } catch {
+        return [app, null] as const;
+      }
+    })).then((results) => {
+      if (active) setAppIcons(Object.fromEntries(results));
+    });
+    return () => { active = false; };
+  }, []);
+
+  async function handleDisconnect() {
+    if (!leagueId) return;
+    setIsDisconnecting(true);
+    try {
+      await disconnectLeagueIntegration(leagueId);
+      setActiveIntegration(null);
+      setSleeperLeagueId("");
+      setSleeperLastSyncedAt(null);
+      setSleeperResult(null);
+      showToast("Integration disconnected", "success");
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : "Failed to disconnect");
+    } finally {
+      setIsDisconnecting(false);
+    }
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -350,6 +392,26 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
     }
   }
 
+  async function handleSleeperSync(e: FormEvent) {
+    e.preventDefault();
+    if (!sleeperLeagueId.trim()) { showToast("Enter a Sleeper league ID"); return; }
+    setIsSyncingSleeper(true);
+    setSleeperResult(null);
+    try {
+      const result = await syncSleeperLeagueHistory(leagueId, sleeperLeagueId.trim());
+      setSleeperResult(result);
+      setSleeperLeagueId(result.sleeperLeagueId);
+      setSleeperLastSyncedAt(result.syncedAt);
+      setActiveIntegration("sleeper");
+      await reloadWorkspace();
+      showToast(`Synced ${result.seasonYear} Sleeper history`, "success");
+    } catch (error) {
+      showToast(error instanceof Error ? error.message : "Sleeper sync failed");
+    } finally {
+      setIsSyncingSleeper(false);
+    }
+  }
+
   const displayLogoUrl = pendingLogo?.preview ?? logoUrl;
   const displayBannerUrl = pendingBanner?.preview ?? bannerUrl;
   const selectedPair = COLOR_PAIRS.find(
@@ -368,7 +430,7 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
 
       {/* Tabs */}
       <div className="mb-8 flex gap-1 border-b border-slate-800">
-        {(["general", "members"] as const).map((t) => (
+        {(["general", "members", "integrations"] as const).map((t) => (
           <button
             key={t}
             type="button"
@@ -380,12 +442,143 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                 : { color: "#94a3b8", borderBottom: "2px solid transparent", marginBottom: "-1px" }
             }
           >
-            {t === "general" ? "General" : "Members"}
+            {t === "general" ? "General" : t === "members" ? "Members" : "Integrations"}
           </button>
         ))}
       </div>
 
       {tab === "members" && <LeagueMembers slug={slug} />}
+
+      {tab === "integrations" && (
+        <div className="max-w-3xl space-y-4">
+
+          {/* ── Sleeper ── */}
+          <div className="rounded-2xl border bg-slate-900 p-6" style={{ borderColor: primaryColor + "44" }}>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League history</p>
+                <div className="mt-2 flex items-center gap-3">
+                  {appIcons.sleeper
+                    ? <img src={appIcons.sleeper} alt="Sleeper" width={36} height={36} className="shrink-0 rounded-lg" /> // eslint-disable-line @next/next/no-img-element
+                    : <div className="h-9 w-9 shrink-0 rounded-lg bg-[#00DE82] flex items-center justify-center text-black font-black text-lg">S</div>}
+                  <h2 className="text-xl font-bold text-white">Sleeper</h2>
+                </div>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
+                  Connect your current Sleeper league to import the latest completed season&apos;s champion and final standings. Sleeper league data is public and read-only, so no Sleeper password or OAuth login is needed.
+                </p>
+              </div>
+              <div className="flex shrink-0 flex-col items-end gap-2">
+                <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeIntegration === "sleeper" ? "bg-emerald-950 text-emerald-400" : "bg-slate-800 text-slate-400"}`}>
+                  {activeIntegration === "sleeper" ? "Connected" : "Not connected"}
+                </span>
+                {activeIntegration === "sleeper" && canManage && (
+                  <button type="button" onClick={handleDisconnect} disabled={isDisconnecting} className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors">
+                    {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {activeIntegration && activeIntegration !== "sleeper" ? (
+              <p className="mt-6 text-sm text-slate-500">Disconnect your active integration before connecting Sleeper.</p>
+            ) : (
+              <form onSubmit={handleSleeperSync} className="mt-6">
+                <label htmlFor="sleeper-league-id" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">Sleeper League ID</label>
+                <div className="flex flex-col gap-3 sm:flex-row">
+                  <input
+                    id="sleeper-league-id"
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    placeholder="e.g. 123456789012345678"
+                    value={sleeperLeagueId}
+                    onChange={(event) => setSleeperLeagueId(event.target.value.replace(/\D/g, ""))}
+                    disabled={!canManage || isSyncingSleeper}
+                    className="min-w-0 flex-1 disabled:opacity-50"
+                  />
+                  <button
+                    type="submit"
+                    disabled={!canManage || isSyncingSleeper || !sleeperLeagueId.trim()}
+                    className="rounded-xl px-6 py-3 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
+                    style={{ backgroundColor: primaryColor, color: secondaryColor }}
+                  >
+                    {isSyncingSleeper ? "Syncing..." : sleeperLastSyncedAt ? "Sync Again" : "Connect & Sync"}
+                  </button>
+                </div>
+              </form>
+            )}
+
+            {sleeperLastSyncedAt && (
+              <p className="mt-3 text-xs text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
+            )}
+            {sleeperResult && (
+              <div className="mt-5 rounded-xl border border-slate-700 bg-slate-950/50 p-4 text-sm space-y-2">
+                <p className="font-semibold text-white">{sleeperResult.seasonYear} season: {sleeperResult.mappedTeams} of {sleeperResult.totalTeams} teams matched</p>
+                {sleeperResult.unmappedTeams.length > 0 && (
+                  <p className="text-amber-400"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
+                )}
+                {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
+                  <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
+                )}
+                {sleeperResult.draftHqTeamNames?.length === 0 && (
+                  <p className="text-red-400 font-semibold">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
+                )}
+                {sleeperResult.leagueTeamsError && (
+                  <p className="text-red-400 text-xs"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
+                )}
+                {sleeperResult.leagueIdUsed && (
+                  <p className="text-slate-600 text-xs">league_id queried: {sleeperResult.leagueIdUsed}</p>
+                )}
+                {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
+                  <p className="text-slate-500 text-xs">Names are compared after lowercasing and removing spaces/punctuation. Update the DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* ── ESPN (coming soon) ── */}
+          <div className={`rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition-opacity ${activeIntegration && activeIntegration !== "espn" ? "opacity-40 pointer-events-none" : "opacity-60"}`}>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">League history</p>
+                <div className="mt-2 flex items-center gap-3">
+                  {appIcons.espn
+                    ? <img src={appIcons.espn} alt="ESPN Fantasy" width={36} height={36} className="shrink-0 rounded-lg" /> // eslint-disable-line @next/next/no-img-element
+                    : <div className="h-9 w-9 shrink-0 rounded-lg bg-[#CC0000] flex items-center justify-center text-white font-black text-[10px]">ESPN</div>}
+                  <h2 className="text-xl font-bold text-white">ESPN</h2>
+                </div>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
+                  Import your ESPN Fantasy league history, standings, and champion. Supports both public and private leagues.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {activeIntegration && activeIntegration !== "espn" ? "Locked" : "Coming Soon"}
+              </span>
+            </div>
+          </div>
+
+          {/* ── Yahoo (coming soon) ── */}
+          <div className={`rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition-opacity ${activeIntegration && activeIntegration !== "yahoo" ? "opacity-40 pointer-events-none" : "opacity-60"}`}>
+            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">League history</p>
+                <div className="mt-2 flex items-center gap-3">
+                  {appIcons.yahoo
+                    ? <img src={appIcons.yahoo} alt="Yahoo Fantasy" width={36} height={36} className="shrink-0 rounded-lg" /> // eslint-disable-line @next/next/no-img-element
+                    : <div className="h-9 w-9 shrink-0 rounded-lg bg-[#6001D2] flex items-center justify-center text-white font-black">Y!</div>}
+                  <h2 className="text-xl font-bold text-white">Yahoo</h2>
+                </div>
+                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
+                  Import your Yahoo Fantasy league history, standings, and champion via OAuth. No manual ID needed.
+                </p>
+              </div>
+              <span className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                {activeIntegration && activeIntegration !== "yahoo" ? "Locked" : "Coming Soon"}
+              </span>
+            </div>
+          </div>
+
+        </div>
+      )}
 
       {tab === "general" && <form onSubmit={handleSubmit}>
         <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
