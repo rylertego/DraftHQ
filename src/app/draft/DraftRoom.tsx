@@ -42,6 +42,7 @@ import { DEFAULT_WALK_UP_SONGS, getSynchronizedWalkUpIndex, getWalkUpPlaybackTim
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { getLeagueBranding, type LeagueBranding } from "@/lib/leagueApi";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
+import LandmineAnimation from "@/components/LandmineAnimation";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { resolveAnnouncerVoice } from "@/lib/speech";
 import { resolveDraftSeasonYear } from "@/lib/nflTeams";
@@ -143,6 +144,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [showClockEdit, setShowClockEdit] = useState(false);
   const [clockEditMin, setClockEditMin] = useState(1);
   const [clockEditSec, setClockEditSec] = useState(30);
+  // landmine animation
+  const [landminePick, setLandminePick] = useState<{ playerName: string; teamName: string } | null>(null);
   // pick reveal modal
   const [revealPick, setRevealPick] = useState<DraftPick | null>(null);
   const revealInitRef = useRef(false);
@@ -417,7 +420,11 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     if (currentLength > prevPicksLengthRef.current && newest && newest.id !== lastRevealedPickIdRef.current) {
       lastRevealedPickNumRef.current = newest.overallPickNumber;
       lastRevealedPickIdRef.current = newest.id;
-      if (showPickReveal && !isRoundEnd) {
+      // Landmine animation takes priority over pick reveal
+      if (newest.isLandmine) {
+        const team = snapshot.teams.find((t) => t.id === newest.teamId);
+        setLandminePick({ playerName: newest.playerName, teamName: team?.name ?? "a team" });
+      } else if (showPickReveal && !isRoundEnd) {
         const headshotUrl = snapshot.players.find((player) => player.id === newest.playerId)?.headshotUrl;
         if (headshotUrl) {
           const revealId = newest.id;
@@ -1690,6 +1697,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             )}
           </div>
         </>
+      )}
+
+      {/* ── Landmine animation ── */}
+      {landminePick && (
+        <LandmineAnimation
+          playerName={landminePick.playerName}
+          teamName={landminePick.teamName}
+          onDismiss={() => setLandminePick(null)}
+        />
       )}
 
       {/* ── Pick reveal modal ── */}

@@ -133,6 +133,7 @@ interface PickRow {
   round: number;
   pick_number: number;
   overall_pick_number: number;
+  is_landmine: boolean;
   created_at: string;
   players: PickPlayerRow | PickPlayerRow[];
 }
@@ -289,6 +290,7 @@ function mapPick(row: PickRow): Pick {
     playerName: player.full_name,
     playerPosition: player.position,
     nflTeam: player.nfl_team ?? undefined,
+    isLandmine: row.is_landmine ?? false,
     createdAt: row.created_at,
   };
 }
@@ -606,7 +608,7 @@ export async function getDraftRoomSnapshot(
       supabase
         .from("picks")
         .select(
-          "id,draft_id,team_id,player_id,participant_id,round,pick_number,overall_pick_number,created_at,players(full_name,position,nfl_team)"
+          "id,draft_id,team_id,player_id,participant_id,round,pick_number,overall_pick_number,is_landmine,created_at,players(full_name,position,nfl_team)"
         )
         .eq("draft_id", draftId)
         .order("overall_pick_number"),
@@ -1126,6 +1128,28 @@ export async function upsertByeWeeks(
     p_bye_weeks: byeWeeks,
   });
   if (error) throw error;
+}
+
+export async function assignLandmines(draftId: string): Promise<void> {
+  await ensureAnonymousUser();
+  const { error } = await supabase.rpc("assign_landmines", { p_draft_id: draftId });
+  if (error) throw error;
+}
+
+export interface LandminedPlayer {
+  playerId: string;
+  fullName: string;
+  position: string;
+  nflTeam: string | null;
+}
+
+export async function revealLandmines(draftId: string): Promise<LandminedPlayer[]> {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.rpc("reveal_landmines", { p_draft_id: draftId });
+  if (error) throw error;
+  return ((data as { player_id: string; full_name: string; position: string; nfl_team: string | null }[]) ?? []).map(
+    (row) => ({ playerId: row.player_id, fullName: row.full_name, position: row.position, nflTeam: row.nfl_team })
+  );
 }
 
 export async function sendDraftMessage(

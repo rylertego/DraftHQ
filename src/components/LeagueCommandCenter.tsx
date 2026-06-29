@@ -65,7 +65,7 @@ function Countdown({ scheduledAt, status, configureHref, canManage, accentColor 
           <p className="font-semibold text-slate-300">Draft date not scheduled</p>
           <p className="mt-1 text-sm leading-relaxed text-slate-500">Set a date and time so everyone knows when the room opens.</p>
         </div>
-        {canManage && configureHref && <Link href={configureHref} className="mt-4 text-sm font-semibold text-amber-400 hover:text-amber-300">Configure draft date →</Link>}
+        {canManage && configureHref && <Link href={configureHref} className="mt-4 text-sm font-semibold transition-opacity hover:opacity-80" style={{ color: accentColor }}>Configure draft date →</Link>}
       </div>
     );
   }

@@ -4,6 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
+  assignLandmines,
+  revealLandmines,
+  type LandminedPlayer,
   assignTeam,
   configureDraftTimer,
   getDraftSetup,
@@ -1122,10 +1125,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             disabled={!isCommissioner}
                             checked={useLandmines}
                             onChange={(e) => {
-                              setUseLandmines(e.target.checked);
+                              const checked = e.target.checked;
+                              setUseLandmines(checked);
                               if (!draftId || !setup) return;
-                              void updateDraftExtras(draftId, { useLandmines: e.target.checked })
-                                .then((d) => setSetup({ ...setup, draft: d }))
+                              void updateDraftExtras(draftId, { useLandmines: checked })
+                                .then((d) => {
+                                  setSetup({ ...setup, draft: d });
+                                  if (checked) return assignLandmines(draftId);
+                                })
                                 .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
                             }}
                             className="h-4 w-4 rounded accent-teal-500 disabled:opacity-50"
@@ -1133,25 +1140,33 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           <span className="text-sm text-white">Use Landmines</span>
                         </label>
                         {useLandmines && (
-                          <div className="mt-3 flex items-center gap-3">
-                            <label className="text-xs text-slate-400 whitespace-nowrap">Landmines per team</label>
-                            <select
-                              disabled={!isCommissioner}
-                              className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white disabled:opacity-50"
-                              value={landmineCount}
-                              onChange={(e) => {
-                                const val = Number(e.target.value);
-                                setLandmineCount(val);
-                                if (!draftId || !setup) return;
-                                void updateDraftExtras(draftId, { landmineCount: val })
-                                  .then((d) => setSetup({ ...setup, draft: d }))
-                                  .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
-                              }}
-                            >
-                              {Array.from({ length: 30 }, (_, i) => (
-                                <option key={i + 1} value={i + 1}>{i + 1}</option>
-                              ))}
-                            </select>
+                          <div className="mt-3 space-y-3">
+                            <div className="flex items-center gap-3">
+                              <label className="text-xs text-slate-400 whitespace-nowrap">Number of landmines</label>
+                              <select
+                                disabled={!isCommissioner}
+                                className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white disabled:opacity-50"
+                                value={landmineCount}
+                                onChange={(e) => {
+                                  const val = Number(e.target.value);
+                                  setLandmineCount(val);
+                                  if (!draftId || !setup) return;
+                                  void updateDraftExtras(draftId, { landmineCount: val })
+                                    .then((d) => {
+                                      setSetup({ ...setup, draft: d });
+                                      if (useLandmines) return assignLandmines(draftId);
+                                    })
+                                    .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
+                                }}
+                              >
+                                {Array.from({ length: 30 }, (_, i) => (
+                                  <option key={i + 1} value={i + 1}>{i + 1}</option>
+                                ))}
+                              </select>
+                              {isCommissioner && draftId && (
+                                <LandmineRevealButton draftId={draftId} />
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -2389,5 +2404,56 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       />
     )}
     </>
+  );
+}
+
+function LandmineRevealButton({ draftId }: { draftId: string }) {
+  const [players, setPlayers] = useState<LandminedPlayer[] | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [open, setOpen] = useState(false);
+
+  const handleReveal = async () => {
+    if (open) { setOpen(false); return; }
+    setLoading(true);
+    try {
+      const result = await revealLandmines(draftId);
+      setPlayers(result);
+      setOpen(true);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => void handleReveal()}
+        disabled={loading}
+        className="rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-xs text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors"
+      >
+        {loading ? "Loading…" : open ? "Hide" : "💣 Reveal"}
+      </button>
+      {open && players && (
+        <div className="absolute left-0 top-9 z-20 w-64 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl">
+          <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
+            Active Landmines ({players.length})
+          </p>
+          {players.length === 0 ? (
+            <p className="text-xs text-slate-500">All landmines have been triggered.</p>
+          ) : (
+            <ul className="space-y-1.5">
+              {players.map((p) => (
+                <li key={p.playerId} className="flex items-center gap-2 text-sm text-white">
+                  <span className="text-base">💣</span>
+                  <span className="font-medium">{p.fullName}</span>
+                  <span className="ml-auto text-xs text-slate-400">{p.position}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
+    </div>
   );
 }

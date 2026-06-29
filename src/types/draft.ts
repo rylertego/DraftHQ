@@ -117,6 +117,7 @@ export interface Pick {
   playerName: string;
   playerPosition: PlayerPosition;
   nflTeam?: string;
+  isLandmine: boolean;
   createdAt: string;
 }
 

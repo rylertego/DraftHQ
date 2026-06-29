@@ -617,7 +617,7 @@ export async function uploadLeagueMemberAvatar(leagueId: string, file: File): Pr
 
 export async function deleteLeague(leagueId: string): Promise<void> {
   await requirePersistentUser();
-  const { error } = await supabase.from("leagues").delete().eq("id", leagueId);
+  const { error } = await supabase.rpc("delete_league", { p_league_id: leagueId });
   if (error) throw new Error(error.message);
 }
 

@@ -49,12 +49,22 @@ function draftStatusLabel(season: LeagueSeason): { label: string; dot: string } 
 // ── Per-row context menu ──────────────────────────────────────────────────────
 function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueSlug: string }) {
   const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
   const router = useRouter();
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [open]);
 
   return (
     <div
+      ref={ref}
       className={`relative transition-opacity ${open ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-      onMouseLeave={() => setOpen(false)}
     >
       <button
         type="button"
@@ -97,7 +107,7 @@ function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueS
 }
 
 // ── League row ────────────────────────────────────────────────────────────────
-function LeagueRow({ workspace, season, onDeleteClick }: SeasonRow & { onDeleteClick?: () => void }) {
+function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: SeasonRow & { onDeleteClick?: () => void; isFirst?: boolean; isLast?: boolean }) {
   const { label, dot } = draftStatusLabel(season);
   const league = workspace.league;
   const memberCount = workspace.members.length;
@@ -108,7 +118,7 @@ function LeagueRow({ workspace, season, onDeleteClick }: SeasonRow & { onDeleteC
   return (
     <Link
       href={`/leagues/${league.slug}`}
-      className="group flex items-center gap-5 border-b border-slate-800 px-6 py-5 hover:bg-slate-800/40 transition-colors last:border-b-0"
+      className={`group flex items-center gap-5 border-b border-slate-800 px-6 py-5 hover:bg-slate-800/40 transition-colors last:border-b-0 ${isFirst ? "rounded-t-xl" : ""} ${isLast ? "rounded-b-xl" : ""}`}
     >
       {/* Logo */}
       <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl overflow-hidden bg-slate-800 shadow-lg">
@@ -358,11 +368,13 @@ export default function DashboardPage() {
                 )}
 
                 {currentRows.length > 0 && (
-                  <div className="rounded-xl border border-slate-800 bg-slate-900 overflow-hidden">
-                    {currentRows.map((row) => (
+                  <div className="rounded-xl border border-slate-800 bg-slate-900">
+                    {currentRows.map((row, i) => (
                       <LeagueRow
                         key={`${row.workspace.league.id}-${row.season.id}`}
                         {...row}
+                        isFirst={i === 0}
+                        isLast={i === currentRows.length - 1}
                         onDeleteClick={row.workspace.canManage ? () => setDeleteTarget(row.workspace) : undefined}
                       />
                     ))}
