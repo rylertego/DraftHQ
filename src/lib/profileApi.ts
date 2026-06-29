@@ -110,9 +110,15 @@ export async function requestMyPasswordReset(): Promise<void> {
   if (userError || !userData.user || userData.user.is_anonymous || !userData.user.email) {
     throw new Error("Sign in to reset your password.");
   }
-  const redirectTo = `${window.location.origin}/reset-password`;
-  const { error } = await supabase.auth.resetPasswordForEmail(userData.user.email, { redirectTo });
-  if (error) throw error;
+  const res = await fetch("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email: userData.user.email }),
+  });
+  if (!res.ok) {
+    const data = await res.json() as { error?: string };
+    throw new Error(data.error ?? "Unable to send reset email.");
+  }
 }
 
 export async function uploadProfileAvatar(file: File): Promise<string> {

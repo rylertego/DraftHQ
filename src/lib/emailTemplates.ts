@@ -184,6 +184,76 @@ export function leagueInviteEmail({
   return { subject, html, text };
 }
 
+export function passwordResetEmail({ resetUrl }: { resetUrl: string }) {
+  const subject = "Reset your DraftHQ password";
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>${subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#0f172a;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#0f172a;padding:40px 16px;">
+    <tr>
+      <td align="center">
+        <table width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;">
+          <tr>
+            <td align="center" style="padding-bottom:32px;">
+              <span style="font-size:22px;font-weight:900;letter-spacing:-0.5px;color:#ffffff;">
+                Draft<span style="color:#38bdf8;">HQ</span>
+              </span>
+            </td>
+          </tr>
+          <tr>
+            <td style="background:#1e293b;border-radius:16px;border:1px solid #334155;padding:40px 36px;">
+              <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#38bdf8;">
+                Password Reset
+              </p>
+              <h1 style="margin:0 0 20px;font-size:26px;font-weight:900;color:#f8fafc;line-height:1.2;">
+                Reset your password
+              </h1>
+              <p style="margin:0 0 28px;font-size:15px;color:#94a3b8;line-height:1.6;">
+                Click the button below to set a new password. This link expires in 1 hour.
+                If you didn&apos;t request this, you can safely ignore this email.
+              </p>
+              <table cellpadding="0" cellspacing="0" width="100%">
+                <tr>
+                  <td align="center">
+                    <a href="${resetUrl}"
+                       style="display:inline-block;background:#38bdf8;color:#0f172a;font-weight:800;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;">
+                      Reset Password →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+              <hr style="margin:32px 0;border:none;border-top:1px solid #334155;" />
+              <p style="margin:0;font-size:12px;color:#64748b;text-align:center;line-height:1.6;">
+                Or copy this link into your browser:<br />
+                <a href="${resetUrl}" style="color:#38bdf8;word-break:break-all;">${resetUrl}</a>
+              </p>
+            </td>
+          </tr>
+          <tr>
+            <td align="center" style="padding-top:24px;">
+              <p style="margin:0;font-size:11px;color:#475569;">
+                Sent by DraftHQ · You received this because a password reset was requested for your account.
+              </p>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+
+  const text = `Reset your DraftHQ password by visiting:\n\n${resetUrl}\n\nThis link expires in 1 hour. If you didn't request this, ignore this email.`;
+
+  return { subject, html, text };
+}
+
 function escapeHtml(str: string) {
   return str
     .replace(/&/g, "&amp;")

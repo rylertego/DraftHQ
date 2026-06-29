@@ -68,7 +68,8 @@ export default function LeagueInvitationInbox({ userId }: { userId: string }) {
     <div className="relative" ref={rootRef}>
       <button type="button" aria-label="League invitations" onClick={() => setOpen((value) => !value)} className="relative flex h-10 w-10 items-center justify-center rounded-lg border border-slate-700 bg-slate-900 text-slate-400 transition-colors hover:border-slate-600 hover:text-white">
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5" aria-hidden>
-          <path d="M15 8a5 5 0 0 0-10 0c0 5-2 5-2 6h14c0-1-2-1-2-6ZM8 17h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          <rect x="2" y="5" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M2 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
         {invitations.length > 0 && <span className="absolute -right-1.5 -top-1.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-slate-950">{invitations.length > 9 ? "9+" : invitations.length}</span>}
       </button>
