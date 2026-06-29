@@ -46,7 +46,7 @@ function ctaButton(url: string, label: string) {
   return `<table cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 0;">
     <tr>
       <td align="center">
-        <a href="${url}" style="display:inline-block;background:#14b8a6;color:#0a1628;font-weight:800;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;"><span style="color:#0a1628;font-weight:800;">${label}</span></a>
+        <a href="${url}" style="display:inline-block;background:#14b8a6;color:#000000;font-weight:900;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;"><font color="#000000"><span style="color:#000000;font-weight:900;">${label}</span></font></a>
       </td>
     </tr>
   </table>
