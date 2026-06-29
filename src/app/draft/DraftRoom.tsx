@@ -166,6 +166,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const walkUpDefaultAudioRef = useRef<HTMLAudioElement | null>(null);
   const prevOnClockTeamIdRef = useRef<string | null>(null);
   const walkUpDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [landmineActive, setLandmineActive] = useState(false);
   const walkUpPrevPicksLenRef = useRef(0);
   const musicVolumeRef = useRef(typeof window !== "undefined" && localStorage.getItem("dr:musicVolume") !== null ? Number(localStorage.getItem("dr:musicVolume")) : 70);
   const [timerSeconds, setTimerSeconds] = useState(0);
@@ -423,6 +424,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       // Landmine animation takes priority over pick reveal
       if (newest.isLandmine) {
         const team = snapshot.teams.find((t) => t.id === newest.teamId);
+        setLandmineActive(true);
+        walkUpPlayerRef.current?.stop();
+        if (walkUpDefaultAudioRef.current) { walkUpDefaultAudioRef.current.pause(); walkUpDefaultAudioRef.current.currentTime = 0; }
         setLandminePick({ playerName: newest.playerName, teamName: team?.name ?? "a team" });
       } else if (showPickReveal && !isRoundEnd) {
         const headshotUrl = snapshot.players.find((player) => player.id === newest.playerId)?.headshotUrl;
@@ -627,6 +631,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   // Walk-up: every browser derives the same track and playback position from shared draft data.
   useEffect(() => {
     if (!snapshot) return;
+    if (landmineActive) return;
     if (!walkUpMusicEnabled || snapshot.draft.status !== "active") {
       if (walkUpDelayRef.current) { clearTimeout(walkUpDelayRef.current); walkUpDelayRef.current = null; }
       walkUpPlayerRef.current?.stop();
@@ -726,7 +731,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       walkUpPlayerRef.current?.play(song, timing.offsetSeconds);
     }, delay);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot?.draft.currentPick, snapshot?.draft.status, snapshot?.picks.length, walkUpMusicEnabled, teamOnClockEarly?.id, audioUnlockTick]);
+  }, [snapshot?.draft.currentPick, snapshot?.draft.status, snapshot?.picks.length, walkUpMusicEnabled, teamOnClockEarly?.id, audioUnlockTick, landmineActive]);
 
   // Round slide auto-close timer
   useEffect(() => {
@@ -1704,7 +1709,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         <LandmineAnimation
           playerName={landminePick.playerName}
           teamName={landminePick.teamName}
-          onDismiss={() => setLandminePick(null)}
+          onDismiss={() => { prevOnClockTeamIdRef.current = null; setLandmineActive(false); setLandminePick(null); }}
         />
       )}
 

@@ -76,13 +76,14 @@ begin
     return;
   end if;
 
-  -- Randomly pick landmine_count from the pool
-  select array_agg(id order by random()) into v_player_ids
+  -- Randomly pick landmine_count players from the pool
+  select array_agg(pid) into v_player_ids
   from (
-    select unnest(v_player_ids) as id
+    select pid
+    from unnest(v_player_ids) as t(pid)
     order by random()
     limit v_draft.landmine_count
-  ) selected;
+  ) rand_pick;
 
   update public.drafts
     set landmine_player_ids = coalesce(v_player_ids, '{}')

@@ -516,7 +516,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     if (teams.some((t) => !t.name.trim())) { setError("Every team must have a name."); return; }
     setError(""); setIsSaving(true);
     try {
-      await updateTeamSetup(draftId, teams);
+      if (setup?.draft.status === "setup") {
+        await updateTeamSetup(draftId, teams);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save teams.");
     } finally {
@@ -526,10 +528,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function continueToDraft() {
     if (!draftId) return;
-    if (teams.some((t) => !t.name.trim())) { setError("Every team must have a name."); return; }
+    if (setup?.draft.status === "setup" && teams.some((t) => !t.name.trim())) {
+      setError("Every team must have a name."); return;
+    }
     setError(""); setIsSaving(true);
     try {
-      await updateTeamSetup(draftId, teams);
+      if (setup?.draft.status === "setup") {
+        await updateTeamSetup(draftId, teams);
+      }
       router.push(`/draft/lobby?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save teams.");
@@ -603,9 +609,26 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               </Link>
             ) : (
               <>
-                <span className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
-                  Pre-Draft
-                </span>
+                {draft.status === "active" && (
+                  <span className="rounded-md border border-teal-500/40 bg-teal-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-400">
+                    ● Live
+                  </span>
+                )}
+                {draft.status === "paused" && (
+                  <span className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-amber-400">
+                    ⏸ Paused
+                  </span>
+                )}
+                {draft.status === "complete" && (
+                  <span className="rounded-md border border-slate-600 bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Complete
+                  </span>
+                )}
+                {draft.status === "setup" && (
+                  <span className="rounded-md border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">
+                    Pre-Draft
+                  </span>
+                )}
                 <button
                   type="button"
                   onClick={() => void continueToDraft()}

@@ -7,22 +7,31 @@ import { getLeagueTeams } from "@/lib/leagueApi";
 import type { LeagueSeason, LeagueTeam, LeagueWorkspace } from "@/types/league";
 
 function StatusBadge({ status, draftStatus }: { status: LeagueSeason["status"]; draftStatus?: string | null }) {
-  const label = draftStatus === "setup" ? "Pre-Draft" : status === "drafting" ? "Drafting" : status;
+  const label =
+    status === "drafting" && !draftStatus ? "No Draft" :
+    draftStatus === "setup" ? "Pre-Draft" :
+    draftStatus === "active" ? "Live" :
+    draftStatus === "paused" ? "Paused" :
+    draftStatus === "complete" ? "Complete" :
+    status === "drafting" ? "Drafting" :
+    status;
   const cls =
+    label === "No Draft" ? "bg-slate-800 text-slate-400" :
     label === "Pre-Draft" ? "bg-slate-700/80 text-slate-300" :
-    label === "Drafting" ? "bg-emerald-900/60 text-emerald-300" :
-    status === "active" ? "bg-teal-900/60 text-teal-300" :
-    status === "complete" ? "bg-slate-700 text-slate-300" :
+    label === "Live" || label === "Drafting" ? "bg-emerald-900/60 text-emerald-300" :
+    label === "Paused" ? "bg-yellow-900/60 text-yellow-300" :
+    label === "Complete" ? "bg-slate-700 text-slate-300" :
     "bg-slate-800 text-slate-400";
   return <span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${cls}`}>{label}</span>;
 }
 
-function Card({ title, eyebrow, children }: { title: string; eyebrow: string; children: React.ReactNode }) {
+function Card({ title, eyebrow, accentColor, children }: { title: string; eyebrow: string; accentColor: string; children: React.ReactNode }) {
   return (
-    <section className="flex min-h-0 flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/80 p-4 xl:p-3.5">
-      <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-slate-500">{eyebrow}</p>
-      <h2 className="mt-1 text-base font-bold text-white">{title}</h2>
-      <div className="mt-3 min-h-0 flex-1 flex flex-col">{children}</div>
+    <section className="relative flex min-h-0 flex-col overflow-hidden rounded-2xl border bg-slate-900/80 p-4 xl:p-3.5" style={{ borderColor: accentColor + "40" }}>
+      <div className="pointer-events-none absolute inset-0 opacity-40" style={{ background: `radial-gradient(circle at 100% 0%, ${accentColor}18, transparent 55%)` }} />
+      <p className="relative text-[10px] font-bold uppercase tracking-[0.2em]" style={{ color: accentColor }}>{eyebrow}</p>
+      <h2 className="relative mt-1 text-base font-bold text-white">{title}</h2>
+      <div className="relative mt-3 min-h-0 flex-1 flex flex-col">{children}</div>
     </section>
   );
 }
@@ -186,7 +195,7 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
 
       {/* ── Middle row: Draft Countdown + Last Season Champion ── */}
       <div className="grid min-h-0 gap-4 lg:grid-cols-2">
-        <Card title="Draft Countdown" eyebrow="Next event / At a glance">
+        <Card accentColor={primary} title="Draft Countdown" eyebrow="Next event / At a glance">
           <div className="flex h-full min-h-0 flex-col gap-3">
             <Countdown scheduledAt={draft?.scheduledAt ?? null} status={draft?.status ?? null} configureHref={configureHref} canManage={workspace.canManage} accentColor={primary} />
             <dl className="flex-1 grid grid-cols-3 auto-rows-fr gap-x-4 border-t border-slate-800/60 pt-3">
@@ -201,7 +210,7 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
             </dl>
           </div>
         </Card>
-        <Card title="Last Season Champion" eyebrow="League history">
+        <Card accentColor={primary} title="Last Season Champion" eyebrow="League history">
           {champion && lastCompletedSeason ? (
             <div className="flex h-full min-h-0 items-center justify-center gap-8 px-6">
               <div className="aspect-square h-full max-h-48 shrink-0 overflow-hidden rounded-xl flex items-center justify-center">
@@ -229,7 +238,7 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
 
       {/* ── Bottom row: Activity | Records | Standings (wide) | Checklist ── */}
       <div className={`grid gap-4 sm:grid-cols-2 ${workspace.canManage ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
-        <Card title="League Activity" eyebrow="Recent updates">
+        <Card accentColor={primary} title="League Activity" eyebrow="Recent updates">
           {pastSeasons.length === 0 ? (
             <p className="text-sm leading-relaxed text-slate-500">League activity will appear here as members join, settings change, and draft picks are made.</p>
           ) : (
@@ -246,8 +255,8 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
             </div>
           )}
         </Card>
-        <Card title="League Records" eyebrow="All-time leaders"><p className="text-sm leading-relaxed text-slate-500">League records will unlock after drafts and seasons are completed.</p></Card>
-        <div className="xl:col-span-2"><Card title="Last Season Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
+        <Card accentColor={primary} title="League Records" eyebrow="All-time leaders"><p className="text-sm leading-relaxed text-slate-500">League records will unlock after drafts and seasons are completed.</p></Card>
+        <div className="xl:col-span-2"><Card accentColor={primary} title="Last Season Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
           {lastCompletedSeason ? (
             <div>
               {lastCompletedSeason.standings.map((standing) => (
@@ -263,7 +272,7 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
           )}
         </Card></div>
         {workspace.canManage && (
-          <Card title="Commissioner Checklist" eyebrow="League readiness">
+          <Card accentColor={primary} title="Commissioner Checklist" eyebrow="League readiness">
             <div className="space-y-3">
               {checklist.map((item) => (
                 <div key={item.label} className="flex items-start justify-between gap-3 border-b border-slate-800/70 pb-3 last:border-0 last:pb-0">
