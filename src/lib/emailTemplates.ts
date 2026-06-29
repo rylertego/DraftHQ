@@ -46,7 +46,7 @@ function ctaButton(url: string, label: string) {
   return `<table cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 0;">
     <tr>
       <td align="center">
-        <a href="${url}" style="display:inline-block;background:#14b8a6;color:#0f172a;font-weight:800;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;">${label}</a>
+        <a href="${url}" style="display:inline-block;background:#14b8a6;color:#0a1628;font-weight:800;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;"><span style="color:#0a1628;font-weight:800;">${label}</span></a>
       </td>
     </tr>
   </table>
@@ -125,7 +125,7 @@ export function passwordResetEmail({ resetUrl }: { resetUrl: string }) {
   const subject = "Reset your DraftHQ password";
 
   const body = `
-    <h1 style="margin:0 0 20px;font-size:34px;font-weight:900;color:#14b8a6;line-height:1.2;">
+    <h1 style="margin:0 0 20px;font-size:32px;font-weight:900;color:#ffffff;line-height:1.2;">
       Reset your password
     </h1>
     <p style="margin:0;font-size:15px;color:#e2e8f0;line-height:1.6;">
