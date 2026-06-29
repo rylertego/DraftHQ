@@ -25,7 +25,7 @@ function emailLayout(title: string, eyebrow: string, body: string, footerNote: s
           <!-- Card -->
           <tr>
             <td bgcolor="#1e293b" style="background:#1e293b;border-radius:16px;border:1px solid #334155;padding:40px 36px;">
-              <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#38bdf8;">${eyebrow}</p>
+              <p style="margin:0 0 8px;font-size:12px;font-weight:700;letter-spacing:0.15em;text-transform:uppercase;color:#14b8a6;">${eyebrow}</p>
               ${body}
               <hr style="margin:32px 0;border:none;border-top:1px solid #334155;" />
               <p style="margin:0;font-size:11px;color:#475569;text-align:center;">
@@ -46,13 +46,13 @@ function ctaButton(url: string, label: string) {
   return `<table cellpadding="0" cellspacing="0" width="100%" style="margin:28px 0 0;">
     <tr>
       <td align="center">
-        <a href="${url}" style="display:inline-block;background:#38bdf8;color:#0f172a;font-weight:800;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;">${label}</a>
+        <a href="${url}" style="display:inline-block;background:#14b8a6;color:#0f172a;font-weight:800;font-size:15px;text-decoration:none;padding:14px 36px;border-radius:10px;letter-spacing:0.01em;">${label}</a>
       </td>
     </tr>
   </table>
   <p style="margin:24px 0 0;font-size:12px;color:#64748b;text-align:center;line-height:1.6;">
     Or copy this link into your browser:<br />
-    <a href="${url}" style="color:#38bdf8;word-break:break-all;">${url}</a>
+    <a href="${url}" style="color:#14b8a6;word-break:break-all;">${url}</a>
   </p>`;
 }
 
@@ -125,10 +125,10 @@ export function passwordResetEmail({ resetUrl }: { resetUrl: string }) {
   const subject = "Reset your DraftHQ password";
 
   const body = `
-    <h1 style="margin:0 0 20px;font-size:26px;font-weight:900;color:#f8fafc;line-height:1.2;">
+    <h1 style="margin:0 0 20px;font-size:28px;font-weight:900;color:#ffffff;line-height:1.2;">
       Reset your password
     </h1>
-    <p style="margin:0;font-size:15px;color:#94a3b8;line-height:1.6;">
+    <p style="margin:0;font-size:15px;color:#cbd5e1;line-height:1.6;">
       Click the button below to set a new password. This link expires in 1 hour.
       If you didn&apos;t request this, you can safely ignore this email.
     </p>
