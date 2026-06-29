@@ -18,7 +18,7 @@ function emailLayout(title: string, eyebrow: string, body: string, footerNote: s
           <!-- Logo -->
           <tr>
             <td align="center" style="padding-bottom:32px;">
-              <img src="${LOGO_URL}" alt="DraftHQ" width="120" style="display:block;height:auto;" />
+              <img src="${LOGO_URL}" alt="DraftHQ" width="260" style="display:block;height:auto;" />
             </td>
           </tr>
 
