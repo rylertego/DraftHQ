@@ -557,6 +557,18 @@ export async function setLeagueMemberRole(
   if (error) throw error;
 }
 
+export async function transferLeagueOwnership(
+  leagueId: string,
+  newOwnerUserId: string
+): Promise<void> {
+  await requirePersistentUser();
+  const { error } = await supabase.rpc("transfer_league_ownership", {
+    p_league_id: leagueId,
+    p_new_owner_user_id: newOwnerUserId,
+  });
+  if (error) throw error;
+}
+
 export interface SleeperHistorySyncResult {
   sleeperLeagueId: string;
   seasonYear: number;

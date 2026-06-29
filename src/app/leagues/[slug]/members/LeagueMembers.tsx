@@ -7,6 +7,7 @@ import {
   inviteLeagueMember,
   removeLeagueMember,
   setLeagueMemberRole,
+  transferLeagueOwnership,
   updateLeagueMemberProfile,
   uploadLeagueMemberAvatar,
 } from "@/lib/leagueApi";
@@ -122,6 +123,48 @@ function RemoveConfirmModal({ member, leagueId, onClose, onRemoved }: { member: 
           <button type="button" onClick={() => void handleRemove()} disabled={loading}
             className="flex-1 rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40 transition-colors">
             {loading ? "Removing..." : "Remove"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Transfer ownership confirm modal ─────────────────────────────────────────
+
+function TransferOwnershipModal({ member, leagueId, onClose, onTransferred }: { member: LeagueMember; leagueId: string; onClose: () => void; onTransferred: () => void }) {
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleTransfer() {
+    setLoading(true);
+    setError("");
+    try {
+      await transferLeagueOwnership(leagueId, member.userId);
+      onTransferred();
+      onClose();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to transfer ownership.");
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-bold text-white">Transfer ownership to {member.displayName}?</h2>
+        <p className="mt-2 text-sm text-slate-400">
+          They will become the league owner with full commissioner control. You will be demoted to co-commissioner and retain access. <span className="text-orange-400 font-medium">This cannot be undone without their cooperation.</span>
+        </p>
+        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
+        <div className="mt-5 flex gap-3">
+          <button type="button" onClick={onClose} disabled={loading}
+            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors">
+            Cancel
+          </button>
+          <button type="button" onClick={() => void handleTransfer()} disabled={loading}
+            className="flex-1 rounded-xl bg-orange-600 py-2.5 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-40 transition-colors">
+            {loading ? "Transferring..." : "Transfer Ownership"}
           </button>
         </div>
       </div>
@@ -299,6 +342,7 @@ function MemberCard({
   onRemove,
   onEditProfile,
   onSetRole,
+  onTransferOwnership,
 }: {
   member: LeagueMember;
   canManage: boolean;
@@ -307,16 +351,28 @@ function MemberCard({
   onRemove: () => void;
   onEditProfile: () => void;
   onSetRole: (role: "co-commissioner" | "member") => void;
+  onTransferOwnership: () => void;
 }) {
   const { accentColor: primary } = useLeagueTheme();
   const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
   const initials = member.displayName.slice(0, 1).toUpperCase();
 
   const isCommissioner = member.role === "commissioner";
   const isCoCommissioner = member.role === "co-commissioner";
   const showMenu = canManage && !isSelf && !isCommissioner;
-
   const isElevated = isCommissioner || isCoCommissioner;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [menuOpen]);
 
   return (
     <article className="group relative flex items-center gap-3 rounded-2xl border bg-slate-900 p-4" style={{ borderColor: isElevated ? primary + "44" : "rgba(100,116,139,0.2)" }}>
@@ -350,7 +406,7 @@ function MemberCard({
           </button>
         )}
         {showMenu && (
-          <div className="relative" onMouseLeave={() => setMenuOpen(false)}>
+          <div className="relative" ref={menuRef}>
             <button type="button" onClick={() => setMenuOpen((o) => !o)}
               className={`flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-colors ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
@@ -358,7 +414,7 @@ function MemberCard({
               </svg>
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full z-20 min-w-[180px] rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-xl">
+              <div className="absolute right-0 top-full z-20 min-w-[190px] rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-xl">
                 {isMainCommissioner && (
                   isCoCommissioner ? (
                     <button type="button" onClick={() => { setMenuOpen(false); onSetRole("member"); }}
@@ -377,6 +433,15 @@ function MemberCard({
                   className="w-full px-4 py-2 text-left text-sm text-red-400 hover:bg-slate-800 hover:text-red-300 transition-colors">
                   Remove member
                 </button>
+                {isMainCommissioner && (
+                  <>
+                    <hr className="my-1 border-slate-700" />
+                    <button type="button" onClick={() => { setMenuOpen(false); onTransferOwnership(); }}
+                      className="w-full px-4 py-2 text-left text-sm text-orange-400 hover:bg-slate-800 hover:text-orange-300 transition-colors">
+                      Transfer Ownership
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </div>
@@ -394,6 +459,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [showInvite, setShowInvite] = useState(false);
   const [removingMember, setRemovingMember] = useState<LeagueMember | null>(null);
+  const [transferringMember, setTransferringMember] = useState<LeagueMember | null>(null);
   const [editingProfile, setEditingProfile] = useState<LeagueMember | null>(null);
   const [roleError, setRoleError] = useState("");
 
@@ -454,6 +520,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
               onRemove={() => setRemovingMember(member)}
               onEditProfile={() => setEditingProfile(member)}
               onSetRole={(role) => void handleSetRole(member, role)}
+              onTransferOwnership={() => setTransferringMember(member)}
             />
           ))}
         </div>
@@ -471,6 +538,9 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
       )}
       {removingMember && (
         <RemoveConfirmModal member={removingMember} leagueId={workspace.league.id} onClose={() => setRemovingMember(null)} onRemoved={reload} />
+      )}
+      {transferringMember && (
+        <TransferOwnershipModal member={transferringMember} leagueId={workspace.league.id} onClose={() => setTransferringMember(null)} onTransferred={reload} />
       )}
       {editingProfile && (
         <EditMemberProfileModal member={editingProfile} leagueId={workspace.league.id} onClose={() => setEditingProfile(null)} onSaved={reload} />
