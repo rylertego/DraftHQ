@@ -71,7 +71,7 @@ export default function LeagueInvitationInbox({ userId }: { userId: string }) {
           <rect x="2" y="5" width="16" height="11" rx="2" stroke="currentColor" strokeWidth="1.5" />
           <path d="M2 7l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        {invitations.length > 0 && <span className="absolute -right-1.5 -top-1.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-orange-500 px-1 text-[10px] font-black text-slate-950">{invitations.length > 9 ? "9+" : invitations.length}</span>}
+        {invitations.length > 0 && <span className="absolute -right-1.5 -top-1.5 flex min-h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-black text-white">{invitations.length > 9 ? "9+" : invitations.length}</span>}
       </button>
 
       {open && (
@@ -97,7 +97,7 @@ export default function LeagueInvitationInbox({ userId }: { userId: string }) {
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2">
                   <button type="button" disabled={busyId === invitation.invitationId} onClick={() => void respond(invitation, "declined")} className="rounded-lg border border-slate-700 px-3 py-2 text-xs font-bold text-slate-400 hover:bg-slate-800 disabled:opacity-50">Decline</button>
-                  <button type="button" disabled={busyId === invitation.invitationId} onClick={() => void respond(invitation, "accepted")} className="rounded-lg bg-orange-500 px-3 py-2 text-xs font-black text-slate-950 hover:bg-orange-400 disabled:opacity-50">{busyId === invitation.invitationId ? "Joining..." : "Join League"}</button>
+                  <button type="button" disabled={busyId === invitation.invitationId} onClick={() => void respond(invitation, "accepted")} className="rounded-lg bg-teal-500 px-3 py-2 text-xs font-black text-slate-950 hover:bg-teal-400 disabled:opacity-50">{busyId === invitation.invitationId ? "Joining..." : "Join League"}</button>
                 </div>
               </div>
             ))}
