@@ -79,6 +79,42 @@ export async function updateMyProfile(input: {
   return mapProfile(data as ProfileRow);
 }
 
+export async function changeMyPassword(input: {
+  currentPassword: string;
+  newPassword: string;
+}): Promise<void> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user || userData.user.is_anonymous || !userData.user.email) {
+    throw new Error("Sign in to change your password.");
+  }
+  if (input.newPassword.length < 8) {
+    throw new Error("New password must be at least 8 characters.");
+  }
+
+  const { error: verifyError } = await supabase.auth.signInWithPassword({
+    email: userData.user.email,
+    password: input.currentPassword,
+  });
+  if (verifyError) {
+    throw new Error("Current password is incorrect.");
+  }
+
+  const { error: updateError } = await supabase.auth.updateUser({
+    password: input.newPassword,
+  });
+  if (updateError) throw updateError;
+}
+
+export async function requestMyPasswordReset(): Promise<void> {
+  const { data: userData, error: userError } = await supabase.auth.getUser();
+  if (userError || !userData.user || userData.user.is_anonymous || !userData.user.email) {
+    throw new Error("Sign in to reset your password.");
+  }
+  const redirectTo = `${window.location.origin}/reset-password`;
+  const { error } = await supabase.auth.resetPasswordForEmail(userData.user.email, { redirectTo });
+  if (error) throw error;
+}
+
 export async function uploadProfileAvatar(file: File): Promise<string> {
   const { data: userData, error: userError } = await supabase.auth.getUser();
   if (userError || !userData.user || userData.user.is_anonymous) {
