@@ -125,10 +125,10 @@ export function passwordResetEmail({ resetUrl }: { resetUrl: string }) {
   const subject = "Reset your DraftHQ password";
 
   const body = `
-    <h1 style="margin:0 0 20px;font-size:28px;font-weight:900;color:#ffffff;line-height:1.2;">
+    <h1 style="margin:0 0 20px;font-size:34px;font-weight:900;color:#14b8a6;line-height:1.2;">
       Reset your password
     </h1>
-    <p style="margin:0;font-size:15px;color:#cbd5e1;line-height:1.6;">
+    <p style="margin:0;font-size:15px;color:#e2e8f0;line-height:1.6;">
       Click the button below to set a new password. This link expires in 1 hour.
       If you didn&apos;t request this, you can safely ignore this email.
     </p>
