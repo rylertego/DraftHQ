@@ -316,6 +316,7 @@ export async function updateLeagueSettings(
   leagueId: string,
   input: {
     name: string;
+    slug: string;
     logoUrl: string;
     bannerUrl: string;
     primaryColor: string;
@@ -328,12 +329,12 @@ export async function updateLeagueSettings(
   const { data, error } = await supabase.rpc("update_league_settings", {
     p_league_id:       leagueId,
     p_name:            input.name.trim(),
+    p_slug:            input.slug.trim(),
     p_logo_url:        input.logoUrl.trim(),
     p_banner_url:      input.bannerUrl.trim(),
     p_primary_color:   input.primaryColor.trim(),
     p_secondary_color: input.secondaryColor.trim(),
     p_theme:           input.theme,
-    p_team_count:      input.teamCount ?? null,
   });
 
   if (error) throw error;

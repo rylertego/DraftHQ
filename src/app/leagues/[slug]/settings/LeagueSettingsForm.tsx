@@ -246,6 +246,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const { setAccentColor, setBgColor } = useLeagueTheme();
   const [leagueId, setLeagueId] = useState("");
   const [name, setName] = useState("");
+  const [leagueSlug, setLeagueSlug] = useState("");
+  const [slugEdited, setSlugEdited] = useState(false);
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
   const [primaryColor, setPrimaryColor] = useState(COLOR_PAIRS[0].primary);
@@ -272,6 +274,15 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  function slugFromName(n: string) {
+    return n.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  }
+
+  function handleNameChange(value: string) {
+    setName(value);
+    if (!slugEdited) setLeagueSlug(slugFromName(value));
+  }
+
   function showToast(msg: string, type: "success" | "error" = "error") {
     if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     setToast({ msg, type });
@@ -289,6 +300,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         if (!active) return;
         setLeagueId(s.league.id);
         setName(s.league.name);
+        setLeagueSlug(s.league.slug);
+        setSlugEdited(false);
         setLogoUrl(s.league.logoUrl ?? "");
         setBannerUrl(s.league.bannerUrl ?? "");
         const primary   = s.league.primaryColor   ?? COLOR_PAIRS[0].primary;
@@ -372,12 +385,15 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         }
       }
 
-      await updateLeagueSettings(leagueId, {
-        name, logoUrl: finalLogo, bannerUrl: finalBanner,
+      const saved = await updateLeagueSettings(leagueId, {
+        name, slug: leagueSlug, logoUrl: finalLogo, bannerUrl: finalBanner,
         primaryColor, secondaryColor, theme, teamCount,
       });
       reloadWorkspace();
       showToast("Settings saved", "success");
+      if (saved.slug !== slug) {
+        router.replace(`/leagues/${saved.slug}/settings`);
+      }
     } catch (err) {
       const msg = err instanceof Error ? err.message : "";
       if (msg.includes("42501") || msg.includes("commissioner")) {
@@ -601,8 +617,34 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                     disabled={!canManage}
                     className="w-full disabled:opacity-50"
                     value={name}
-                    onChange={(e) => setName(e.target.value)}
+                    onChange={(e) => handleNameChange(e.target.value)}
                   />
+                </div>
+
+                <div>
+                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="settings-league-slug">
+                    URL Slug
+                  </label>
+                  <p className="mb-2 text-xs text-slate-600">Used in your league&apos;s web address. Auto-updates from name unless you edit it directly.</p>
+                  <div className="flex items-center gap-0 rounded-lg border border-slate-700 bg-slate-800 focus-within:border-[var(--primary)] focus-within:ring-1 focus-within:ring-[var(--primary)] transition-all overflow-hidden">
+                    <span className="shrink-0 border-r border-slate-700 px-3 py-2 text-xs text-slate-500">/leagues/</span>
+                    <input
+                      id="settings-league-slug"
+                      required
+                      maxLength={80}
+                      disabled={!canManage}
+                      className="flex-1 border-0 bg-transparent px-2 py-2 text-sm text-white outline-none disabled:opacity-50"
+                      style={{ boxShadow: "none" }}
+                      value={leagueSlug}
+                      onChange={(e) => { setLeagueSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "")); setSlugEdited(true); }}
+                    />
+                    {slugEdited && (
+                      <button type="button" onClick={() => { setLeagueSlug(slugFromName(name)); setSlugEdited(false); }}
+                        className="shrink-0 border-l border-slate-700 px-3 py-2 text-xs text-slate-500 hover:text-slate-300 transition-colors">
+                        Reset
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 <div>
