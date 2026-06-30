@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 
 const DEFAULT_ACCENT = "#14B8A6";
 const DEFAULT_BG     = "#020617";
@@ -22,6 +22,11 @@ const LeagueThemeContext = createContext<LeagueThemeCtx>({
 export function LeagueThemeProvider({ children }: { children: ReactNode }) {
   const [accentColor, setAccentColor] = useState(DEFAULT_ACCENT);
   const [bgColor, setBgColor]         = useState(DEFAULT_BG);
+
+  useEffect(() => {
+    document.documentElement.style.setProperty("--primary", accentColor);
+  }, [accentColor]);
+
   return (
     <LeagueThemeContext.Provider value={{ accentColor, setAccentColor, bgColor, setBgColor }}>
       {children}

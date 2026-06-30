@@ -16,12 +16,11 @@ import type { LeagueMember } from "@/types/league";
 
 // ── Invite modal ──────────────────────────────────────────────────────────────
 
-function InviteMemberModal({ leagueId, onClose, onAdded }: { leagueId: string; onClose: () => void; onAdded: () => void }) {
+function InviteMemberModal({ leagueId, onClose, onAdded, onInviteSent }: { leagueId: string; onClose: () => void; onAdded: () => void; onInviteSent: (email: string) => void }) {
   const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [sentInvite, setSentInvite] = useState(false);
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -31,35 +30,12 @@ function InviteMemberModal({ leagueId, onClose, onAdded }: { leagueId: string; o
     try {
       await inviteLeagueMember(leagueId, email.trim());
       onAdded();
-      setSentInvite(true);
-      setLoading(false);
+      onClose();
+      onInviteSent(email.trim());
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to add member.");
       setLoading(false);
     }
-  }
-
-  if (sentInvite) {
-    return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-        <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl text-center" onClick={(e) => e.stopPropagation()}>
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full" style={{ backgroundColor: primary + "22" }}>
-            <svg className="h-6 w-6" style={{ color: primary }} viewBox="0 0 20 20" fill="currentColor">
-              <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-bold text-white">Invitation sent</h2>
-          <p className="mt-2 text-sm text-slate-400">
-            <span className="text-white">{email}</span> has been invited. They will only join the league after accepting from their DraftHQ invitation inbox.
-          </p>
-          <button type="button" onClick={onClose}
-            className="mt-5 w-full rounded-xl py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-            style={{ backgroundColor: primary, color: secondary }}>
-            Done
-          </button>
-        </div>
-      </div>
-    );
   }
 
   return (
@@ -462,6 +438,14 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
   const [transferringMember, setTransferringMember] = useState<LeagueMember | null>(null);
   const [editingProfile, setEditingProfile] = useState<LeagueMember | null>(null);
   const [roleError, setRoleError] = useState("");
+  const [toastEmail, setToastEmail] = useState<string | null>(null);
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function showInviteSentToast(email: string) {
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    setToastEmail(email);
+    toastTimer.current = setTimeout(() => setToastEmail(null), 3500);
+  }
 
   useEffect(() => {
     void supabase.auth.getUser().then(({ data }) => {
@@ -534,7 +518,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
       </section>
 
       {showInvite && (
-        <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={reload} />
+        <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={reload} onInviteSent={showInviteSentToast} />
       )}
       {removingMember && (
         <RemoveConfirmModal member={removingMember} leagueId={workspace.league.id} onClose={() => setRemovingMember(null)} onRemoved={reload} />
@@ -548,5 +532,25 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
     </div>
   );
 
-  return content;
+  return (
+    <>
+      {toastEmail && (
+        <div className="pointer-events-none fixed inset-x-0 top-4 z-[60] flex justify-center px-4">
+          <div
+            className="flex items-center gap-3 rounded-2xl border border-slate-600 bg-slate-800 px-5 py-3 shadow-2xl shadow-black/60"
+            style={{ animation: "slide-down 0.25s ease" }}
+          >
+            <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4 shrink-0" style={{ color: primary }}>
+              <rect x="2" y="4" width="16" height="12" rx="2" stroke="currentColor" strokeWidth="1.5" />
+              <path d="M2 6l8 5 8-5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            </svg>
+            <p className="text-sm font-semibold text-white">
+              Invite sent to <span style={{ color: primary }}>{toastEmail}</span>
+            </p>
+          </div>
+        </div>
+      )}
+      {content}
+    </>
+  );
 }
