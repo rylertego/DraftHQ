@@ -4,13 +4,16 @@ import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import {
+  getPendingLeagueInvitations,
   inviteLeagueMember,
   removeLeagueMember,
+  revokeLeagueInvitation,
   setLeagueMemberRole,
   transferLeagueOwnership,
   updateLeagueMemberProfile,
   uploadLeagueMemberAvatar,
 } from "@/lib/leagueApi";
+import type { PendingLeagueInvitation } from "@/lib/leagueApi";
 import { supabase } from "@/lib/supabase";
 import type { LeagueMember } from "@/types/league";
 
@@ -439,6 +442,8 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
   const [editingProfile, setEditingProfile] = useState<LeagueMember | null>(null);
   const [roleError, setRoleError] = useState("");
   const [toastEmail, setToastEmail] = useState<string | null>(null);
+  const [pendingInvites, setPendingInvites] = useState<PendingLeagueInvitation[]>([]);
+  const [revokingId, setRevokingId] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function showInviteSentToast(email: string) {
@@ -452,6 +457,26 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
       setCurrentUserId(data.user?.id ?? null);
     });
   }, []);
+
+  const refreshPendingInvites = () => {
+    if (!workspace?.canManage) return;
+    void getPendingLeagueInvitations(workspace.league.id).then(setPendingInvites).catch(() => {});
+  };
+
+  useEffect(() => {
+    refreshPendingInvites();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workspace?.league.id, workspace?.canManage]);
+
+  async function handleRevokeInvite(id: string) {
+    setRevokingId(id);
+    try {
+      await revokeLeagueInvitation(id);
+      setPendingInvites((prev) => prev.filter((inv) => inv.id !== id));
+    } finally {
+      setRevokingId(null);
+    }
+  }
 
   async function handleSetRole(member: LeagueMember, role: "co-commissioner" | "member") {
     if (!workspace) return;
@@ -510,6 +535,38 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
         </div>
       </section>
 
+      {workspace.canManage && pendingInvites.length > 0 && (
+        <section>
+          <h2 className="text-2xl font-bold text-white">
+            Pending Invitations <span className="text-lg font-normal text-slate-500">({pendingInvites.length})</span>
+          </h2>
+          <div className="mt-4 space-y-2">
+            {pendingInvites.map((inv) => (
+              <div key={inv.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900 px-4 py-3">
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-white">{inv.email}</p>
+                  <p className="mt-0.5 text-xs text-slate-500">
+                    {inv.teamName ? `Team: ${inv.teamName} · ` : ""}
+                    Invited {new Date(inv.invitedAt).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Cancel invitation"
+                  disabled={revokingId === inv.id}
+                  onClick={() => void handleRevokeInvite(inv.id)}
+                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-950/50 hover:text-red-400 disabled:opacity-40 transition-colors"
+                >
+                  <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4">
+                    <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                  </svg>
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       <section>
         <h2 className="text-2xl font-bold text-white">Past Members</h2>
         <p className="mt-4 rounded-2xl border bg-slate-900/40 px-6 py-8 text-center text-sm text-slate-500" style={{ borderColor: primary + "44" }}>
@@ -518,7 +575,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
       </section>
 
       {showInvite && (
-        <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={reload} onInviteSent={showInviteSentToast} />
+        <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={() => { reload(); refreshPendingInvites(); }} onInviteSent={showInviteSentToast} />
       )}
       {removingMember && (
         <RemoveConfirmModal member={removingMember} leagueId={workspace.league.id} onClose={() => setRemovingMember(null)} onRemoved={reload} />

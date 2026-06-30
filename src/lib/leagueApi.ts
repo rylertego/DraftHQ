@@ -497,6 +497,36 @@ export interface LeagueInvitationInboxItem {
   invitedAt: string;
 }
 
+export interface PendingLeagueInvitation {
+  id: string;
+  email: string;
+  teamName: string | null;
+  invitedAt: string;
+}
+
+export async function getPendingLeagueInvitations(leagueId: string): Promise<PendingLeagueInvitation[]> {
+  await requirePersistentUser();
+  const { data, error } = await supabase
+    .from("league_invitations")
+    .select("id, email, invited_at, league_teams(name)")
+    .eq("league_id", leagueId)
+    .eq("status", "pending")
+    .order("invited_at", { ascending: false });
+  if (error) throw error;
+  type Row = { id: string; email: string; invited_at: string; league_teams: { name: string }[] | { name: string } | null };
+  return (data ?? []).map((row: Row) => {
+    const lt = row.league_teams;
+    const teamName = Array.isArray(lt) ? (lt[0]?.name ?? null) : (lt?.name ?? null);
+    return { id: row.id, email: row.email, teamName, invitedAt: row.invited_at };
+  });
+}
+
+export async function revokeLeagueInvitation(invitationId: string): Promise<void> {
+  await requirePersistentUser();
+  const { error } = await supabase.rpc("revoke_league_invitation", { p_invitation_id: invitationId });
+  if (error) throw error;
+}
+
 export async function getMyLeagueInvitations(): Promise<LeagueInvitationInboxItem[]> {
   await requirePersistentUser();
   const { data, error } = await supabase.rpc("get_my_league_invitations");
