@@ -601,8 +601,13 @@ export default function LeagueTeams(_: { slug: string }) {
       setActionError("Teams cannot be archived while a draft is active.");
       return;
     }
-    await archiveLeagueTeam(league.id, teamId);
     setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, archivedAt: new Date().toISOString() } : t));
+    try {
+      await archiveLeagueTeam(league.id, teamId);
+    } catch (err) {
+      setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, archivedAt: null } : t));
+      setActionError(err instanceof Error ? err.message : "Unable to archive team.");
+    }
   }
 
   async function handleUnarchive(teamId: string) {
@@ -611,8 +616,13 @@ export default function LeagueTeams(_: { slug: string }) {
       setActionError("Teams cannot be unarchived while a draft is active.");
       return;
     }
-    await unarchiveLeagueTeam(league.id, teamId);
     setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, archivedAt: null } : t));
+    try {
+      await unarchiveLeagueTeam(league.id, teamId);
+    } catch (err) {
+      setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, archivedAt: new Date().toISOString() } : t));
+      setActionError(err instanceof Error ? err.message : "Unable to unarchive team.");
+    }
   }
 
   async function refreshTeams() {

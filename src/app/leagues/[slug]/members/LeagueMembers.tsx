@@ -443,6 +443,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
   const [roleError, setRoleError] = useState("");
   const [toastEmail, setToastEmail] = useState<string | null>(null);
   const [pendingInvites, setPendingInvites] = useState<PendingLeagueInvitation[]>([]);
+  const [pendingRev, setPendingRev] = useState(0);
   const [revokingId, setRevokingId] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -458,15 +459,14 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
     });
   }, []);
 
-  const refreshPendingInvites = () => {
-    if (!workspace?.canManage) return;
-    void getPendingLeagueInvitations(workspace.league.id).then(setPendingInvites).catch(() => {});
-  };
-
   useEffect(() => {
-    refreshPendingInvites();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [workspace?.league.id, workspace?.canManage]);
+    if (!workspace?.canManage || !workspace?.league.id) return;
+    let active = true;
+    void getPendingLeagueInvitations(workspace.league.id)
+      .then((invites) => { if (active) setPendingInvites(invites); })
+      .catch(() => {});
+    return () => { active = false; };
+  }, [workspace?.league.id, workspace?.canManage, pendingRev]);
 
   async function handleRevokeInvite(id: string) {
     setRevokingId(id);
@@ -575,7 +575,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
       </section>
 
       {showInvite && (
-        <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={() => { reload(); refreshPendingInvites(); }} onInviteSent={showInviteSentToast} />
+        <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={() => { reload(); setPendingRev((r) => r + 1); }} onInviteSent={showInviteSentToast} />
       )}
       {removingMember && (
         <RemoveConfirmModal member={removingMember} leagueId={workspace.league.id} onClose={() => setRemovingMember(null)} onRemoved={reload} />
