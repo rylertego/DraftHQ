@@ -56,6 +56,7 @@ interface DraftRow {
   round_slide_seconds: number;
   round_slide_pauses_clock: boolean;
   announcer_voice_uri: string | null;
+  walk_up_music_mode: "restart" | "resume" | null;
   created_at: string;
   updated_at: string;
 }
@@ -200,6 +201,7 @@ function mapDraft(row: DraftRow): Draft {
     roundSlideSeconds: row.round_slide_seconds ?? 7,
     roundSlidePausesClock: row.round_slide_pauses_clock ?? false,
     announcerVoiceUri: row.announcer_voice_uri ?? null,
+    walkUpMusicMode: row.walk_up_music_mode ?? "restart",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -385,7 +387,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_landmines,landmine_count,hide_player_rankings,sfx_1_url,sfx_2_url,pos_reactions,neg_reactions,pick_is_in_enabled,pick_is_in_sfx_url,draft_start_audio_url,show_round_slide,round_slide_seconds,round_slide_pauses_clock,announcer_voice_uri,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_landmines,landmine_count,hide_player_rankings,sfx_1_url,sfx_2_url,pos_reactions,neg_reactions,pick_is_in_enabled,pick_is_in_sfx_url,draft_start_audio_url,show_round_slide,round_slide_seconds,round_slide_pauses_clock,announcer_voice_uri,walk_up_music_mode,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
@@ -798,6 +800,7 @@ export async function updateDraftPresentation(
     roundSlideSeconds: number;
     roundSlidePausesClock: boolean;
     announcerVoiceUri: string | null;
+    walkUpMusicMode: "restart" | "resume";
   }>
 ): Promise<Draft> {
   await ensureAnonymousUser();
@@ -810,6 +813,7 @@ export async function updateDraftPresentation(
     p_round_slide_seconds: settings.roundSlideSeconds ?? null,
     p_round_slide_pauses_clock: settings.roundSlidePausesClock ?? null,
     p_announcer_voice_uri: settings.announcerVoiceUri ?? null,
+    p_walk_up_music_mode: settings.walkUpMusicMode ?? null,
   });
   if (error) throw new Error(error.message);
   return mapDraft(data as DraftRow);
@@ -1119,16 +1123,8 @@ export async function getByeWeeks(seasonYear: number): Promise<Map<string, numbe
   return buildByeWeekLookup((data ?? []) as Array<{ nfl_team: string; bye_week: number }>);
 }
 
-export async function upsertByeWeeks(
-  seasonYear: number,
-  byeWeeks: { nfl_team: string; bye_week: number }[]
-): Promise<void> {
-  const { error } = await supabase.rpc("upsert_bye_weeks", {
-    p_season_year: seasonYear,
-    p_bye_weeks: byeWeeks,
-  });
-  if (error) throw error;
-}
+// upsertByeWeeks removed: upsert_bye_weeks RPC is now service_role-only (migration 010).
+// If bye-week data ever needs updating from the app, use a server-side route with supabaseAdmin.
 
 export async function assignLandmines(draftId: string): Promise<void> {
   await ensureAnonymousUser();

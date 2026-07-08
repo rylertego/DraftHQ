@@ -36,10 +36,11 @@ const ADVANCE_OPTIONS: Array<{ value: AdvanceMode; label: string }> = [
 function createDefaultAudio(
   url: string,
   onEnded: () => void,
-  onBlocked: () => void
+  onBlocked: () => void,
+  volume = 0.55
 ) {
   const audio = new Audio(url);
-  audio.volume = 0.7;
+  audio.volume = volume;
   audio.onended = onEnded;
   audio.onerror = onBlocked;
   return audio;
@@ -63,10 +64,28 @@ function TeamLogo({ team, fallback, className }: { team: Team; fallback?: string
   );
 }
 
+function CopyIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <rect x="5" y="5" width="9" height="9" rx="1.5" />
+      <path d="M11 5V3.5A1.5 1.5 0 0 0 9.5 2h-6A1.5 1.5 0 0 0 2 3.5v6A1.5 1.5 0 0 0 3.5 11H5" />
+    </svg>
+  );
+}
+
+function CheckIcon({ className }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 8l4 4 6-7" />
+    </svg>
+  );
+}
+
 export default function DraftLobby({
   draft,
   participants,
   teams,
+  onlineUserIds,
   currentUserId,
   leagueLogoUrl,
   leagueName,
@@ -82,6 +101,28 @@ export default function DraftLobby({
   const defaultAudioRef = useRef<HTMLAudioElement | null>(null);
   const isPlayingRef = useRef(true);
   const playbackConfirmedRef = useRef(false);
+  const [copied, setCopied] = useState(false);
+  // Lobby volume — per device, persisted, applied to both custom songs and
+  // the default intro tracks.
+  const [lobbyVolume, setLobbyVolume] = useState(() => {
+    if (typeof window === "undefined") return 55;
+    const v = localStorage.getItem("lobby:volume");
+    return v !== null ? Number(v) : 55;
+  });
+  const [lobbyMuted, setLobbyMuted] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("lobby:muted") === "true"
+  );
+  const effectiveVolume = lobbyMuted ? 0 : lobbyVolume;
+  const effectiveVolumeRef = useRef(effectiveVolume);
+  useEffect(() => {
+    effectiveVolumeRef.current = effectiveVolume;
+    playerRef.current?.setVolume(effectiveVolume);
+    if (defaultAudioRef.current) defaultAudioRef.current.volume = effectiveVolume / 100;
+    try {
+      localStorage.setItem("lobby:volume", String(lobbyVolume));
+      localStorage.setItem("lobby:muted", String(lobbyMuted));
+    } catch {}
+  }, [effectiveVolume, lobbyVolume, lobbyMuted]);
   const sortedTeams = useMemo(
     () => [...teams].sort((a, b) => a.draftPosition - b.draftPosition),
     [teams]
@@ -105,6 +146,36 @@ export default function DraftLobby({
     : yearInName ?? new Date(draft.createdAt).getFullYear();
   const backHref = `/teams?draftId=${draft.id}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`;
   const leagueDisplayLogo = leagueLogoUrl || "/branding/logo-Photoroom.png";
+
+  // ── Online presence ────────────────────────────────────────────────────────
+  // Cross-reference onlineUserIds with participants to compute per-team status.
+  const teamOnlineStatus = useMemo(() => {
+    return sortedTeams.map((team) => {
+      const participant = participants.find(
+        (p) => p.teamId === team.id && (p.role === "owner" || p.role === "commissioner")
+      );
+      const isOnline = !!participant?.userId && onlineUserIds.includes(participant.userId);
+      return { team, participant, isOnline };
+    });
+  }, [sortedTeams, participants, onlineUserIds]);
+
+  const onlineOwnerCount = teamOnlineStatus.filter((s) => s.isOnline).length;
+  const totalTeamCount = sortedTeams.length;
+
+  // Offline list — shown to commissioner so they know who is missing.
+  const offlineTeamNames = teamOnlineStatus
+    .filter((s) => !s.isOnline)
+    .map((s) => s.team.name);
+
+  const activeTeamOnlineStatus = teamOnlineStatus.find((s) => s.team.id === activeTeam?.id);
+
+  // ── Join code copy ─────────────────────────────────────────────────────────
+  function copyJoinCode() {
+    void navigator.clipboard.writeText(draft.joinCode).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {});
+  }
 
   const activateTeam = useCallback((index: number) => {
     if (sortedTeams.length === 0) return;
@@ -132,7 +203,7 @@ export default function DraftLobby({
     if (activeSong) {
       playerRef.current?.play(activeSong);
     } else if (defaultSongUrl) {
-      const audio = createDefaultAudio(defaultSongUrl, showNext, () => setAudioBlocked(true));
+      const audio = createDefaultAudio(defaultSongUrl, showNext, () => setAudioBlocked(true), effectiveVolumeRef.current / 100);
       defaultAudioRef.current = audio;
       void audio.play().then(() => {
         playbackConfirmedRef.current = true;
@@ -180,7 +251,7 @@ export default function DraftLobby({
     if (activeSong) {
       playerRef.current?.play(activeSong);
     } else if (defaultSongUrl) {
-      const audio = defaultAudioRef.current ?? createDefaultAudio(defaultSongUrl, showNext, () => setAudioBlocked(true));
+      const audio = defaultAudioRef.current ?? createDefaultAudio(defaultSongUrl, showNext, () => setAudioBlocked(true), effectiveVolumeRef.current / 100);
       defaultAudioRef.current = audio;
       void audio.play().then(() => {
         playbackConfirmedRef.current = true;
@@ -232,20 +303,36 @@ export default function DraftLobby({
         </div>
       </div>
 
-      <section className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-4 pb-2 sm:px-8">
-        <div className="grid w-full max-w-[1720px] items-center justify-center gap-5 lg:grid-cols-[200px_minmax(0,1fr)_200px] xl:grid-cols-[260px_minmax(0,1fr)_260px] xl:gap-8">
+      <section className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-4 pb-0 sm:px-8">
+        <div className="grid w-full max-w-[1720px] items-center justify-center gap-5 lg:grid-cols-[160px_minmax(0,1fr)_160px] xl:grid-cols-[210px_minmax(0,1fr)_210px] xl:gap-8">
+          {/* Side league logos — framing only, kept visually quiet */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={leagueDisplayLogo} alt={`${leagueName ?? draft.name} logo`} className="mx-auto hidden h-48 w-48 object-contain drop-shadow-2xl lg:block xl:h-60 xl:w-60" />
-          <div className="grid w-full max-w-6xl justify-self-center items-center gap-5 rounded-[2rem] border border-white/10 bg-black/30 p-5 shadow-2xl backdrop-blur-xl md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)] md:p-8 lg:min-h-[430px] lg:gap-10 lg:py-10">
+          <img src={leagueDisplayLogo} alt={`${leagueName ?? draft.name} logo`} className="mx-auto hidden h-36 w-36 object-contain opacity-35 lg:block xl:h-44 xl:w-44" />
+          <div
+            key={activeTeam.id}
+            className="grid w-full max-w-6xl justify-self-center items-center gap-5 rounded-[2rem] border border-white/10 bg-black/30 p-5 shadow-2xl backdrop-blur-xl md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)] md:p-8 lg:min-h-[430px] lg:gap-10 lg:py-10"
+            style={{ animation: "lobby-team-in 0.2s ease-out" }}
+          >
           <div className="relative mx-auto flex aspect-square w-full max-w-64 items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.035] p-7 shadow-inner lg:max-w-72">
             <div className="absolute inset-4 rounded-[1.5rem] opacity-20 blur-2xl" style={{ backgroundColor: primary }} />
             <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
+
+            {/* Online status dot on the active team card */}
+            <span
+              title={activeTeamOnlineStatus?.isOnline ? "Owner is online" : "Owner is not online"}
+              className={`absolute bottom-3 right-3 h-4 w-4 rounded-full ring-2 ring-black/60 ${activeTeamOnlineStatus?.isOnline ? "bg-green-400" : "bg-slate-600"}`}
+            />
           </div>
 
           <div className="min-w-0 text-center md:text-left">
             <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
               <span className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]" style={{ backgroundColor: primary + "22", color: primary }}>Draft position {activeTeam.draftPosition}</span>
               {activeParticipant?.userId === currentUserId && <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">Your team</span>}
+              {/* Online badge on the featured team */}
+              <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeTeamOnlineStatus?.isOnline ? "bg-green-500/15 text-green-400" : "bg-white/8 text-slate-500"}`}>
+                <span className={`h-1.5 w-1.5 rounded-full ${activeTeamOnlineStatus?.isOnline ? "bg-green-400" : "bg-slate-600"}`} />
+                {activeTeamOnlineStatus?.isOnline ? "Online" : "Not online"}
+              </span>
             </div>
             <h1 className="mt-3 truncate text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">{activeTeam.name}</h1>
             <p className="mt-2 text-base font-semibold text-slate-300">{ownerName}</p>
@@ -276,14 +363,17 @@ export default function DraftLobby({
           </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={leagueDisplayLogo} alt="" className="mx-auto hidden h-48 w-48 object-contain drop-shadow-2xl lg:block xl:h-60 xl:w-60" />
+          <img src={leagueDisplayLogo} alt="" className="mx-auto hidden h-36 w-36 object-contain opacity-35 lg:block xl:h-44 xl:w-44" />
         </div>
       </section>
 
-      <section className="relative z-10 shrink-0 px-4 py-2 sm:px-8">
-        <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-1 py-2 [scrollbar-width:thin] lg:justify-center">
+      {/* Team strip — thumbnails with online/offline dots; hugs the team card above */}
+      <section className="relative z-10 shrink-0 px-4 pt-1 pb-2 sm:px-8">
+        <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-1 pb-2 pt-1 [scrollbar-width:thin] lg:justify-center">
           {sortedTeams.map((team, index) => {
             const active = index === activeIndex;
+            const status = teamOnlineStatus.find((s) => s.team.id === team.id);
+            const isOnline = status?.isOnline ?? false;
             return (
               <button
                 key={team.id}
@@ -293,7 +383,14 @@ export default function DraftLobby({
                 style={active ? { borderColor: primary, boxShadow: `0 0 22px ${primary}45` } : undefined}
                 aria-label={`Feature ${team.name}`}
               >
-                <TeamLogo team={team} fallback={leagueLogoUrl} className="mx-auto h-11 w-11 rounded-xl sm:h-13 sm:w-13" />
+                {/* Logo with online dot */}
+                <div className="relative mx-auto h-11 w-11 sm:h-13 sm:w-13">
+                  <TeamLogo team={team} fallback={leagueLogoUrl} className="h-full w-full rounded-xl" />
+                  <span
+                    title={isOnline ? "Online" : "Not online"}
+                    className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-black/70 ${isOnline ? "bg-green-400" : "bg-slate-600"}`}
+                  />
+                </div>
                 <p className="mt-1.5 truncate text-[10px] font-bold text-white">{team.name}</p>
                 <p className="text-[9px] text-slate-500">Pick {team.draftPosition}</p>
               </button>
@@ -302,8 +399,10 @@ export default function DraftLobby({
         </div>
       </section>
 
-      <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:justify-between sm:px-6">
-        <div className="flex items-center justify-center gap-3 sm:justify-start lg:min-w-48">
+      <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:px-6">
+
+        {/* Left: chat + join code (always visible) */}
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:flex-1 sm:justify-start">
           <button
             type="button"
             onClick={onChatToggle}
@@ -319,9 +418,25 @@ export default function DraftLobby({
               </span>
             )}
           </button>
-          <span className="hidden text-xs text-slate-500 lg:inline">Join code <span className="ml-1 font-mono font-black text-slate-300">{draft.joinCode}</span></span>
+
+          {/* Join code — visible on all screen sizes with copy button */}
+          <button
+            type="button"
+            onClick={copyJoinCode}
+            title={copied ? "Copied!" : "Copy join code"}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
+          >
+            <span className="text-[10px] font-bold uppercase tracking-wider">Join code</span>
+            <span className="font-mono font-black text-slate-300">{draft.joinCode}</span>
+            {copied
+              ? <CheckIcon className="h-3.5 w-3.5 text-green-400" />
+              : <CopyIcon className="h-3.5 w-3.5" />
+            }
+          </button>
         </div>
-        <div className="flex flex-wrap items-center justify-center gap-2">
+
+        {/* Center: playback controls */}
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
           <button type="button" onClick={showPrevious} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Previous team">‹</button>
           <button type="button" onClick={togglePlayback} className="flex h-11 w-11 items-center justify-center rounded-full text-lg font-black" style={{ backgroundColor: primary, color: secondary }} aria-label={isPlaying ? "Pause introductions" : "Play introductions"}>{isPlaying ? "Ⅱ" : "▶"}</button>
           <button type="button" onClick={showNext} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Next team">›</button>
@@ -331,11 +446,68 @@ export default function DraftLobby({
               {ADVANCE_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-slate-900">{option.label}</option>)}
             </select>
           </label>
+
+          {/* Volume */}
+          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+            <button
+              type="button"
+              onClick={() => setLobbyMuted((m) => !m)}
+              aria-label={lobbyMuted ? "Unmute" : "Mute"}
+              title={lobbyMuted ? "Unmute" : "Mute"}
+              className={lobbyMuted ? "text-red-400 hover:text-red-300" : "text-slate-400 hover:text-white"}
+            >
+              {lobbyMuted ? (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd"/>
+                </svg>
+              )}
+            </button>
+            <input
+              type="range" min={0} max={100} value={lobbyVolume}
+              disabled={lobbyMuted}
+              aria-label="Lobby music volume"
+              onInput={(e) => setLobbyVolume(Number(e.currentTarget.value))}
+              className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-slate-700 accent-teal-500 disabled:opacity-30"
+            />
+          </div>
+
           {audioBlocked && <button type="button" onClick={enableAudio} className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300">Enable audio</button>}
         </div>
-        <div className="sm:min-w-48 sm:text-right">
+
+        {/* Right: online count + start/waiting */}
+        <div className="flex flex-col items-center gap-1.5 sm:flex-1 sm:items-end">
+
+          {/* Online count — visible to everyone */}
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
+            <span className="text-xs font-semibold text-slate-300">
+              {onlineOwnerCount} / {totalTeamCount} owners online
+            </span>
+          </div>
+
+          {/* Commissioner: list of who is missing */}
+          {isCommissioner && offlineTeamNames.length > 0 && (
+            <p className="max-w-48 text-right text-[10px] leading-snug text-slate-600">
+              Not here yet:{" "}
+              <span className="text-slate-500">
+                {offlineTeamNames.slice(0, 3).join(", ")}
+                {offlineTeamNames.length > 3 && ` +${offlineTeamNames.length - 3} more`}
+              </span>
+            </p>
+          )}
+
           {isCommissioner ? (
-            <button type="button" disabled={isStarting} onClick={onStart} className="w-full rounded-xl px-6 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 sm:w-auto" style={{ backgroundColor: primary, color: secondary }}>
+            <button
+              type="button"
+              disabled={isStarting}
+              onClick={onStart}
+              className="w-full rounded-xl px-6 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 sm:w-auto"
+              style={{ backgroundColor: primary, color: secondary }}
+            >
               {isStarting ? "Starting draft..." : "Start Draft"}
             </button>
           ) : (

@@ -1,3 +1,8 @@
+// Max walk-up songs per team. Not a technical limit (storage is JSONB and the
+// player is count-agnostic) — just keeps the team card UI sane. Ten covers a
+// full draft night of variety.
+export const MAX_WALK_UP_SONGS = 10;
+
 export const DEFAULT_WALK_UP_SONGS = [
   "/sounds/default-walkup/team_music_default.mp3",
   "/sounds/default-walkup/team_music_default2.mp3",
@@ -19,6 +24,44 @@ export function getDefaultWalkUpSong(draftPosition: number) {
 export function getSynchronizedWalkUpIndex(currentPick: number, songCount: number) {
   if (songCount <= 0) return 0;
   return Math.max(0, currentPick - 1) % songCount;
+}
+
+export type WalkUpMusicMode = "restart" | "resume";
+
+/**
+ * Cumulative seconds of walk-up music a team has "listened to" across its
+ * completed turns, derived entirely from pick timestamps so every client
+ * computes the same value with no stored audio state.
+ *
+ * A team's turn for its pick at overall number N runs from
+ * createdAt(pick N-1) + graceMs (music starts after the grace delay) to
+ * createdAt(pick N). The draft's very first pick has no preceding pick and
+ * its anchor cannot be reconstructed later, so it contributes 0.
+ *
+ * Known imprecision (accepted): wall-clock elapsed includes time the music
+ * was actually suppressed (pick reveals, pauses), so the derived position
+ * runs slightly ahead of what was heard. For music this is inaudible.
+ */
+export function getTeamCumulativeListenSeconds(
+  picks: Array<{ teamId: string; overallPickNumber: number; createdAt: string }>,
+  teamId: string,
+  graceMs = 2_000
+): number {
+  if (picks.length === 0) return 0;
+  const byOverall = new Map<number, string>();
+  for (const pick of picks) byOverall.set(pick.overallPickNumber, pick.createdAt);
+  let totalSeconds = 0;
+  for (const pick of picks) {
+    if (pick.teamId !== teamId) continue;
+    const prevCreatedAt = byOverall.get(pick.overallPickNumber - 1);
+    if (!prevCreatedAt) continue;
+    const start = Date.parse(prevCreatedAt) + graceMs;
+    const end = Date.parse(pick.createdAt);
+    if (Number.isFinite(start) && Number.isFinite(end) && end > start) {
+      totalSeconds += (end - start) / 1_000;
+    }
+  }
+  return totalSeconds;
 }
 
 export function getWalkUpPlaybackTiming(

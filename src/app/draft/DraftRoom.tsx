@@ -30,7 +30,7 @@ import {
   getRoundForPick,
   getTeamOnClock,
 } from "@/lib/draftLogic";
-import type { Draft, DraftParticipant, Pick as DraftPick, Player, RosterPosition, Team } from "@/types/draft";
+import type { Draft, DraftParticipant, Pick as DraftPick, Player, RosterPosition, Team, WalkUpSong } from "@/types/draft";
 import {
   getParticipantAccessState,
   getParticipantForUser,
@@ -38,14 +38,641 @@ import {
 import { useRealtimeDraftRoom } from "@/hooks/useRealtimeDraftRoom";
 import { formatLastSyncedAt } from "@/lib/draftRecovery";
 import { getDraftClockSeconds, formatDraftClock } from "@/lib/draftTimer";
-import { DEFAULT_WALK_UP_SONGS, getSynchronizedWalkUpIndex, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
+import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { getLeagueBranding, type LeagueBranding } from "@/lib/leagueApi";
+import DraftHQLogo from "@/components/DraftHQLogo";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
 import LandmineAnimation from "@/components/LandmineAnimation";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
-import { resolveAnnouncerVoice } from "@/lib/speech";
+import { getAiAnnouncerId, resolveAnnouncerVoice } from "@/lib/speech";
+import { fetchAnnouncerClipUrl } from "@/lib/announcerClient";
 import { resolveDraftSeasonYear } from "@/lib/nflTeams";
+
+// ── Draft duration helper ──────────────────────────────────────────────────
+
+function computeDraftDuration(picks: DraftPick[]): string | null {
+  if (picks.length < 2) return null;
+  const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
+  const diffMs =
+    new Date(sorted[sorted.length - 1].createdAt).getTime() -
+    new Date(sorted[0].createdAt).getTime();
+  if (diffMs < 60_000) return null;
+  const totalMins = Math.round(diffMs / 60_000);
+  const h = Math.floor(totalMins / 60);
+  const m = totalMins % 60;
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
+}
+
+// ── Draft Complete modal ───────────────────────────────────────────────────
+
+const CONFETTI_COLORS = ["#14b8a6", "#f59e0b", "#6366f1", "#ef4444", "#10b981", "#f97316"];
+
+function DraftCompleteModal({
+  draft,
+  picks,
+  teams,
+  leagueSlug,
+  myTeamId,
+  accentColor,
+  onClose,
+}: {
+  draft: Draft;
+  picks: DraftPick[];
+  teams: Team[];
+  leagueSlug: string | null | undefined;
+  myTeamId: string | null;
+  accentColor: string | null;
+  onClose: () => void;
+}) {
+  const duration = computeDraftDuration(picks);
+  const accent = accentColor ?? "#14b8a6";
+  const myPicks = myTeamId
+    ? [...picks]
+        .filter((p) => p.teamId === myTeamId)
+        .sort((a, b) => a.overallPickNumber - b.overallPickNumber)
+    : [];
+
+  function downloadCsv() {
+    const csv = createDraftResultsCsv(teams, picks);
+    const blob = new Blob([csv], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${draft.name.replace(/\s+/g, "-")}-results.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  const particles = Array.from({ length: 24 }, (_, i) => ({
+    color: CONFETTI_COLORS[i % CONFETTI_COLORS.length],
+    left: `${(i / 23) * 96 + 2}%`,
+    duration: `${1.6 + (i % 5) * 0.28}s`,
+    delay: `${(i % 8) * 0.12}s`,
+    size: i % 3 === 0 ? 10 : 7,
+    round: i % 4 !== 0,
+  }));
+
+  return (
+    <div className="fixed inset-0 z-[200] flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm">
+      {/* Confetti particles */}
+      {particles.map((p, i) => (
+        <span
+          key={i}
+          aria-hidden
+          className="pointer-events-none fixed top-0"
+          style={{
+            left: p.left,
+            width: p.size,
+            height: p.size,
+            borderRadius: p.round ? "50%" : "2px",
+            backgroundColor: p.color,
+            animation: `confetti-fall ${p.duration} ${p.delay} linear forwards`,
+          }}
+        />
+      ))}
+
+      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
+        {/* Header with radial glow */}
+        <div
+          className="px-6 pb-5 pt-8 text-center"
+          style={{ background: `radial-gradient(ellipse at top, ${accent}22 0%, transparent 65%)` }}
+        >
+          <div
+            className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full text-3xl"
+            style={{ backgroundColor: `${accent}18`, border: `2px solid ${accent}40` }}
+          >
+            🏆
+          </div>
+          <h2 className="text-3xl font-black text-white">Draft Complete</h2>
+          <p className="mt-1 text-sm text-slate-400">{draft.name}</p>
+        </div>
+
+        {/* Stats row */}
+        <div className="flex divide-x divide-white/8 border-y border-white/8">
+          <div className="flex-1 px-4 py-4 text-center">
+            <div className="text-2xl font-black text-white">{picks.length}</div>
+            <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Picks</div>
+          </div>
+          <div className="flex-1 px-4 py-4 text-center">
+            <div className="text-2xl font-black text-white">{draft.rounds}</div>
+            <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Rounds</div>
+          </div>
+          <div className="flex-1 px-4 py-4 text-center">
+            <div className="text-2xl font-black text-white">{teams.length}</div>
+            <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Teams</div>
+          </div>
+          {duration && (
+            <div className="flex-1 px-4 py-4 text-center">
+              <div className="text-2xl font-black text-white">{duration}</div>
+              <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Duration</div>
+            </div>
+          )}
+        </div>
+
+        {/* Your team picks */}
+        {myPicks.length > 0 && (
+          <div className="px-5 py-4">
+            <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Your Team</p>
+            <div className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:thin]">
+              {myPicks.map((pick) => (
+                <div key={pick.id} className="flex items-center gap-3 rounded-lg px-3 py-1.5 hover:bg-white/[0.03]">
+                  <span className="w-8 shrink-0 text-right text-[11px] font-bold text-slate-600">
+                    {pick.round}.{pick.pickNumber}
+                  </span>
+                  <span className="flex-1 truncate text-sm font-semibold text-white">{pick.playerName}</span>
+                  <span className="shrink-0 text-[11px] font-black text-slate-400">{pick.playerPosition}</span>
+                  <span className="shrink-0 text-[11px] text-slate-600">{pick.nflTeam ?? "FA"}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex gap-3 px-5 pb-6 pt-3">
+          <button
+            type="button"
+            onClick={downloadCsv}
+            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0">
+              <path d="M8 2v8M5 7l3 3 3-3M2 12h12" />
+            </svg>
+            Download Results
+          </button>
+          {leagueSlug ? (
+            <a
+              href={`/leagues/${leagueSlug}`}
+              className="flex flex-1 items-center justify-center rounded-xl px-4 py-3 text-sm font-bold transition-opacity hover:opacity-90"
+              style={{ backgroundColor: accent, color: "#0f172a" }}
+            >
+              Return to League
+            </a>
+          ) : (
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-xl px-4 py-3 text-sm font-bold transition-opacity hover:opacity-90"
+              style={{ backgroundColor: accent, color: "#0f172a" }}
+            >
+              View Results
+            </button>
+          )}
+        </div>
+
+        {/* Close */}
+        <button
+          type="button"
+          aria-label="Close"
+          onClick={onClose}
+          className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full text-slate-500 transition-colors hover:bg-white/10 hover:text-white"
+        >
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="h-3 w-3">
+            <path d="M1 1l10 10M11 1L1 11" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── TV / Broadcast mode overlay ────────────────────────────────────────────
+// Read-only PRESENTATION view for a TV or projector at a draft party.
+// Nobody interacts with this screen — owners draft from their own devices.
+
+function TvModeOverlay({
+  draft,
+  picks,
+  teams,
+  players,
+  teamOnClock,
+  timerSeconds,
+  timerColor,
+  currentRound,
+  currentPickInRound,
+  nextUpSlots,
+  accentColor,
+  leagueName,
+  revealActive,
+  landmineActive,
+  tvMasterVolume,
+  tvMuted,
+  onTvVolumeChange,
+  onTvMuteChange,
+  onExit,
+}: {
+  draft: Draft;
+  picks: DraftPick[];
+  teams: Team[];
+  players: Player[];
+  teamOnClock: Team | null | undefined;
+  timerSeconds: number;
+  timerColor: string;
+  currentRound: number | null;
+  currentPickInRound: number | null;
+  nextUpSlots: { teamName: string; overallPickNumber: number }[];
+  accentColor: string | null;
+  leagueName: string | undefined;
+  revealActive: boolean;
+  landmineActive: boolean;
+  tvMasterVolume: number;
+  tvMuted: boolean;
+  onTvVolumeChange: (v: number) => void;
+  onTvMuteChange: (muted: boolean) => void;
+  onExit: () => void;
+}) {
+  const [showAudio, setShowAudio] = useState(false);
+  const accent = accentColor ?? "#14b8a6";
+  const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
+  const lastPick = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+  const lastPickTeam = lastPick ? teams.find((t) => t.id === lastPick.teamId) : null;
+  const lastPickHeadshot = lastPick
+    ? players.find((p) => p.id === lastPick.playerId)?.headshotUrl
+    : undefined;
+  const sortedTeamNames = [...teams]
+    .sort((a, b) => a.draftPosition - b.draftPosition)
+    .map((t) => t.name);
+
+  // Spotlight background radiates from the on-clock team (left side)
+  const bgSpotlight = `radial-gradient(ellipse 75% 90% at 28% 45%, ${accent}0d 0%, transparent 65%), radial-gradient(ellipse 40% 60% at 28% 45%, ${accent}07 0%, transparent 50%)`;
+
+  return (
+    <div className="fixed inset-0 z-[45] flex flex-col overflow-hidden" style={{ backgroundColor: "#020617" }}>
+
+      {/* ── Header ── */}
+      <div
+        className="flex shrink-0 items-center justify-between px-5"
+        style={{ height: 52, borderBottom: `1px solid ${accent}20`, background: `linear-gradient(to bottom, ${accent}09, transparent)` }}
+      >
+        {/* Brand */}
+        <div className="flex items-center gap-3">
+          <DraftHQLogo accentColor={accent} className="h-8 w-auto" />
+          {leagueName && (
+            <>
+              <span className="text-slate-700">·</span>
+              <span className="text-sm font-semibold text-slate-500">{leagueName}</span>
+            </>
+          )}
+        </div>
+
+        {/* Controls */}
+        <div className="flex items-center gap-4">
+          {/* Round / pick badge */}
+          {currentRound !== null && draft.status !== "complete" && (
+            <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1">
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Rd</span>
+              <span className="text-lg font-black text-white">{currentRound}</span>
+              <span className="text-slate-700 mx-0.5">·</span>
+              <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Pk</span>
+              <span className="text-lg font-black text-white">{currentPickInRound ?? "—"}</span>
+            </div>
+          )}
+
+          {/* Audio panel */}
+          <div className="relative">
+            <button
+              type="button"
+              title={tvMuted ? "Audio muted" : "TV Audio"}
+              onClick={() => setShowAudio((v) => !v)}
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${
+                showAudio ? "bg-white/10 text-white" : tvMuted ? "text-red-500 hover:text-red-400" : "text-slate-600 hover:text-slate-300"
+              }`}
+            >
+              {tvMuted ? (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                  <path d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM12.293 7.293a1 1 0 011.414 0L15 8.586l1.293-1.293a1 1 0 111.414 1.414L16.414 10l1.293 1.293a1 1 0 01-1.414 1.414L15 11.414l-1.293 1.293a1 1 0 01-1.414-1.414L13.586 10l-1.293-1.293a1 1 0 010-1.414z"/>
+                </svg>
+              ) : (
+                <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+                  <path fillRule="evenodd" d="M9.383 3.076A1 1 0 0110 4v12a1 1 0 01-1.707.707L4.586 13H2a1 1 0 01-1-1V8a1 1 0 011-1h2.586l3.707-3.707a1 1 0 011.09-.217zM14.657 2.929a1 1 0 011.414 0A9.972 9.972 0 0119 10a9.972 9.972 0 01-2.929 7.071 1 1 0 01-1.414-1.414A7.971 7.971 0 0017 10c0-2.21-.894-4.208-2.343-5.657a1 1 0 010-1.414zm-2.829 2.828a1 1 0 011.415 0A5.983 5.983 0 0115 10a5.984 5.984 0 01-1.757 4.243 1 1 0 01-1.415-1.415A3.984 3.984 0 0013 10a3.983 3.983 0 00-1.172-2.828 1 1 0 010-1.415z" clipRule="evenodd"/>
+                </svg>
+              )}
+            </button>
+
+            {showAudio && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setShowAudio(false)} />
+                <div className="absolute right-0 top-10 z-20 w-60 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
+                  <div className="border-b border-white/8 px-4 py-2.5">
+                    <p className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">TV Audio</p>
+                    <p className="mt-0.5 text-[10px] text-slate-700">Controls this screen&apos;s speakers</p>
+                  </div>
+                  <div className="p-4 space-y-4">
+                    <div>
+                      <div className="mb-1.5 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-400">Walk-up Music</span>
+                        <span className="text-xs font-bold text-slate-600">{tvMuted ? "—" : `${tvMasterVolume}%`}</span>
+                      </div>
+                      <input
+                        type="range" min={0} max={100} value={tvMasterVolume}
+                        disabled={tvMuted}
+                        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-teal-500 disabled:opacity-30"
+                        onInput={(e) => onTvVolumeChange(Number(e.currentTarget.value))}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => onTvMuteChange(!tvMuted)}
+                      className={`w-full rounded-lg py-2 text-sm font-bold transition-colors ${
+                        tvMuted ? "bg-teal-500/20 text-teal-400 hover:bg-teal-500/30" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"
+                      }`}
+                    >
+                      {tvMuted ? "Unmute" : "Mute All"}
+                    </button>
+                  </div>
+                  <p className="border-t border-white/8 px-4 py-2 text-[9px] text-slate-700">
+                    SFX and announcer use system volume.
+                  </p>
+                </div>
+              </>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={onExit}
+            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10"
+          >
+            <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="h-3 w-3">
+              <path d="M1 1l10 10M11 1L1 11" />
+            </svg>
+            Exit TV Mode
+          </button>
+        </div>
+      </div>
+
+      {/* ── Main content ── */}
+      <div className="flex min-h-0 flex-1 flex-col">
+
+        {/* PRESENTATION AREA — 55 % of content height */}
+        <div
+          className="relative flex shrink-0 flex-col overflow-hidden"
+          style={{ height: "55%", background: bgSpotlight }}
+        >
+          {/* Vignette */}
+          <div
+            className="pointer-events-none absolute inset-0"
+            style={{ boxShadow: "inset 0 0 140px 24px rgba(2,6,23,0.85)" }}
+          />
+
+          {/* HERO ROW — on-clock left, timer right */}
+          <div className="relative flex min-h-0 flex-1 items-stretch">
+
+            {/* LEFT: Team on the clock */}
+            <div className="flex flex-1 flex-col justify-center px-10 py-6">
+              {draft.status === "complete" ? (
+                <div
+                  className="font-black uppercase leading-none text-green-400"
+                  style={{ fontSize: "clamp(2.5rem, 6vw, 8rem)" }}
+                >
+                  Draft Complete
+                </div>
+              ) : teamOnClock ? (
+                <>
+                  <div className="mb-4 text-[10px] font-black uppercase tracking-[0.35em] text-slate-600">
+                    On the Clock
+                  </div>
+
+                  {/* Logo + name side-by-side so the logo is a dominant TV visual */}
+                  <div className="flex min-w-0 items-center gap-6">
+
+                    {/* Logo with animated accent glow */}
+                    <div className="relative shrink-0">
+                      {/* Outer slow pulse ring */}
+                      <div
+                        className="absolute rounded-full animate-pulse"
+                        style={{
+                          inset: -24,
+                          background: `radial-gradient(circle, ${accent}30 0%, transparent 70%)`,
+                        }}
+                      />
+                      {/* Inner steady glow */}
+                      <div
+                        className="absolute rounded-full"
+                        style={{
+                          inset: -8,
+                          background: `radial-gradient(circle, ${accent}25 0%, transparent 65%)`,
+                        }}
+                      />
+                      {teamOnClock.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={teamOnClock.logoUrl}
+                          alt=""
+                          className="relative h-[clamp(8rem,14vw,16rem)] w-[clamp(8rem,14vw,16rem)] rounded-full object-cover"
+                          style={{ boxShadow: `0 0 0 4px ${accent}70, 0 0 48px 12px ${accent}30` }}
+                        />
+                      ) : (
+                        <div
+                          className="relative flex h-[clamp(8rem,14vw,16rem)] w-[clamp(8rem,14vw,16rem)] items-center justify-center rounded-full font-black text-white"
+                          style={{
+                            fontSize: "clamp(2.5rem, 5vw, 6rem)",
+                            backgroundColor: `${accent}18`,
+                            boxShadow: `0 0 0 4px ${accent}70, 0 0 48px 12px ${accent}30`,
+                          }}
+                        >
+                          {teamOnClock.name.slice(0, 2).toUpperCase()}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Team name + next up stacked to the right of logo */}
+                    <div className="min-w-0 flex-1">
+                      <div
+                        className="line-clamp-2 break-words font-black uppercase leading-tight tracking-wide"
+                        style={{ fontSize: "clamp(1.75rem, 3.5vw, 5rem)", color: accent }}
+                      >
+                        {teamOnClock.name}
+                      </div>
+
+                      {/* Next up — visual numbered pills */}
+                      {nextUpSlots.length > 0 && (
+                        <div className="mt-4 flex flex-wrap items-center gap-2">
+                          <span className="mr-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-700">
+                            Next
+                          </span>
+                      {nextUpSlots.slice(0, 5).map((slot, i) => {
+                        const slotTeam = teams.find((t) => t.name === slot.teamName);
+                        return (
+                          <div
+                            key={slot.overallPickNumber}
+                            className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5"
+                          >
+                            <span className="text-[10px] font-black text-slate-700">{i + 1}</span>
+                            {slotTeam?.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={slotTeam.logoUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                            ) : (
+                              <span className="text-[10px] font-bold text-slate-600">
+                                {slot.teamName.slice(0, 2).toUpperCase()}
+                              </span>
+                            )}
+                            <span className="text-sm font-bold text-slate-300">{slot.teamName}</span>
+                          </div>
+                        );
+                      })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </>
+              ) : (
+                <div className="text-xl font-semibold text-slate-600">Waiting to start…</div>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="w-px shrink-0 self-stretch" style={{ backgroundColor: `${accent}12` }} />
+
+            {/* RIGHT: TIMER — the dominant focal point */}
+            <div
+              className="flex w-[45%] shrink-0 flex-col items-center justify-center px-8 py-6"
+            >
+              {draft.status !== "complete" && (
+                <>
+                  <div
+                    className={`font-mono font-black tabular-nums leading-none ${
+                      draft.pickSeconds > 0 ? timerColor : "text-slate-800"
+                    }`}
+                    style={{ fontSize: "clamp(5rem, 15vw, 20rem)" }}
+                  >
+                    {draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
+                  </div>
+                  {draft.pickSeconds > 0 && (
+                    <div className="mt-2 text-[9px] font-black uppercase tracking-[0.3em] text-slate-700">
+                      Time Remaining
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {/* LOWER THIRD — ESPN-style broadcast bar, new pick triggers slide-up */}
+          {lastPick && (
+            <div
+              key={lastPick.overallPickNumber}
+              className="relative shrink-0 flex items-center gap-5 overflow-hidden px-8"
+              style={{
+                height: 80,
+                background: `linear-gradient(90deg, ${accent}22 0%, rgba(2,6,23,0.97) 60%)`,
+                borderTop: `2px solid ${accent}30`,
+                animation: "tv-lower-third-in 0.45s cubic-bezier(0.22,1,0.36,1)",
+              }}
+            >
+              {/* Label + pick number */}
+              <div className="shrink-0 text-right">
+                <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: accent }}>
+                  Last Pick
+                </div>
+                <div className="text-[10px] font-bold text-slate-700">
+                  {lastPick.round}.{lastPick.pickNumber} · #{lastPick.overallPickNumber}
+                </div>
+              </div>
+
+              <div className="h-10 w-px shrink-0 bg-white/10" />
+
+              {/* Headshot slot — layout-ready; renders image when available */}
+              <div
+                className="h-14 w-14 shrink-0 overflow-hidden rounded-full"
+                style={{ border: `2px solid ${accent}30`, backgroundColor: "rgba(15,23,42,0.6)" }}
+              >
+                {lastPickHeadshot ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={lastPickHeadshot} alt="" className="h-full w-full object-cover object-top" />
+                ) : (
+                  <PlayerSilhouette color="#334155" />
+                )}
+              </div>
+
+              {/* Player info */}
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-[clamp(1.1rem,2.2vw,2rem)] font-black leading-tight text-white">
+                  {lastPick.playerName}
+                </div>
+                <div className="mt-0.5 flex items-center gap-2">
+                  <span
+                    className="rounded px-2 py-0.5 text-xs font-black text-slate-950"
+                    style={{ backgroundColor: POSITION_COLORS[lastPick.playerPosition] ?? "#94A3B8" }}
+                  >
+                    {lastPick.playerPosition}
+                  </span>
+                  <span className="text-sm font-bold text-slate-400">{lastPick.nflTeam ?? "FA"}</span>
+                  {lastPickTeam && (
+                    <>
+                      <span className="text-slate-700">·</span>
+                      <span className="text-sm text-slate-500">
+                        Drafted by{" "}
+                        <span className="font-semibold text-slate-300">{lastPickTeam.name}</span>
+                      </span>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* BOARD AREA — fills remaining 45 %; fades during reveal or landmine */}
+        <div
+          className="min-h-0 flex-1 overflow-hidden transition-opacity duration-700"
+          style={{
+            borderTop: `1px solid ${accent}12`,
+            opacity: landmineActive ? 0 : revealActive ? 0.15 : 1,
+          }}
+        >
+          {sortedTeamNames.length > 0 && (
+            <DraftBoard
+              teams={sortedTeamNames}
+              rounds={draft.rounds}
+              picks={picks}
+              currentPickNumber={draft.currentPick}
+              draftStatus={draft.status}
+              canMakePick={false}
+              canUndoPick={false}
+              playerNameSize={5}
+              onSlotClick={() => {}}
+              onUndoPick={() => {}}
+            />
+          )}
+        </div>
+
+        {/* RECENT PICKS TICKER */}
+        {sorted.length > 0 && (
+          <div className="shrink-0 border-t border-white/8 bg-black">
+            <div className="flex h-11 items-center gap-1 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="mr-3 shrink-0 text-[9px] font-black uppercase tracking-[0.2em] text-slate-700">
+                Recent
+              </span>
+              {[...sorted].reverse().slice(0, 30).map((p) => {
+                const pickedBy = teams.find((t) => t.id === p.teamId);
+                return (
+                  <div
+                    key={p.id}
+                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.03] px-3 py-1"
+                  >
+                    <span className="text-[10px] font-bold text-slate-700">{p.round}.{p.pickNumber}</span>
+                    <span className="text-sm font-semibold text-white">{p.playerName}</span>
+                    <span
+                      className="text-xs font-black"
+                      style={{ color: POSITION_COLORS[p.playerPosition] ?? "#94A3B8" }}
+                    >
+                      {p.playerPosition}
+                    </span>
+                    {pickedBy && <span className="text-[10px] text-slate-700">{pickedBy.name}</span>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ── Roster eligibility ─────────────────────────────────────────────────────
 
 function isPlayerEligible(player: Player, rosterPositions: RosterPosition[] | null): boolean {
   if (!rosterPositions || rosterPositions.length === 0) return true;
@@ -98,6 +725,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [playerSearch, setPlayerSearch] = useState("");
   const [posFilter, setPosFilter] = useState("ALL");
   const [showSettings, setShowSettings] = useState(false);
+  const [showDraftComplete, setShowDraftComplete] = useState(false);
+  const [showTvMode, setShowTvMode] = useState(false);
+  const showTvModeRef = useRef(false);
+  const [tvMasterVolume, setTvMasterVolume] = useState(() => lsNum("tv:masterVolume", 80));
+  const [tvMuted, setTvMuted] = useState(() => lsBool("tv:muted", false));
+  const tvMasterVolumeRef = useRef(
+    typeof window !== "undefined" && localStorage.getItem("tv:muted") === "true" ? 0
+      : typeof window !== "undefined" && localStorage.getItem("tv:masterVolume") !== null
+        ? Number(localStorage.getItem("tv:masterVolume")) : 80
+  );
 
   // ── Persisted settings (localStorage) ─────────────────────────────────
   function lsBool(key: string, def: boolean) {
@@ -123,7 +760,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [announcePickEnabled, setAnnouncePickEnabled] = useState(() => lsBool("dr:announcer", true));
   const [clockSoundEnabled, setClockSoundEnabled] = useState(() => lsBool("dr:clockSound", true));
   const [walkUpMusicEnabled, setWalkUpMusicEnabled] = useState(() => lsBool("dr:walkUpMusic", true));
-  const [musicVolume, setMusicVolume] = useState(() => lsNum("dr:musicVolume", 70));
+  const [musicVolume, setMusicVolume] = useState(() => lsNum("dr:musicVolume", 55));
   const [playerNameSize, setPlayerNameSize] = useState(() => lsNum("dr:playerNameSize", 4));
   const [showSoundMenu, setShowSoundMenu] = useState(false);
   const [audioBlocked, setAudioBlocked] = useState(false);
@@ -153,6 +790,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const announcementUtteranceRef = useRef<SpeechSynthesisUtterance | null>(null);
   const announcementCloseTimerRef = useRef<number | null>(null);
   const nextAnnouncementTimerRef = useRef<number | null>(null);
+  const announcerClipAudioRef = useRef<HTMLAudioElement | null>(null);
   const headshotPreloadRef = useRef<Map<string, Promise<void>>>(new Map());
   // end-of-round recap
   const [roundRecap, setRoundRecap] = useState<{ round: number; picks: DraftPick[] } | null>(null);
@@ -166,9 +804,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const walkUpDefaultAudioRef = useRef<HTMLAudioElement | null>(null);
   const prevOnClockTeamIdRef = useRef<string | null>(null);
   const walkUpDelayRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioLifecycleActiveRef = useRef(true);
   const [landmineActive, setLandmineActive] = useState(false);
   const walkUpPrevPicksLenRef = useRef(0);
-  const musicVolumeRef = useRef(typeof window !== "undefined" && localStorage.getItem("dr:musicVolume") !== null ? Number(localStorage.getItem("dr:musicVolume")) : 70);
+  const musicVolumeRef = useRef(typeof window !== "undefined" && localStorage.getItem("dr:musicVolume") !== null ? Number(localStorage.getItem("dr:musicVolume")) : 55);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const timerExpiredFiredRef = useRef(false);
 
@@ -178,6 +817,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     announcementCloseTimerRef.current = null;
     nextAnnouncementTimerRef.current = null;
     announcementUtteranceRef.current = null;
+    if (announcerClipAudioRef.current) {
+      announcerClipAudioRef.current.pause();
+      announcerClipAudioRef.current = null;
+    }
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
   }
 
@@ -210,6 +853,95 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       walkUpDefaultAudioRef.current.volume = musicVolume / 100;
     }
   }, [musicVolume]);
+
+  // Keep showTvModeRef in sync so audio closures read the current value.
+  useEffect(() => { showTvModeRef.current = showTvMode; }, [showTvMode]);
+
+  const revealActiveRef = useRef(false);
+  useEffect(() => { revealActiveRef.current = revealPick !== null; }, [revealPick]);
+
+  // Mirrors landmineActive for delayed-start closures. Also set synchronously in
+  // the landmine detection branch: the walk-up effect runs in the same commit
+  // (before the state update lands) and would otherwise schedule a song start.
+  const landmineActiveRef = useRef(false);
+  useEffect(() => { landmineActiveRef.current = landmineActive; }, [landmineActive]);
+
+  // True once the user has clicked through the audio-unlock overlay this session.
+  const audioUnlockedOnceRef = useRef(false);
+
+  // ── Walk-up resume mode (commissioner setting) ──────────────────────────
+  // Mode mirror for the onEnded closure.
+  const walkUpMusicModeRef = useRef<"restart" | "resume">("restart");
+  useEffect(() => {
+    walkUpMusicModeRef.current = snapshot?.draft.walkUpMusicMode ?? "restart";
+  }, [snapshot?.draft.walkUpMusicMode]);
+  // The custom song currently scheduled/playing for the on-clock team, so the
+  // natural-end handler knows what to loop. Cleared implicitly: guards check
+  // the team is still on the clock before acting.
+  const walkUpTurnRef = useRef<{
+    teamId: string;
+    songs: WalkUpSong[];
+    songIndex: number;
+    cumulative: number;
+    anchorMs: number;
+    graceMs: number;
+    serverTimeOffsetMs: number;
+  } | null>(null);
+  // Which playlist index each team is currently on in resume mode (advances
+  // when a song ends naturally). Client-local; late joiners start at 0 and
+  // converge via the natural-end handler.
+  const walkUpResumeIndexRef = useRef(new Map<string, number>());
+  // Client-local wrap points: when a team's song ends naturally, everything
+  // consumed so far is banked here so the replay starts from 0 instead of
+  // re-deriving an offset beyond the end of the track. Approximate across
+  // clients by design; converges because all clients hear the end near the
+  // same moment.
+  const walkUpWrapBaseRef = useRef(new Map<string, number>());
+
+  // Duck walk-up while pick reveal is shown; restart cleanly when it dismisses.
+  useEffect(() => {
+    if (revealPick) {
+      // Cancel any pending song start so it doesn't interrupt the reveal card.
+      if (walkUpDelayRef.current) { clearTimeout(walkUpDelayRef.current); walkUpDelayRef.current = null; }
+      // Reset team tracking so the walk-up effect treats the current team as "new" on reveal dismiss.
+      prevOnClockTeamIdRef.current = null;
+      walkUpPlayerRef.current?.duck();
+      if (walkUpDefaultAudioRef.current) {
+        walkUpDefaultAudioRef.current.volume = Math.min(0.04, musicVolumeRef.current / 100);
+      }
+    } else {
+      // Reveal dismissed — unduck any still-playing audio and re-trigger walk-up for the current team.
+      walkUpPlayerRef.current?.unduck();
+      if (walkUpDefaultAudioRef.current) {
+        walkUpDefaultAudioRef.current.volume = (musicVolumeRef.current / 100) *
+          (showTvModeRef.current ? tvMasterVolumeRef.current / 100 : 1);
+      }
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setAudioUnlockTick((n) => n + 1);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealPick]);
+
+  // TV master volume — persists per device, independent of per-user music volume.
+  useEffect(() => {
+    const effective = tvMuted ? 0 : tvMasterVolume;
+    tvMasterVolumeRef.current = effective;
+    persist("tv:masterVolume", tvMasterVolume);
+    persist("tv:muted", tvMuted);
+    const mul = effective / 100;
+    if (showTvMode) {
+      if (walkUpDefaultAudioRef.current) {
+        walkUpDefaultAudioRef.current.volume = (musicVolumeRef.current / 100) * mul;
+      }
+      walkUpPlayerRef.current?.setVolume(Math.round(musicVolumeRef.current * mul));
+    } else {
+      // Restore normal volume when TV mode is off or just exited.
+      if (walkUpDefaultAudioRef.current) {
+        walkUpDefaultAudioRef.current.volume = musicVolumeRef.current / 100;
+      }
+      walkUpPlayerRef.current?.setVolume(musicVolumeRef.current);
+    }
+  }, [tvMasterVolume, tvMuted, showTvMode]);
 
   useEffect(() => {
     if (!draftId) {
@@ -288,7 +1020,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       setShowPickModal(false);
     } catch (pickError) {
       setActionError(
-        pickError instanceof Error ? pickError.message : "Unable to make pick."
+        pickError instanceof Error
+          ? pickError.message
+          : (pickError as { message?: string })?.message ?? "Unable to make pick."
       );
     } finally {
       setIsMakingPick(false);
@@ -425,6 +1159,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       if (newest.isLandmine) {
         const team = snapshot.teams.find((t) => t.id === newest.teamId);
         setLandmineActive(true);
+        landmineActiveRef.current = true;
+        if (walkUpDelayRef.current) { clearTimeout(walkUpDelayRef.current); walkUpDelayRef.current = null; }
         walkUpPlayerRef.current?.stop();
         if (walkUpDefaultAudioRef.current) { walkUpDefaultAudioRef.current.pause(); walkUpDefaultAudioRef.current.currentTime = 0; }
         setLandminePick({ playerName: newest.playerName, teamName: team?.name ?? "a team" });
@@ -513,13 +1249,18 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         audio.currentTime = 0;
         walkUpPlayerRef.current?.duck();
         if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = Math.min(0.07, musicVolumeRef.current / 100);
-        audio.onended = () => {
+        const restoreWalkUpVolume = () => {
+          // A reveal or landmine now owns the mix — leave their duck/stop in place.
+          if (revealActiveRef.current || landmineActiveRef.current) return;
           walkUpPlayerRef.current?.unduck();
-          if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = musicVolumeRef.current / 100;
+          if (walkUpDefaultAudioRef.current) {
+            walkUpDefaultAudioRef.current.volume = (musicVolumeRef.current / 100) *
+              (showTvModeRef.current ? tvMasterVolumeRef.current / 100 : 1);
+          }
         };
+        audio.onended = restoreWalkUpVolume;
         audio.play().catch(() => {
-          walkUpPlayerRef.current?.unduck();
-          if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = musicVolumeRef.current / 100;
+          restoreWalkUpVolume();
           if (!customUrl) {
             // Built-in file not found — fall back to TTS
             const utt = new SpeechSynthesisUtterance("The pick is in");
@@ -541,7 +1282,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
     // The reveal should never require a manual dismissal. When announcements
     // are disabled (or unavailable), keep it visible long enough to read.
-    if (!announcePickEnabled || typeof window === "undefined" || !window.speechSynthesis) {
+    if (!announcePickEnabled || typeof window === "undefined" ||
+        (!window.speechSynthesis && !getAiAnnouncerId(snapshot.draft.announcerVoiceUri))) {
       if (typeof window !== "undefined") {
         announcementCloseTimerRef.current = window.setTimeout(() => {
           announcementCloseTimerRef.current = null;
@@ -558,53 +1300,97 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       .sort((a, b) => a.overallPickNumber - b.overallPickNumber)[0];
     const nextTeam = nextSlot ? snapshot.teams.find((t) => t.id === nextSlot.teamId) : null;
     const text = `With pick ${revealPick.overallPickNumber}, ${team?.name ?? "a team"} selects ${revealPick.playerName}.`;
-    if (typeof window !== "undefined" && window.speechSynthesis) {
-      const utt = new SpeechSynthesisUtterance(text);
-      utt.rate = 0.85; utt.pitch = 0.95;
-      const voiceUri = snapshot.draft.announcerVoiceUri;
-      const applyConfiguredVoice = (utterance: SpeechSynthesisUtterance) => {
-        const voice = resolveAnnouncerVoice(window.speechSynthesis.getVoices(), voiceUri);
-        if (voice) utterance.voice = voice;
+    const nextText = nextTeam ? `${nextTeam.name} is now on the clock.` : null;
+    const voiceUri = snapshot.draft.announcerVoiceUri;
+    // House persona or ElevenLabs custom voice — either resolves to a clip id.
+    const aiAnnouncerId = getAiAnnouncerId(voiceUri);
+
+    const applyConfiguredVoice = (utterance: SpeechSynthesisUtterance) => {
+      const voice = resolveAnnouncerVoice(window.speechSynthesis.getVoices(), voiceUri);
+      if (voice) utterance.voice = voice;
+    };
+
+    let finished = false;
+    // Prefetched in parallel with the main clip so the on-the-clock follow-up
+    // plays seamlessly after the reveal dismisses.
+    let nextClipUrl: string | null = null;
+
+    const playClip = (url: string, onDone: () => void) => {
+      const audio = new Audio(url);
+      audio.volume = 0.9;
+      announcerClipAudioRef.current = audio;
+      audio.onended = () => {
+        if (announcerClipAudioRef.current === audio) announcerClipAudioRef.current = null;
+        onDone();
       };
-      applyConfiguredVoice(utt);
-      let finished = false;
-      const finishSelectionAnnouncement = () => {
-        if (finished) return;
-        finished = true;
-        if (announcementCloseTimerRef.current) clearTimeout(announcementCloseTimerRef.current);
-        announcementCloseTimerRef.current = null;
+      return audio.play();
+    };
 
-        // Only dismiss the reveal this utterance belongs to. A very fast next
-        // pick must not be able to close a newer reveal.
-        setRevealPick((current) => current?.id === revealedPickId ? null : current);
+    const finishSelectionAnnouncement = () => {
+      if (finished) return;
+      finished = true;
+      if (announcementCloseTimerRef.current) clearTimeout(announcementCloseTimerRef.current);
+      announcementCloseTimerRef.current = null;
 
-        if (nextTeam) {
-          const nextUtt = new SpeechSynthesisUtterance(`${nextTeam.name} is now on the clock.`);
-          nextUtt.rate = 0.85; nextUtt.pitch = 0.95;
-          applyConfiguredVoice(nextUtt);
-          nextUtt.onend = () => { announcementUtteranceRef.current = null; };
-          nextAnnouncementTimerRef.current = window.setTimeout(() => {
-            nextAnnouncementTimerRef.current = null;
+      // Only dismiss the reveal this announcement belongs to. A very fast next
+      // pick must not be able to close a newer reveal.
+      setRevealPick((current) => current?.id === revealedPickId ? null : current);
+
+      if (nextText) {
+        nextAnnouncementTimerRef.current = window.setTimeout(() => {
+          nextAnnouncementTimerRef.current = null;
+          if (aiAnnouncerId && nextClipUrl) {
+            void playClip(nextClipUrl, () => {}).catch(() => {});
+          } else if (window.speechSynthesis) {
+            const nextUtt = new SpeechSynthesisUtterance(nextText);
+            nextUtt.rate = 0.85; nextUtt.pitch = 0.95;
+            applyConfiguredVoice(nextUtt);
+            nextUtt.onend = () => { announcementUtteranceRef.current = null; };
             announcementUtteranceRef.current = nextUtt;
             window.speechSynthesis.speak(nextUtt);
-          }, 150);
-        } else {
-          announcementUtteranceRef.current = null;
-        }
-      };
+          }
+        }, 150);
+      } else {
+        announcementUtteranceRef.current = null;
+      }
+    };
+
+    const speakViaDevice = () => {
+      if (finished || !window.speechSynthesis) return; // fallback timer closes the reveal
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate = 0.85; utt.pitch = 0.95;
+      applyConfiguredVoice(utt);
       utt.onend = finishSelectionAnnouncement;
       // Retaining the utterance prevents Chromium from garbage-collecting it
       // before it emits `end`. The timer is a defensive fallback for browser
       // speech engines that never emit that event.
       announcementUtteranceRef.current = utt;
-      const fallbackMs = Math.max(6_000, text.split(/\s+/).length * 900 + 1_500);
-      announcementCloseTimerRef.current = window.setTimeout(finishSelectionAnnouncement, fallbackMs);
       window.speechSynthesis.speak(utt);
+    };
+
+    const fallbackMs = Math.max(6_000, text.split(/\s+/).length * 900 + 1_500);
+    announcementCloseTimerRef.current = window.setTimeout(finishSelectionAnnouncement, fallbackMs);
+
+    if (aiAnnouncerId) {
+      // AI announcer: fetch the cached/generated clip; fall back to the device
+      // voice on any failure so the reveal is never silent.
+      void fetchAnnouncerClipUrl(text, aiAnnouncerId, draftId).then((url) => {
+        if (finished) return;
+        if (!url) { speakViaDevice(); return; }
+        playClip(url, finishSelectionAnnouncement).catch(() => {
+          if (!finished) speakViaDevice();
+        });
+      });
+      if (nextText) {
+        void fetchAnnouncerClipUrl(nextText, aiAnnouncerId, draftId).then((url) => { nextClipUrl = url; });
+      }
+    } else {
+      speakViaDevice();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [revealPick?.overallPickNumber, announcePickEnabled]);
 
-  // Draft start audio — fires once when status transitions to "active"
+  // Draft start audio + draft complete detection — fires on status transitions
   useEffect(() => {
     if (!snapshot) return;
     const prev = prevDraftStatusRef.current;
@@ -620,6 +1406,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         draftStartAudioRef.current.currentTime = 0;
         draftStartAudioRef.current.play().catch(() => {});
       }
+    }
+    if (prev !== null && prev !== "complete" && cur === "complete") {
+      setShowDraftComplete(true);
     }
   }, [snapshot?.draft.status]);
 
@@ -691,18 +1480,42 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       (pick) => pick.overallPickNumber === snapshot.draft.currentPick - 1
     );
     const playbackAnchor = precedingPick?.createdAt ?? snapshot.draft.updatedAt;
+    const graceMs = pickUndone ? 0 : 2_000;
+    const serverTimeOffsetMs = snapshot.serverTimeOffsetMs;
     const timing = getWalkUpPlaybackTiming(
       playbackAnchor,
-      Date.now() + snapshot.serverTimeOffsetMs,
-      pickUndone ? 0 : 2_000
+      Date.now() + serverTimeOffsetMs,
+      graceMs
     );
     const delay = timing.delayMs;
     const synchronizedIndex = getSynchronizedWalkUpIndex(snapshot.draft.currentPick, songs.length || DEFAULT_WALK_UP_SONGS.length);
 
+    // Resume mode: the team's song continues from where it left off on its
+    // previous turn. Position = derived cumulative listening time across
+    // completed turns, minus any banked wrap point, plus elapsed this turn.
+    const resumeMode = (snapshot.draft.walkUpMusicMode ?? "restart") === "resume";
+    const cumulative = resumeMode ? getTeamCumulativeListenSeconds(snapshot.picks, teamId) : 0;
+
+    // Recomputed at fire time: background tabs throttle timers, so the offset
+    // captured at schedule time can be stale by the time the timeout runs.
+    const offsetAtFireTime = () =>
+      getWalkUpPlaybackTiming(playbackAnchor, Date.now() + serverTimeOffsetMs, graceMs).offsetSeconds;
+    const positionAtFireTime = () => {
+      const wrapBase = resumeMode ? (walkUpWrapBaseRef.current.get(teamId) ?? 0) : 0;
+      return Math.max(0, cumulative - wrapBase + offsetAtFireTime());
+    };
+
     if (songs.length === 0) {
       walkUpDelayRef.current = setTimeout(() => {
         walkUpDelayRef.current = null;
-        const src = DEFAULT_WALK_UP_SONGS[synchronizedIndex];
+        if (revealActiveRef.current || landmineActiveRef.current) return;
+        walkUpTurnRef.current = null; // default track loops itself; nothing to advance
+        // Resume mode pins each team to a stable default track (by draft
+        // position) so its position is continuous; restart mode keeps the
+        // per-pick rotation.
+        const src = resumeMode
+          ? getDefaultWalkUpSong(teamOnClockEarly.draftPosition)
+          : DEFAULT_WALK_UP_SONGS[synchronizedIndex];
         const prev = walkUpDefaultAudioRef.current;
         if (!prev || prev.src !== window.location.origin + src) {
           if (prev) { prev.pause(); prev.currentTime = 0; }
@@ -711,10 +1524,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         }
         const audio = walkUpDefaultAudioRef.current;
         if (!audio) return;
-        audio.volume = musicVolumeRef.current / 100;
+        audio.volume = (musicVolumeRef.current / 100) *
+          (showTvModeRef.current ? tvMasterVolumeRef.current / 100 : 1);
         const start = () => {
+          if (!audioLifecycleActiveRef.current || walkUpDefaultAudioRef.current !== audio) return;
+          if (revealActiveRef.current || landmineActiveRef.current) return;
           if (audio.duration && Number.isFinite(audio.duration)) {
-            audio.currentTime = timing.offsetSeconds % audio.duration;
+            audio.currentTime = positionAtFireTime() % audio.duration;
           }
           audio.play().catch(() => { setAudioBlocked(true); });
         };
@@ -724,14 +1540,56 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       return;
     }
 
-    const song = songs[synchronizedIndex];
+    // Resume mode plays the playlist sequentially from where the team left
+    // off; restart mode keeps the per-pick rotation.
+    const songIndex = resumeMode
+      ? Math.min(walkUpResumeIndexRef.current.get(teamId) ?? 0, songs.length - 1)
+      : synchronizedIndex;
+    const song = songs[songIndex];
 
     walkUpDelayRef.current = setTimeout(() => {
       walkUpDelayRef.current = null;
-      walkUpPlayerRef.current?.play(song, timing.offsetSeconds);
+      if (revealActiveRef.current || landmineActiveRef.current) return;
+      walkUpTurnRef.current = resumeMode
+        ? { teamId, songs, songIndex, cumulative, anchorMs: Date.parse(playbackAnchor), graceMs, serverTimeOffsetMs }
+        : null;
+      walkUpPlayerRef.current?.play(song, positionAtFireTime());
     }, delay);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [snapshot?.draft.currentPick, snapshot?.draft.status, snapshot?.picks.length, walkUpMusicEnabled, teamOnClockEarly?.id, audioUnlockTick, landmineActive]);
+  }, [snapshot?.draft.currentPick, snapshot?.draft.status, snapshot?.picks.length, walkUpMusicEnabled, teamOnClockEarly?.id, audioUnlockTick, landmineActive, snapshot?.draft.walkUpMusicMode]);
+
+  // Route changes unmount the room while delayed/default audio may still be
+  // loading. Tear down every locally-owned audio source so returning to the
+  // draft cannot leave an old looping track playing underneath the new room.
+  useEffect(() => {
+    audioLifecycleActiveRef.current = true;
+    return () => {
+      audioLifecycleActiveRef.current = false;
+      if (walkUpDelayRef.current) {
+        clearTimeout(walkUpDelayRef.current);
+        walkUpDelayRef.current = null;
+      }
+      for (const audio of [
+        walkUpDefaultAudioRef.current,
+        pickIsInAudioRef.current,
+        draftStartAudioRef.current,
+      ]) {
+        if (!audio) continue;
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+      walkUpDefaultAudioRef.current = null;
+      pickIsInAudioRef.current = null;
+      draftStartAudioRef.current = null;
+      cancelPickAnnouncement();
+      if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+      if (audioCtxRef.current) {
+        void audioCtxRef.current.close().catch(() => {});
+        audioCtxRef.current = null;
+      }
+    };
+  }, []);
 
   // Round slide auto-close timer
   useEffect(() => {
@@ -841,7 +1699,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       (accessState.kind === "assigned" && accessState.teamId === teamOnClock?.id) ||
       isCommissioner
     );
-  const canUndoPick = currentParticipant?.role === "commissioner";
+  const canUndoPick = isCommissioner;
   const assignedTeamCount = new Set(
     snapshot.participants.flatMap((participant) =>
       participant.teamId &&
@@ -960,7 +1818,36 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
   return (
     <div className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white">
-      <WalkUpPlayer ref={walkUpPlayerRef} />
+      <WalkUpPlayer
+        ref={walkUpPlayerRef}
+        onPlaybackBlocked={() => {
+          // Before the first unlock gesture this is the browser autoplay policy —
+          // show the unlock overlay. After it, a block means a broken/unavailable
+          // track; stay silent rather than looping a modal at the draft party.
+          if (!audioUnlockedOnceRef.current) setAudioBlocked(true);
+        }}
+        onPlaying={() => setAudioBlocked(false)}
+        onEnded={() => {
+          // Resume mode: the on-clock team's song finished naturally. Bank the
+          // total consumed time as this team's wrap point and continue with the
+          // next song in its playlist from the top. Restart mode keeps the
+          // current behavior (silence until the next turn).
+          if (walkUpMusicModeRef.current !== "resume") return;
+          const turn = walkUpTurnRef.current;
+          if (!turn) return;
+          if (revealActiveRef.current || landmineActiveRef.current) return;
+          if (turn.teamId !== prevOnClockTeamIdRef.current) return;
+          const elapsed = Math.max(
+            0,
+            (Date.now() + turn.serverTimeOffsetMs - turn.anchorMs - turn.graceMs) / 1_000
+          );
+          walkUpWrapBaseRef.current.set(turn.teamId, turn.cumulative + elapsed);
+          const nextIndex = (turn.songIndex + 1) % turn.songs.length;
+          walkUpResumeIndexRef.current.set(turn.teamId, nextIndex);
+          walkUpTurnRef.current = { ...turn, songIndex: nextIndex };
+          walkUpPlayerRef.current?.play(turn.songs[nextIndex], 0);
+        }}
+      />
 
       {/* Audio unlock overlay — browser requires a user gesture before autoplay */}
       {audioBlocked && walkUpMusicEnabled && (
@@ -971,6 +1858,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button
               type="button"
               onClick={() => {
+                audioUnlockedOnceRef.current = true;
                 setAudioBlocked(false);
                 if (walkUpDefaultAudioRef.current) {
                   walkUpDefaultAudioRef.current.play().catch(() => {});
@@ -1520,6 +2408,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             )}
           </button>
 
+          {/* TV / Broadcast mode toggle */}
+          <button type="button" title="TV Mode — project on screen"
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showTvMode ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+            onClick={() => { setShowSettings(false); setShowTvMode((v) => !v); }}>
+            <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
+              <rect x="2" y="3" width="16" height="11" rx="1.5" fill="none"/>
+              <path d="M7 17h6M10 14v3"/>
+            </svg>
+          </button>
+
           {/* Settings — proper cog icon */}
           <button type="button" title="Settings"
             className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSettings ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
@@ -1707,6 +2605,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {/* ── Landmine animation ── */}
       {landminePick && (
         <LandmineAnimation
+          key={`${landminePick.playerName}-${landminePick.teamName}`}
           playerName={landminePick.playerName}
           teamName={landminePick.teamName}
           onDismiss={() => { prevOnClockTeamIdRef.current = null; setLandmineActive(false); setLandminePick(null); }}
@@ -1756,6 +2655,44 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           suppressRecap={suppressRecap}
           onToggleSuppress={() => setSuppressRecap((v) => !v)}
           onResume={() => setRoundRecap(null)}
+        />
+      )}
+
+      {/* ── TV / Broadcast mode overlay (z-[45] — below pick reveal at z-50) ── */}
+      {showTvMode && (
+        <TvModeOverlay
+          draft={snapshot.draft}
+          picks={snapshot.picks}
+          teams={snapshot.teams}
+          players={snapshot.players}
+          teamOnClock={teamOnClock}
+          timerSeconds={timerSeconds}
+          timerColor={timerColor}
+          currentRound={currentRound}
+          currentPickInRound={currentPickInRound}
+          nextUpSlots={nextUpSlots}
+          accentColor={primaryColor}
+          leagueName={leagueBranding?.name ?? undefined}
+          revealActive={revealPick !== null}
+          landmineActive={landmineActive}
+          tvMasterVolume={tvMasterVolume}
+          tvMuted={tvMuted}
+          onTvVolumeChange={(v) => { setTvMasterVolume(v); persist("tv:masterVolume", v); }}
+          onTvMuteChange={(m) => { setTvMuted(m); persist("tv:muted", m); }}
+          onExit={() => setShowTvMode(false)}
+        />
+      )}
+
+      {/* ── Draft Complete modal ── */}
+      {showDraftComplete && snapshot.draft.status === "complete" && (
+        <DraftCompleteModal
+          draft={snapshot.draft}
+          picks={snapshot.picks}
+          teams={snapshot.teams}
+          leagueSlug={leagueSlug}
+          myTeamId={accessState.kind === "assigned" ? accessState.teamId : null}
+          accentColor={primaryColor}
+          onClose={() => setShowDraftComplete(false)}
         />
       )}
 
@@ -2307,6 +3244,39 @@ function EditPickModal({
   );
 }
 
+const RECAP_POSITION_COLORS: Record<string, string> = {
+  QB: "#ef4444", RB: "#22c55e", WR: "#3b82f6", TE: "#f97316", K: "#a855f7", DST: "#64748b",
+};
+
+function PickCard({ pick, team, label, accent }: { pick: DraftPick; team: Team | undefined; label: string; accent: string }) {
+  const posColor = RECAP_POSITION_COLORS[pick.playerPosition] ?? "#94a3b8";
+  return (
+    <div className="flex-1 rounded-xl border p-4" style={{ borderColor: accent + "50", backgroundColor: accent + "15" }}>
+      <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: accent }}>{label}</p>
+      <div className="flex items-center gap-3">
+        <div className="h-12 w-12 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
+          {team?.logoUrl
+            ? <img src={team.logoUrl} alt={team.name} className="h-10 w-10 rounded-full object-cover" />
+            : <span className="text-xs font-black text-slate-400">{team?.name?.slice(0,2).toUpperCase() ?? "?"}</span>
+          }
+        </div>
+        <div>
+          <p className="text-xl font-black uppercase leading-tight text-white">{pick.playerName}</p>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="rounded px-1.5 py-0.5 text-[10px] font-black text-white" style={{ backgroundColor: posColor }}>
+              {pick.playerPosition}
+            </span>
+            {pick.nflTeam && <span className="text-xs font-bold text-slate-400">{pick.nflTeam}</span>}
+          </div>
+          <p className="text-[11px] text-slate-500 mt-1">
+            {team?.name ?? "Unknown"} • RND {pick.round}, PK {pick.pickNumber}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RoundRecapModal({
   round, totalRounds, picks, teams, espnRankMap, nextTeam, suppressRecap, onToggleSuppress, onResume,
 }: {
@@ -2337,40 +3307,6 @@ function RoundRecapModal({
     : null;
   const lastPick = picks[picks.length - 1];
 
-  const POSITION_COLORS: Record<string, string> = {
-    QB: "#ef4444", RB: "#22c55e", WR: "#3b82f6", TE: "#f97316", K: "#a855f7", DST: "#64748b",
-  };
-
-  function PickCard({ pick, label, accent }: { pick: DraftPick; label: string; accent: string }) {
-    const team = teamMap.get(pick.teamId);
-    const posColor = POSITION_COLORS[pick.playerPosition] ?? "#94a3b8";
-    return (
-      <div className="flex-1 rounded-xl border p-4" style={{ borderColor: accent + "50", backgroundColor: accent + "15" }}>
-        <p className="text-xs font-black uppercase tracking-widest mb-3" style={{ color: accent }}>{label}</p>
-        <div className="flex items-center gap-3">
-          <div className="h-12 w-12 rounded-full bg-slate-700 flex items-center justify-center shrink-0">
-            {team?.logoUrl
-              ? <img src={team.logoUrl} alt={team.name} className="h-10 w-10 rounded-full object-cover" />
-              : <span className="text-xs font-black text-slate-400">{team?.name?.slice(0,2).toUpperCase() ?? "?"}</span>
-            }
-          </div>
-          <div>
-            <p className="text-xl font-black uppercase leading-tight text-white">{pick.playerName}</p>
-            <div className="flex items-center gap-2 mt-1">
-              <span className="rounded px-1.5 py-0.5 text-[10px] font-black text-white" style={{ backgroundColor: posColor }}>
-                {pick.playerPosition}
-              </span>
-              {pick.nflTeam && <span className="text-xs font-bold text-slate-400">{pick.nflTeam}</span>}
-            </div>
-            <p className="text-[11px] text-slate-500 mt-1">
-              {team?.name ?? "Unknown"} • RND {pick.round}, PK {pick.pickNumber}
-            </p>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80">
       <div className="w-full max-w-3xl rounded-2xl bg-slate-950 border border-white/10 shadow-2xl overflow-hidden mx-4">
@@ -2389,9 +3325,9 @@ function RoundRecapModal({
 
         {/* Best / Worst */}
         <div className="flex gap-4 p-4">
-          {bestPick && <PickCard pick={bestPick.pick} label="Best Pick of the Round" accent="#22c55e" />}
+          {bestPick && <PickCard pick={bestPick.pick} team={teamMap.get(bestPick.pick.teamId)} label="Best Pick of the Round" accent="#22c55e" />}
           {worstPick && worstPick.pick.id !== bestPick?.pick.id && (
-            <PickCard pick={worstPick.pick} label="Worst Pick of the Round" accent="#ef4444" />
+            <PickCard pick={worstPick.pick} team={teamMap.get(worstPick.pick.teamId)} label="Worst Pick of the Round" accent="#ef4444" />
           )}
         </div>
 
@@ -2442,7 +3378,7 @@ function RoundRecapModal({
           <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-400 select-none">
             <input type="checkbox" checked={suppressRecap} onChange={onToggleSuppress}
               className="h-4 w-4 rounded accent-teal-500" />
-            Turn off "End of Round Break" for remainder of draft
+            Turn off &ldquo;End of Round Break&rdquo; for remainder of draft
           </label>
           <button type="button" onClick={onResume}
             className="rounded-lg bg-white px-5 py-2 text-sm font-black text-black hover:bg-slate-200 transition-colors">
@@ -2480,7 +3416,13 @@ function PickRevealModal({
 
         {/* Top accent bar */}
         <div className="flex items-center justify-between px-6 py-2.5" style={{ background: `linear-gradient(90deg, ${card.sub}40, transparent)`, borderBottom: `2px solid ${card.sub}50` }}>
-          <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/60">{draftName}</span>
+          <div className="flex items-center gap-2">
+            {leagueLogoUrl && (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={leagueLogoUrl} alt="League" className="h-5 w-5 rounded-full object-cover opacity-70 ring-1 ring-white/20" />
+            )}
+            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/60">{draftName}</span>
+          </div>
           <span className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: card.sub }}>Selection Has Been Made</span>
         </div>
 
@@ -2499,16 +3441,18 @@ function PickRevealModal({
             </div>
           </div>
 
-          {/* Right — player image slot + league logo */}
+          {/* Right — player image slot + team logo */}
           <div className="relative flex w-56 shrink-0 items-end justify-center overflow-hidden" style={{ background: `linear-gradient(135deg, transparent 30%, ${card.sub}20 100%)` }}>
-            {/* League logo top-right */}
-            {leagueLogoUrl && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={leagueLogoUrl}
-                alt="League"
-                className="absolute right-4 top-4 h-16 w-16 rounded-full object-cover shadow-lg ring-2 ring-white/15"
-              />
+            {/* Drafting team logo — upper-right, the primary identity during reveal */}
+            {team && (
+              <div className="absolute right-3 top-3 flex h-24 w-24 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900/80" style={{ boxShadow: `0 0 0 2px ${card.sub}40, 0 8px 32px rgba(0,0,0,0.5)` }}>
+                {team.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={team.logoUrl} alt={team.name} className="h-full w-full object-contain p-1" />
+                ) : (
+                  <span className="text-2xl font-black text-white">{team.name.charAt(0).toUpperCase()}</span>
+                )}
+              </div>
             )}
             {playerHeadshotUrl ? (
               // eslint-disable-next-line @next/next/no-img-element

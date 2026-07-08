@@ -86,6 +86,26 @@ input[type="radio"] {
   to   { opacity: 1; transform: translate(-50%, 0); }
 }
 
+/* ── Lobby ─────────────────────────────────────────────────────────────── */
+/* Selected team card enters with a soft fade + lift when the team rotates */
+@keyframes lobby-team-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+/* ── TV Mode ───────────────────────────────────────────────────────────── */
+/* Lower-third broadcast bar slides up when a new pick lands              */
+@keyframes tv-lower-third-in {
+  from { transform: translateY(100%); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
+}
+
+/* ── Draft complete confetti ───────────────────────────────────────────── */
+@keyframes confetti-fall {
+  0%   { transform: translateY(0) rotate(0deg); opacity: 1; }
+  100% { transform: translateY(110vh) rotate(720deg); opacity: 0; }
+}
+
 /* Color inputs need a little extra care */
 input[type="color"] {
   background-color: var(--surface-elevated);

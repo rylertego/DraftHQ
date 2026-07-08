@@ -35,8 +35,11 @@ import { moveDraftTeam } from "@/lib/teamSetupLogic";
 import { supabase } from "@/lib/supabase";
 import { getLeagueBranding, inviteLeagueMember } from "@/lib/leagueApi";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
-import { getAnnouncerVoiceProfile, resolveAnnouncerVoice } from "@/lib/speech";
+import { AI_ANNOUNCER_PERSONAS, ELEVENLABS_VOICE_PREFIX, getAiAnnouncerId, getAnnouncerVoiceProfile, getElevenLabsVoiceId, isAiAnnouncerEnabled, resolveAnnouncerVoice } from "@/lib/speech";
+import { fetchAnnouncerClipUrl, getStoredElevenLabsKey, listElevenLabsVoices, storeElevenLabsKey, type ElevenLabsVoice } from "@/lib/announcerClient";
+import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
 import ClockSettings from "@/components/ClockSettings";
+import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
 import { initiateSpotifyPopup, isSpotifyConnected, disconnectSpotify, consumeSpotifyCallback } from "@/lib/spotifyAuth";
@@ -61,7 +64,7 @@ const DEFAULT_ROSTER_POSITIONS: RosterPosition[] = [
 ];
 const ROSTER_POSITIONS_COLLAPSED = 7;
 
-type Tab = "settings" | "teams" | "draft-order" | "audio";
+type Tab = "settings" | "teams" | "audio";
 
 interface TeamSetupFormProps {
   draftId: string | null;
@@ -115,7 +118,9 @@ function LockIcon() {
 export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const initialTab = (searchParams.get("tab") as Tab | null) ?? "teams";
+  const rawTab = searchParams.get("tab");
+  // "draft-order" merged into the Teams tab; old links land there.
+  const initialTab: Tab = rawTab === "settings" || rawTab === "audio" ? rawTab : "teams";
   const leagueSlug = searchParams.get("leagueSlug");
   const fromDraft = searchParams.get("fromDraft") === "1";
   const backHref = leagueSlug ? `/leagues/${leagueSlug}` : "/dashboard";
@@ -123,6 +128,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     ? `/draft/lobby?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`
     : null;
   const [tab, setTab] = useState<Tab>(initialTab);
+  const [orderDirty, setOrderDirty] = useState(false);
+  const [showOrderRace, setShowOrderRace] = useState(false);
   const [setup, setSetup] = useState<DraftSetup | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -181,9 +188,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [showRoundSlide, setShowRoundSlide] = useState(true);
   const [roundSlideSeconds, setRoundSlideSeconds] = useState(7);
   const [roundSlidePausesClock, setRoundSlidePausesClock] = useState(false);
+  // Walk-up music mode
+  const [walkUpMusicMode, setWalkUpMusicMode] = useState<"restart" | "resume">("restart");
   // Announcer voice
   const [announcerVoiceUri, setAnnouncerVoiceUri] = useState<string | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  // ElevenLabs bring-your-own account (key lives in this browser only)
+  const [elConnected, setElConnected] = useState(() => !!getStoredElevenLabsKey());
+  const [elKeyInput, setElKeyInput] = useState("");
+  const [elVoices, setElVoices] = useState<ElevenLabsVoice[]>([]);
+  const [elBusy, setElBusy] = useState(false);
+  const [elError, setElError] = useState("");
   const [settingsSaveState, setSettingsSaveState] = useState<"idle" | "saving" | "saved">("idle");
   const settingsSaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -198,6 +213,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       if (b?.secondaryColor) setBgColor(b.secondaryColor);
     });
   }, [leagueSlug, setAccentColor, setBgColor]);
+
+  // Load the voice library when this browser already has a stored key.
+  useEffect(() => {
+    if (!isAiAnnouncerEnabled()) return;
+    const key = getStoredElevenLabsKey();
+    if (!key) return;
+    void listElevenLabsVoices(key).then((voices) => {
+      if (voices) setElVoices(voices);
+    });
+  }, []);
 
   useEffect(() => {
     if (!draftId) { router.replace("/create"); return; }
@@ -227,6 +252,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         setRoundSlideSeconds(s.draft.roundSlideSeconds ?? 7);
         setRoundSlidePausesClock(s.draft.roundSlidePausesClock ?? false);
         setAnnouncerVoiceUri(s.draft.announcerVoiceUri ?? null);
+        setWalkUpMusicMode(s.draft.walkUpMusicMode ?? "restart");
         if (s.draft.rosterPositions?.length) {
           setRosterPositions(
             DEFAULT_ROSTER_POSITIONS.map((def) => {
@@ -313,6 +339,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   function moveTeam(index: number, offset: -1 | 1) {
     setTeams((prev) => moveDraftTeam(prev, index, offset));
+    setOrderDirty(true);
   }
 
   async function refreshParticipants() {
@@ -490,7 +517,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   async function saveWalkUpSongs(teamId: string, songs: WalkUpSong[]) {
     if (!draftId) return;
     try {
-      await updateTeamDetails(draftId, teamId, { walkUpSongs: songs });
+      await updateTeamDetails(draftId, teamId, { walkUpSongs: songs.slice(0, MAX_WALK_UP_SONGS) });
     } catch (e) {
       setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save songs.");
     }
@@ -570,7 +597,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const TABS: { id: Tab; label: string }[] = [
     { id: "settings", label: "Settings" },
     { id: "teams", label: "Teams" },
-    { id: "draft-order", label: "Draft Order" },
     { id: "audio", label: "Audio / Video" },
   ];
 
@@ -1106,26 +1132,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   </button>
                 </div>
 
-                {/* ── Draft room theme ── */}
-                <div className={cardCls}>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-base font-bold text-white">Draft Room Theme</p>
-                      <p className="mt-0.5 text-xs text-slate-500">Control the visual style of the live draft room.</p>
-                    </div>
-                    <span className="rounded-full bg-slate-800 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-400">Coming soon</span>
-                  </div>
-                  <div className="mt-4 grid grid-cols-4 gap-3 opacity-40 pointer-events-none select-none">
-                    {["Classic", "Broadcast", "Dark", "Modern"].map((t) => (
-                      <div key={t} className="rounded-xl border px-3 py-3 text-center text-sm font-semibold"
-                        style={t === "Classic" ? { borderColor: primary + "66", backgroundColor: primary + "15", color: primary } : { borderColor: "#334155", backgroundColor: "rgba(30,41,59,0.4)", color: "#94a3b8" }}
-                      >
-                        {t}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-
                 {/* ── Visibility & extras ── */}
                 <div className={cardCls}>
                   <p className="text-base font-bold text-white">Visibility &amp; extras</p>
@@ -1232,20 +1238,57 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {/* TEAMS TAB */}
             {tab === "teams" && (
               <div className="space-y-5">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <p className="text-base font-bold text-white">Teams setup</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Add names, logos, owners, and other team details. Click a team to expand and edit.</p>
+                    <p className="mt-0.5 text-xs text-slate-500">Add details, set the draft order with the arrows, and click a team to expand and edit.</p>
                   </div>
                   {isCommissioner && (
-                    <button
-                      type="button"
-                      disabled={isRefreshing}
-                      className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
-                      onClick={refreshParticipants}
-                    >
-                      {isRefreshing ? "Refreshing..." : "Refresh"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        disabled={isRefreshing}
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                        onClick={refreshParticipants}
+                      >
+                        {isRefreshing ? "Refreshing..." : "Refresh"}
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                        onClick={() => {
+                          setTeams((prev) => [...prev].sort(() => Math.random() - 0.5));
+                          setOrderDirty(true);
+                        }}
+                      >
+                        Randomize order
+                      </button>
+                      <button
+                        type="button"
+                        className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-slate-800"
+                        style={{ borderColor: primary + "66", color: primary }}
+                        onClick={() => setShowOrderRace(true)}
+                      >
+                        Randomize Order (fun) 🏈
+                      </button>
+                      <button
+                        type="button"
+                        disabled={!orderDirty || savingTeamId === "order"}
+                        className="rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40 transition-opacity hover:opacity-90"
+                        style={{ backgroundColor: primary, color: secondary }}
+                        onClick={async () => {
+                          setSavingTeamId("order");
+                          try {
+                            if (draftId) await updateTeamSetup(draftId, teams);
+                            setOrderDirty(false);
+                          }
+                          catch (e) { setError(e instanceof Error ? e.message : "Unable to save order."); }
+                          finally { setSavingTeamId(null); }
+                        }}
+                      >
+                        {savingTeamId === "order" ? "Saving..." : orderDirty ? "Save order" : "Order saved"}
+                      </button>
+                    </div>
                   )}
                 </div>
 
@@ -1270,22 +1313,31 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                       return (
                         <div key={team.id}>
-                          {/* Collapsed row */}
-                          <button
-                            type="button"
-                            className="w-full flex items-center gap-4 px-5 py-4 text-left hover:bg-slate-800/40 transition-colors"
+                          {/* Collapsed row — div[role=button] so the reorder arrows can be real buttons inside */}
+                          <div
+                            role="button"
+                            tabIndex={0}
+                            className="w-full flex cursor-pointer items-center gap-4 px-5 py-4 text-left hover:bg-slate-800/40 transition-colors"
                             onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter" || e.key === " ") {
+                                e.preventDefault();
+                                setExpandedTeamId(isExpanded ? null : team.id);
+                              }
+                            }}
                           >
                             <span className="w-5 shrink-0 text-sm font-bold text-slate-500 text-center">{index + 1}</span>
-                            <div
-                              className="h-9 w-9 shrink-0 rounded-full overflow-hidden flex items-center justify-center text-xs font-bold text-white"
-                              style={{ backgroundColor: avatarColor }}
-                            >
-                              {team.logoUrl
-                                // eslint-disable-next-line @next/next/no-img-element
-                                ? <img src={team.logoUrl} alt="" className="h-full w-full object-cover" />
-                                : initials}
-                            </div>
+                            {team.logoUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img src={team.logoUrl} alt="" className="h-14 w-14 shrink-0 object-contain" />
+                            ) : (
+                              <div
+                                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white"
+                                style={{ backgroundColor: avatarColor }}
+                              >
+                                {initials}
+                              </div>
+                            )}
                             <div className="min-w-0 flex-1">
                               <div className="flex items-center gap-2">
                                 <span className="font-semibold text-white truncate">{team.name}</span>
@@ -1304,10 +1356,29 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                 <p className="text-xs text-slate-600">No owner assigned</p>
                               )}
                             </div>
+                            {/* Draft-order arrows (merged from the old Draft Order tab) */}
+                            {isCommissioner && (
+                              <div className="flex shrink-0 gap-1">
+                                <button
+                                  type="button"
+                                  disabled={index === 0}
+                                  aria-label={`Move ${team.name} up in the draft order`}
+                                  className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); moveTeam(index, -1); }}
+                                >↑</button>
+                                <button
+                                  type="button"
+                                  disabled={index === teams.length - 1}
+                                  aria-label={`Move ${team.name} down in the draft order`}
+                                  className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
+                                  onClick={(e) => { e.stopPropagation(); moveTeam(index, 1); }}
+                                >↓</button>
+                              </div>
+                            )}
                             <svg className={`h-4 w-4 shrink-0 text-slate-500 transition-transform ${isExpanded ? "rotate-180" : ""}`} viewBox="0 0 16 16" fill="none">
                               <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
                             </svg>
-                          </button>
+                          </div>
 
                           {/* Expanded panel */}
                           {isExpanded && (
@@ -1472,7 +1543,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                         <span className="text-sm font-semibold text-white">Team songs</span>
                                         <span className="ml-2 text-xs text-slate-500">Walk-up songs</span>
                                       </div>
-                                      <span className="text-xs text-slate-500">{(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length} of 3 songs</span>
+                                      <span className="text-xs text-slate-500">{(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length} of {MAX_WALK_UP_SONGS} songs</span>
                                     </div>
                                     {/* Spotify connect */}
                                     <div className="flex items-center justify-between border-t border-slate-800 px-4 py-2.5">
@@ -1541,7 +1612,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           </div>
                                         ))
                                       )}
-                                      {isCommissioner && (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length < 3 && (
+                                      {isCommissioner && (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length < MAX_WALK_UP_SONGS && (
                                         <button
                                           type="button"
                                           onClick={() => setSongPickerTeamId(team.id)}
@@ -1733,67 +1804,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               </div>
             )}
 
-            {/* DRAFT ORDER TAB */}
-            {tab === "draft-order" && (
-              <div className="space-y-5">
-                <div>
-                  <p className="text-base font-bold text-white">Draft Order</p>
-                  <p className="mt-0.5 text-xs text-slate-500">Set and randomize the pick order for your draft.</p>
-                </div>
-                <div className={cardCls}>
-                  <div className="divide-y divide-slate-800">
-                    {teams.map((team, index) => {
-                      const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","#14b8a6","#f59e0b"];
-                      const avatarColor = avatarColors[index % avatarColors.length];
-                      const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
-                      return (
-                        <div key={team.id} className="flex items-center gap-4 py-3 first:pt-0 last:pb-0">
-                          <span className="w-6 shrink-0 text-center text-sm font-bold text-slate-500">{index + 1}</span>
-                          <div className="h-8 w-8 shrink-0 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: avatarColor }}>
-                            {initials}
-                          </div>
-                          <span className="flex-1 text-sm font-medium text-white">{team.name}</span>
-                          {isCommissioner && (
-                            <div className="flex gap-1">
-                              <button type="button" disabled={index === 0} aria-label="Move up" className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors" onClick={() => moveTeam(index, -1)}>↑</button>
-                              <button type="button" disabled={index === teams.length - 1} aria-label="Move down" className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors" onClick={() => moveTeam(index, 1)}>↓</button>
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-                  {isCommissioner && (
-                    <div className="mt-5 flex gap-3 border-t border-slate-800 pt-5">
-                      <button
-                        type="button"
-                        className="rounded-xl border border-slate-700 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                        onClick={() => {
-                          setTeams((prev) => [...prev].sort(() => Math.random() - 0.5));
-                        }}
-                      >
-                        Randomize order
-                      </button>
-                      <button
-                        type="button"
-                        disabled={savingTeamId === "order"}
-                        className="rounded-xl px-4 py-2 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
-                        style={{ backgroundColor: primary, color: secondary }}
-                        onClick={async () => {
-                          setSavingTeamId("order");
-                          try { if (draftId) await updateTeamSetup(draftId, teams); }
-                          catch (e) { setError(e instanceof Error ? e.message : "Unable to save order."); }
-                          finally { setSavingTeamId(null); }
-                        }}
-                      >
-                        {savingTeamId === "order" ? "Saving..." : "Save order"}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            )}
-
             {/* AUDIO / VIDEO TAB */}
             {tab === "audio" && (
               <div className="space-y-5">
@@ -1801,11 +1811,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 {/* ── Announcer Voice ── */}
                 <div className={cardCls}>
                   <p className="text-base font-bold text-white">Announcer Voice</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Choose the text-to-speech voice used for pick announcements.</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">
+                    Choose the voice used for pick announcements.
+                    {isAiAnnouncerEnabled() && " AI announcers are generated in the cloud and sound the same on every device."}
+                  </p>
                   <div className="flex items-center gap-3">
                     <select
-                      disabled={!isCommissioner || availableVoices.length === 0}
-                      value={getAnnouncerVoiceProfile(announcerVoiceUri)}
+                      disabled={!isCommissioner}
+                      value={getAiAnnouncerId(announcerVoiceUri) ?? getAnnouncerVoiceProfile(announcerVoiceUri)}
                       onChange={async (e) => {
                         const uri = e.target.value;
                         setAnnouncerVoiceUri(uri);
@@ -1818,13 +1831,42 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       }}
                       className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
                     >
+                      {isAiAnnouncerEnabled() && AI_ANNOUNCER_PERSONAS.map((persona) => (
+                        <option key={persona.id} value={persona.id}>{persona.label}</option>
+                      ))}
                       <option value="drafthq:male">DraftHQ Male Announcer</option>
                       <option value="drafthq:female">DraftHQ Female Announcer</option>
+                      {isAiAnnouncerEnabled() && elVoices.length > 0 && (
+                        <optgroup label="Your ElevenLabs Voices">
+                          {elVoices.map((voice) => (
+                            <option key={voice.id} value={`${ELEVENLABS_VOICE_PREFIX}${voice.id}`}>
+                              {voice.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                      )}
+                      {/* An EL voice chosen on another device (or before the list loads) */}
+                      {isAiAnnouncerEnabled() && getElevenLabsVoiceId(announcerVoiceUri) &&
+                        !elVoices.some((voice) => `${ELEVENLABS_VOICE_PREFIX}${voice.id}` === announcerVoiceUri) && (
+                        <option value={announcerVoiceUri ?? ""}>ElevenLabs Custom Voice</option>
+                      )}
                     </select>
                     <button
                       type="button"
-                      onClick={() => {
-                        const utt = new SpeechSynthesisUtterance("With pick one, your team selects a player");
+                      onClick={async () => {
+                        const sample = "With pick one, your team selects a player.";
+                        const aiId = getAiAnnouncerId(announcerVoiceUri);
+                        if (aiId) {
+                          const url = await fetchAnnouncerClipUrl(sample, aiId, draftId);
+                          if (url) {
+                            const audio = new Audio(url);
+                            audio.volume = 0.9;
+                            void audio.play().catch(() => {});
+                            return;
+                          }
+                          // Generation unavailable — fall through to the device voice.
+                        }
+                        const utt = new SpeechSynthesisUtterance(sample);
                         utt.rate = 0.85; utt.pitch = 0.95;
                         const voice = resolveAnnouncerVoice(availableVoices, announcerVoiceUri);
                         if (voice) utt.voice = voice;
@@ -1838,6 +1880,94 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   </div>
                   {availableVoices.length === 0 && (
                     <p className="mt-2 text-xs text-slate-600">No voices found — your browser may load them after a moment.</p>
+                  )}
+
+                  {/* ── ElevenLabs bring-your-own account ── */}
+                  {isAiAnnouncerEnabled() && (
+                  <div className="mt-4 border-t border-slate-800 pt-4">
+                    {elConnected ? (
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="flex items-center gap-1.5 text-xs font-semibold text-white">
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-400" />
+                            ElevenLabs connected
+                          </p>
+                          <p className="mt-0.5 text-[11px] text-slate-500">
+                            {elVoices.length > 0
+                              ? `${elVoices.length} voice${elVoices.length === 1 ? "" : "s"} from your library available in the picker above.`
+                              : "Loading your voice library…"}{" "}
+                            Your key is stored only in this browser.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          disabled={!isCommissioner}
+                          onClick={async () => {
+                            storeElevenLabsKey(null);
+                            setElConnected(false);
+                            setElVoices([]);
+                            // Don't leave the draft pointed at a voice nobody can generate.
+                            if (getElevenLabsVoiceId(announcerVoiceUri)) {
+                              setAnnouncerVoiceUri("drafthq:male");
+                              if (draftId && setup) {
+                                try {
+                                  const updated = await updateDraftPresentation(draftId, { announcerVoiceUri: "drafthq:male" });
+                                  setSetup({ ...setup, draft: updated });
+                                } catch { /* setting reverts on next load */ }
+                              }
+                            }
+                          }}
+                          className="shrink-0 text-xs text-slate-500 underline transition-colors hover:text-red-400 disabled:opacity-50"
+                        >
+                          Disconnect
+                        </button>
+                      </div>
+                    ) : (
+                      <div>
+                        <p className="text-xs font-semibold text-white">Bring your own ElevenLabs account</p>
+                        <p className="mt-0.5 text-[11px] leading-relaxed text-slate-500">
+                          Use any voice from your ElevenLabs library — including cloned voices — as the draft announcer.
+                          Generation spends your account&apos;s credits: a full draft is roughly 15 minutes of audio, and the
+                          free tier covers about 10, so a paid ElevenLabs plan is recommended for draft night. Your API key
+                          stays in this browser and is never stored on DraftHQ&apos;s servers.
+                        </p>
+                        <div className="mt-2 flex items-center gap-2">
+                          <input
+                            type="password"
+                            value={elKeyInput}
+                            onChange={(e) => setElKeyInput(e.target.value)}
+                            placeholder="ElevenLabs API key"
+                            disabled={!isCommissioner || elBusy}
+                            autoComplete="off"
+                            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+                          />
+                          <button
+                            type="button"
+                            disabled={!isCommissioner || elBusy || !elKeyInput.trim()}
+                            onClick={async () => {
+                              const key = elKeyInput.trim();
+                              setElBusy(true);
+                              setElError("");
+                              const voices = await listElevenLabsVoices(key);
+                              setElBusy(false);
+                              if (!voices) {
+                                setElError("Couldn't connect — check the API key.");
+                                return;
+                              }
+                              storeElevenLabsKey(key);
+                              setElKeyInput("");
+                              setElConnected(true);
+                              setElVoices(voices);
+                            }}
+                            className="shrink-0 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 transition-colors hover:bg-slate-700 disabled:opacity-50"
+                          >
+                            {elBusy ? "Connecting…" : "Connect"}
+                          </button>
+                        </div>
+                        {elError && <p className="mt-1.5 text-[11px] text-red-400">{elError}</p>}
+                      </div>
+                    )}
+                  </div>
                   )}
                 </div>
 
@@ -1867,7 +1997,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
                         />
                         <div>
-                          <p className="text-sm font-semibold text-white">Use "Pick is in…" feature</p>
+                          <p className="text-sm font-semibold text-white">Use &ldquo;Pick is in&hellip;&rdquo; feature</p>
                           <p className="text-xs text-slate-500">Plays a sound when a player is staged for selection.</p>
                         </div>
                       </label>
@@ -2020,6 +2150,42 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </div>
                       <span className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Coming soon</span>
                     </div>
+                  </div>
+                </div>
+
+                {/* ── Walk-Up Music Behavior ── */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Walk-up music between turns</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">What happens to a team&apos;s walk-up song when they come back on the clock in a later round.</p>
+
+                  <div className="space-y-2">
+                    {([
+                      { value: "restart" as const, label: "Restart each turn", detail: "Every turn starts a walk-up song from the beginning." },
+                      { value: "resume" as const, label: "Resume across turns", detail: "Each team's song continues from where it left off on their previous pick. When a song ends, the next one in their list starts." },
+                    ]).map((opt) => (
+                      <label key={opt.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 has-[:checked]:border-teal-500/50">
+                        <input
+                          type="radio"
+                          name="walkUpMusicMode"
+                          checked={walkUpMusicMode === opt.value}
+                          disabled={!isCommissioner}
+                          onChange={async () => {
+                            setWalkUpMusicMode(opt.value);
+                            if (!draftId || !setup) return;
+                            try {
+                              const updated = await updateDraftPresentation(draftId, { walkUpMusicMode: opt.value });
+                              setSetup({ ...setup, draft: updated });
+                              flashSaved();
+                            } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                          }}
+                          className="mt-0.5"
+                        />
+                        <div>
+                          <p className="text-sm font-semibold text-white">{opt.label}</p>
+                          <p className="text-xs text-slate-500">{opt.detail}</p>
+                        </div>
+                      </label>
+                    ))}
                   </div>
                 </div>
 
@@ -2424,6 +2590,26 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           setSongPickerTeamId(null);
         }}
         onClose={() => setSongPickerTeamId(null)}
+      />
+    )}
+
+    {/* Draft order race — full-screen lottery reveal */}
+    {showOrderRace && (
+      <DraftOrderRace
+        teams={teams}
+        isCommissioner={isCommissioner}
+        onClose={() => setShowOrderRace(false)}
+        onLockIn={async (ordered) => {
+          setTeams(ordered);
+          try {
+            if (draftId) await updateTeamSetup(draftId, ordered);
+            setOrderDirty(false);
+          } catch (e) {
+            setOrderDirty(true);
+            setError(e instanceof Error ? e.message : "Unable to save order.");
+          }
+          setShowOrderRace(false);
+        }}
       />
     )}
     </>

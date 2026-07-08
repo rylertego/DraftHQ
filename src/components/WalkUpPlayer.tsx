@@ -94,8 +94,11 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
   const spDeviceIdRef = useRef<string | null>(null);
   const currentPlatformRef = useRef<"youtube" | "spotify-sdk" | "preview" | null>(null);
   const spPreviewAudioRef = useRef<HTMLAudioElement | null>(null);
-  const volumeRef = useRef(70);
+  const volumeRef = useRef(55);
   const playbackStartedRef = useRef(false);
+  const activeRef = useRef(true);
+  const playbackRequestRef = useRef(0);
+  const spotifyPlayAbortRef = useRef<AbortController | null>(null);
   const onEndedRef = useRef(onEnded);
   const onPlayingRef = useRef(onPlaying);
   const onPlaybackBlockedRef = useRef(onPlaybackBlocked);
@@ -106,13 +109,14 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
 
   // ── YouTube setup ──────────────────────────────────────────────────────
   const initYT = useCallback(() => {
-    if (ytReadyRef.current || !ytContainerRef.current) return;
+    if (!activeRef.current || ytReadyRef.current || !ytContainerRef.current) return;
     ytReadyRef.current = true;
     ytPlayerRef.current = new window.YT.Player(ytContainerRef.current, {
       videoId: "",
       playerVars: { autoplay: 1, controls: 0, disablekb: 1, fs: 0, modestbranding: 1, rel: 0 },
       events: {
         onReady: (e) => {
+          if (!activeRef.current) { e.target.destroy(); return; }
           ytPlayerRef.current = e.target;
           ytReadyToPlayRef.current = true;
           // Play any song that was requested before the player finished loading
@@ -138,19 +142,23 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
 
   useEffect(() => {
     const prev = window.onYouTubeIframeAPIReady;
-    window.onYouTubeIframeAPIReady = () => { prev?.(); initYT(); };
+    const onReady = () => { prev?.(); initYT(); };
+    window.onYouTubeIframeAPIReady = onReady;
     if (window.YT?.Player) { initYT(); }
     else { void loadScript("https://www.youtube.com/iframe_api", "yt-iframe-api"); }
+    return () => {
+      if (window.onYouTubeIframeAPIReady === onReady) window.onYouTubeIframeAPIReady = prev;
+    };
   }, [initYT]);
 
   // ── Spotify Web Playback SDK setup ─────────────────────────────────────
   useEffect(() => {
     const initSDK = () => {
-      if (spSDKPlayerRef.current) return;
+      if (!activeRef.current || spSDKPlayerRef.current) return;
       const player = new window.Spotify.Player({
         name: "DraftHQ Walk-Up Player",
         getOAuthToken: (cb) => {
-          void getSpotifyToken().then((token) => { if (token) cb(token); });
+          void getSpotifyToken().then((token) => { if (activeRef.current && token) cb(token); });
         },
         volume: volumeRef.current / 100,
       });
@@ -171,16 +179,25 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
     };
 
     const prev = window.onSpotifyWebPlaybackSDKReady;
-    window.onSpotifyWebPlaybackSDKReady = () => { prev?.(); initSDK(); };
+    const onReady = () => { prev?.(); initSDK(); };
+    window.onSpotifyWebPlaybackSDKReady = onReady;
 
     void loadScript("https://sdk.scdn.co/spotify-player.js", "spotify-sdk").then(() => {
       if (window.Spotify?.Player) initSDK();
     });
 
-    return () => { spSDKPlayerRef.current?.disconnect(); spSDKPlayerRef.current = null; };
+    return () => {
+      if (window.onSpotifyWebPlaybackSDKReady === onReady) window.onSpotifyWebPlaybackSDKReady = prev;
+      void spSDKPlayerRef.current?.pause().catch(() => {});
+      spSDKPlayerRef.current?.disconnect();
+      spSDKPlayerRef.current = null;
+    };
   }, []);
 
   const stopAll = useCallback(() => {
+    playbackRequestRef.current += 1;
+    spotifyPlayAbortRef.current?.abort();
+    spotifyPlayAbortRef.current = null;
     try { ytPlayerRef.current?.stopVideo(); } catch {}
     void spSDKPlayerRef.current?.pause().catch(() => {});
     if (spPreviewAudioRef.current) { spPreviewAudioRef.current.pause(); spPreviewAudioRef.current.currentTime = 0; }
@@ -213,7 +230,9 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
   }, []);
 
   const play = useCallback((song: WalkUpSong, playbackOffsetSeconds = 0) => {
+    if (!activeRef.current) return;
     stopAll();
+    const requestId = playbackRequestRef.current;
     playbackStartedRef.current = false;
     const startSeconds = Math.max(0, (song.startSeconds ?? 0) + playbackOffsetSeconds);
     currentPlatformRef.current = song.platform === "spotify" ? "spotify-sdk" : song.platform as "youtube" | "preview";
@@ -233,21 +252,31 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
         currentPlatformRef.current = "spotify-sdk";
         const deviceId = spDeviceIdRef.current;
         void getSpotifyToken().then(async (token) => {
-          if (!token) { playSpotifyFallback(song, playbackOffsetSeconds); return; }
+          if (!activeRef.current || requestId !== playbackRequestRef.current) return;
+          if (!token) { playSpotifyFallback(song, playbackOffsetSeconds, requestId); return; }
+          const controller = new AbortController();
+          spotifyPlayAbortRef.current = controller;
           const res = await fetch(`https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`, {
             method: "PUT",
             headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+            signal: controller.signal,
             body: JSON.stringify({
               uris: [`spotify:track:${song.trackId}`],
               position_ms: startSeconds * 1000,
             }),
           });
-          if (!res.ok) { playSpotifyFallback(song, playbackOffsetSeconds); }
+          if (spotifyPlayAbortRef.current === controller) spotifyPlayAbortRef.current = null;
+          if (!activeRef.current || requestId !== playbackRequestRef.current) return;
+          if (!res.ok) { playSpotifyFallback(song, playbackOffsetSeconds, requestId); }
           else {
             playbackStartedRef.current = true;
             onPlayingRef.current?.();
           }
-        }).catch(() => { playSpotifyFallback(song, playbackOffsetSeconds); });
+        }).catch(() => {
+          if (activeRef.current && requestId === playbackRequestRef.current) {
+            playSpotifyFallback(song, playbackOffsetSeconds, requestId);
+          }
+        });
         return;
       }
 
@@ -260,12 +289,13 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
         return;
       }
 
-      playSpotifyFallback(song, playbackOffsetSeconds);
+      playSpotifyFallback(song, playbackOffsetSeconds, requestId);
     }
   }, [stopAll, playYT]);
 
-  function playSpotifyFallback(song: WalkUpSong, playbackOffsetSeconds = 0) {
+  function playSpotifyFallback(song: WalkUpSong, playbackOffsetSeconds = 0, requestId = playbackRequestRef.current) {
     const playPreview = (url: string) => {
+      if (!activeRef.current || requestId !== playbackRequestRef.current) return;
       currentPlatformRef.current = "preview";
       if (!spPreviewAudioRef.current || spPreviewAudioRef.current.src !== url) {
         spPreviewAudioRef.current = new Audio(url);
@@ -274,6 +304,7 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
       }
       spPreviewAudioRef.current.volume = volumeRef.current / 100;
       const beginPlayback = () => {
+        if (!activeRef.current || requestId !== playbackRequestRef.current) return undefined;
         const duration = spPreviewAudioRef.current?.duration;
         const requestedTime = Math.max(0, (song.startSeconds ?? 0) + playbackOffsetSeconds);
         if (spPreviewAudioRef.current) {
@@ -301,7 +332,9 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
     // Spotify iFrame embed API is shut down for third parties — nothing more to try
     fetch(`/api/music/spotify-preview?trackId=${encodeURIComponent(song.trackId)}`)
       .then((r) => r.json() as Promise<{ previewUrl: string | null }>)
-      .then(({ previewUrl }) => { if (previewUrl) playPreview(previewUrl); })
+      .then(({ previewUrl }) => {
+        if (activeRef.current && requestId === playbackRequestRef.current && previewUrl) playPreview(previewUrl);
+      })
       .catch(() => {});
   }
 
@@ -339,7 +372,24 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
 
   useImperativeHandle(ref, () => ({ play, pause, resume, stop: stopAll, duck, unduck, setVolume }), [play, pause, resume, stopAll, duck, unduck, setVolume]);
 
-  useEffect(() => () => { stopAll(); }, [stopAll]);
+  useEffect(() => {
+    activeRef.current = true;
+    return () => {
+      activeRef.current = false;
+      stopAll();
+      try { ytPlayerRef.current?.destroy(); } catch {}
+      ytPlayerRef.current = null;
+      ytReadyToPlayRef.current = false;
+      spSDKPlayerRef.current?.disconnect();
+      spSDKPlayerRef.current = null;
+      if (spPreviewAudioRef.current) {
+        spPreviewAudioRef.current.pause();
+        spPreviewAudioRef.current.removeAttribute("src");
+        spPreviewAudioRef.current.load();
+        spPreviewAudioRef.current = null;
+      }
+    };
+  }, [stopAll]);
 
   return (
     <div aria-hidden className="pointer-events-none fixed" style={{ left: -9999, top: -9999 }}>
