@@ -24,6 +24,7 @@ const picks: Pick[] = [
     playerPosition: "QB",
     nflTeam: "BUF",
     createdAt: "2026-06-20T12:00:00Z",
+    isLandmine: false,
   },
 ];
 

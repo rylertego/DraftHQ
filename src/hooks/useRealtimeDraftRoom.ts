@@ -84,7 +84,17 @@ export function useRealtimeDraftRoom(draftId: string | null) {
         presenceUserId,
         () => void requestRefresh(),
         setOnlineUserIds,
-        updateStatus
+        (nextStatus) => {
+          updateStatus(nextStatus);
+          // When the channel errors while the tab is active and online, neither
+          // the "online" nor "focus" events fire, so nothing triggers recover().
+          // Schedule one reconnect attempt after 3 s so the room self-heals.
+          if (nextStatus === "error" && !cancelled) {
+            window.setTimeout(() => {
+              if (!cancelled && statusRef.current !== "connected") void recover();
+            }, 3_000);
+          }
+        }
       );
     };
 

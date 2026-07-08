@@ -108,17 +108,22 @@ function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueS
 
 // ── League row ────────────────────────────────────────────────────────────────
 function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: SeasonRow & { onDeleteClick?: () => void; isFirst?: boolean; isLast?: boolean }) {
+  const router = useRouter();
   const { label, dot } = draftStatusLabel(season);
   const league = workspace.league;
   const memberCount = workspace.members.length;
   const draft = season.draft;
   const role = workspace.canManage ? "Commissioner" : "Member";
   const myTeam = workspace.myTeam;
+  const leagueHref = `/leagues/${league.slug}`;
 
   return (
-    <Link
-      href={`/leagues/${league.slug}`}
-      className={`group flex items-center gap-5 border-b border-slate-800 px-6 py-5 hover:bg-slate-800/40 transition-colors last:border-b-0 ${isFirst ? "rounded-t-xl" : ""} ${isLast ? "rounded-b-xl" : ""}`}
+    <div
+      role="link"
+      tabIndex={0}
+      onClick={() => router.push(leagueHref)}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") router.push(leagueHref); }}
+      className={`group flex cursor-pointer items-center gap-5 border-b border-slate-800 px-6 py-5 hover:bg-slate-800/40 transition-colors last:border-b-0 ${isFirst ? "rounded-t-xl" : ""} ${isLast ? "rounded-b-xl" : ""}`}
     >
       {/* Logo */}
       <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-2xl overflow-hidden bg-slate-800 shadow-lg">
@@ -199,7 +204,7 @@ function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: Season
           </svg>
         )}
       </div>
-    </Link>
+    </div>
   );
 }
 

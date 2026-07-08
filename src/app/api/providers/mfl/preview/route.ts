@@ -1,7 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildMflLeaguePreview } from "@/lib/providers/mfl";
 
-export async function GET(request: Request) {
+export async function POST(request: Request) {
   const authorization = request.headers.get("authorization");
   const accessToken = authorization?.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length)
@@ -19,10 +19,16 @@ export async function GET(request: Request) {
     );
   }
 
-  const { searchParams } = new URL(request.url);
-  const leagueId = searchParams.get("leagueId")?.trim();
-  const year = searchParams.get("year")?.trim();
-  const apiKey = searchParams.get("apiKey")?.trim() || null;
+  let body: { leagueId?: string; year?: string; apiKey?: string };
+  try {
+    body = (await request.json()) as typeof body;
+  } catch {
+    return Response.json({ error: "Invalid request body." }, { status: 400 });
+  }
+
+  const leagueId = body.leagueId?.trim();
+  const year = body.year?.trim();
+  const apiKey = body.apiKey?.trim() || null;
 
   if (!leagueId || !/^\d+$/.test(leagueId)) {
     return Response.json({ error: "Enter a valid MFL league ID." }, { status: 400 });

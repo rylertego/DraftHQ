@@ -5,12 +5,18 @@ const STALE_HOURS = 24;
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const scoringType = searchParams.get("type") ?? "standard";
-  const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()), 10);
+  const rawYear = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()), 10);
 
   const validTypes = ["standard", "ppr", "half_ppr", "superflex"];
   if (!validTypes.includes(scoringType)) {
     return Response.json({ error: "Invalid scoring type" }, { status: 400 });
   }
+
+  const currentYear = new Date().getFullYear();
+  if (isNaN(rawYear) || rawYear < 2020 || rawYear > currentYear + 1) {
+    return Response.json({ error: "Invalid year." }, { status: 400 });
+  }
+  const year = rawYear;
 
   // Check freshness: find the most recent fetched_at for this type+year
   const { data: freshCheck } = await supabaseAdmin
@@ -26,12 +32,18 @@ export async function GET(request: Request) {
     !freshCheck ||
     Date.now() - new Date(freshCheck.fetched_at).getTime() > STALE_HOURS * 60 * 60 * 1000;
 
-  if (isStale) {
-    // Trigger sync inline (acceptable on first load / once per day)
+  const syncSecret = process.env.RANKINGS_SYNC_SECRET;
+  // In production without RANKINGS_SYNC_SECRET the sync endpoint rejects all callers,
+  // so skip the trigger entirely rather than fire a request we know will 503.
+  const canTriggerSync = syncSecret || process.env.NODE_ENV !== "production";
+  if (isStale && canTriggerSync) {
     const syncUrl = new URL(request.url);
     syncUrl.pathname = "/api/rankings/sync";
     syncUrl.search = `?year=${year}`;
-    await fetch(syncUrl.toString(), { method: "POST" });
+    await fetch(syncUrl.toString(), {
+      method: "POST",
+      headers: syncSecret ? { "x-rankings-sync-secret": syncSecret } : {},
+    });
   }
 
   const { data: rankings, error } = await supabaseAdmin

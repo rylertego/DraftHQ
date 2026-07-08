@@ -53,6 +53,10 @@ function compressImage(file: File, maxPx: number, quality = 0.82): Promise<strin
   });
 }
 
+// TODO(security/C2): league-assets bucket has no RLS migration and its path format
+// ({folder}/{leagueId}-{timestamp}.ext) can't be commissioner-scoped without a stable prefix.
+// Migrate uploads to path {leagueId}/{type}.{ext} and add an is_league_commissioner policy.
+// Tracked in supabase/migrations/20260629000012_harden_draft_storage_policies.sql (bottom note).
 async function uploadLeagueAsset(file: File, leagueId: string, folder: "logos" | "banners"): Promise<string> {
   try {
     const ext = file.name.split(".").pop() ?? "png";

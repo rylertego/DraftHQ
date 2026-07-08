@@ -10,11 +10,12 @@ async function getAccessToken(): Promise<string> {
 
 async function fetchPreview(
   url: string,
-  extraHeaders: Record<string, string> = {}
+  init: RequestInit = {}
 ): Promise<ProviderLeaguePreview> {
   const token = await getAccessToken();
   const response = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}`, ...extraHeaders },
+    ...init,
+    headers: { Authorization: `Bearer ${token}`, ...(init.headers as Record<string, string> | undefined) },
   });
   const body = (await response.json()) as { preview?: ProviderLeaguePreview; error?: string };
   if (!response.ok || body.error) {
@@ -34,7 +35,7 @@ export async function getEspnLeaguePreview(input: {
   const headers: Record<string, string> = {};
   if (input.espnS2) headers["x-espn-s2"] = input.espnS2;
   if (input.swid) headers["x-espn-swid"] = input.swid;
-  return fetchPreview(`/api/providers/espn/preview?${params.toString()}`, headers);
+  return fetchPreview(`/api/providers/espn/preview?${params.toString()}`, { headers });
 }
 
 export async function getFleaflickerLeaguePreview(input: {
@@ -49,9 +50,11 @@ export async function getMflLeaguePreview(input: {
   year: string;
   apiKey?: string;
 }): Promise<ProviderLeaguePreview> {
-  const params = new URLSearchParams({ leagueId: input.leagueId, year: input.year });
-  if (input.apiKey) params.set("apiKey", input.apiKey);
-  return fetchPreview(`/api/providers/mfl/preview?${params.toString()}`);
+  return fetchPreview("/api/providers/mfl/preview", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ leagueId: input.leagueId, year: input.year, apiKey: input.apiKey }),
+  });
 }
 
 export async function getYahooAuthUrl(): Promise<string> {

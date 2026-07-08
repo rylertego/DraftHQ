@@ -28,8 +28,30 @@ const FANTASY_FILTER = JSON.stringify({
 });
 
 export async function POST(request: Request) {
+  const secret = process.env.RANKINGS_SYNC_SECRET;
+  if (!secret) {
+    // Fail closed in production: RANKINGS_SYNC_SECRET must be set in Vercel env vars.
+    // In local development (NODE_ENV !== 'production') the route remains open for convenience.
+    if (process.env.NODE_ENV === "production") {
+      return Response.json(
+        { error: "Sync endpoint is not configured. Set RANKINGS_SYNC_SECRET." },
+        { status: 503 }
+      );
+    }
+  } else {
+    const provided = request.headers.get("x-rankings-sync-secret");
+    if (provided !== secret) {
+      return Response.json({ error: "Unauthorized." }, { status: 401 });
+    }
+  }
+
   const { searchParams } = new URL(request.url);
-  const year = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()), 10);
+  const rawYear = parseInt(searchParams.get("year") ?? String(new Date().getFullYear()), 10);
+  const currentYear = new Date().getFullYear();
+  if (isNaN(rawYear) || rawYear < 2020 || rawYear > currentYear + 1) {
+    return Response.json({ error: "Invalid year." }, { status: 400 });
+  }
+  const year = rawYear;
 
   const url = ESPN_URL.replace("{year}", String(year));
 

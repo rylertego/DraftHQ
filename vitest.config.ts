@@ -3,7 +3,7 @@ import path from "path";
 
 export default defineConfig({
   test: {
-    exclude: [...configDefaults.exclude, "tests/e2e/**"],
+    exclude: [...configDefaults.exclude, "tests/e2e/**", ".claude/**"],
   },
   resolve: {
     alias: {
