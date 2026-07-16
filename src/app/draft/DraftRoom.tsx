@@ -1930,7 +1930,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {/* ── ROW 1: Timer · On Clock · Next Up ── */}
       {compactHeader ? (
         /* Compact bar — large readable text, single row */
-        <div className="shrink-0 flex items-center gap-4 border-b border-white/5 bg-slate-950 px-4" style={{ height: "56px" }}>
+        <div className="shrink-0 flex items-center gap-2.5 sm:gap-4 border-b border-white/5 bg-slate-950 px-3 sm:px-4" style={{ height: "56px" }}>
           {/* Commissioner controls */}
           {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
             <div className="flex items-center gap-1.5">
@@ -1956,7 +1956,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           )}
 
           {/* Timer */}
-          <span className={`font-mono text-4xl font-black tabular-nums leading-none ${timerColor}`}>
+          <span className={`font-mono text-2xl sm:text-4xl font-black tabular-nums leading-none ${timerColor}`}>
             {snapshot.draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
           </span>
 
@@ -1964,22 +1964,24 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Round */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Round</span>
-            <span className="text-5xl font-black leading-none text-white">{currentRound ?? "1"}</span>
+            <span className="hidden sm:inline text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Round</span>
+            <span className="sm:hidden text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">R</span>
+            <span className="text-3xl sm:text-5xl font-black leading-none text-white">{currentRound ?? "1"}</span>
           </div>
 
           {/* Pick */}
           <div className="flex items-baseline gap-2">
-            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Pick</span>
-            <span className="text-5xl font-black leading-none text-white">{currentPickInRound ?? "—"}</span>
+            <span className="hidden sm:inline text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Pick</span>
+            <span className="sm:hidden text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">P</span>
+            <span className="text-3xl sm:text-5xl font-black leading-none text-white">{currentPickInRound ?? "—"}</span>
           </div>
 
           {teamOnClock && snapshot.draft.status !== "complete" && (
             <>
               <span className="h-8 w-px bg-white/8" />
-              <div className="flex items-baseline gap-3">
-                <span className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">On the clock</span>
-                <span className="text-3xl font-black uppercase leading-none" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
+              <div className="flex min-w-0 items-baseline gap-3">
+                <span className="hidden sm:inline shrink-0 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">On the clock</span>
+                <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
                   {teamOnClock.name}
                 </span>
               </div>
@@ -1991,7 +1993,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         <div className="flex items-stretch divide-x divide-white/5 overflow-hidden">
 
           {/* Timer block */}
-          <div className="flex shrink-0 items-center gap-4 px-4 py-3">
+          <div className="flex shrink-0 items-center gap-2.5 px-2.5 py-2 sm:gap-4 sm:px-4 sm:py-3">
             {/* Commissioner clock controls */}
             {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
               <div className="flex flex-col gap-1.5">
@@ -2069,7 +2071,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
             {/* Clock display */}
             <div className="flex flex-col items-center gap-1.5">
-              <span className={`font-mono text-6xl font-black tabular-nums leading-none ${timerColor}`}>
+              <span className={`font-mono text-4xl sm:text-6xl font-black tabular-nums leading-none ${timerColor}`}>
                 {snapshot.draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
               </span>
               {/* Extension slots */}
@@ -2095,26 +2097,26 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           </div>
 
           {/* Round / Pick */}
-          <div className="flex shrink-0 items-center gap-5 px-5 py-3">
+          <div className="flex shrink-0 items-center gap-3 px-3 py-2 sm:gap-5 sm:px-5 sm:py-3">
             <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Round</div>
-              <div className="text-5xl font-black leading-none">{currentRound ?? (snapshot.draft.status === "complete" ? "—" : "1")}</div>
+              <div className="text-3xl sm:text-5xl font-black leading-none">{currentRound ?? (snapshot.draft.status === "complete" ? "—" : "1")}</div>
             </div>
             <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Pick</div>
-              <div className="text-5xl font-black leading-none">{currentPickInRound ?? "—"}</div>
+              <div className="text-3xl sm:text-5xl font-black leading-none">{currentPickInRound ?? "—"}</div>
             </div>
           </div>
 
           {/* Team on clock + Next Up stacked */}
           {teamOnClock && snapshot.draft.status !== "complete" && (
-            <div className="flex min-w-0 flex-1 items-center gap-4 px-5 py-2">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 sm:gap-4 sm:px-5">
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={teamOnClock.logoUrl} alt="" className="h-16 w-16 shrink-0 rounded-full object-cover ring-2 ring-white/10" />
+                <img src={teamOnClock.logoUrl} alt="" className="h-10 w-10 sm:h-16 sm:w-16 shrink-0 rounded-full object-cover ring-2 ring-white/10" />
               ) : (
-                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xl font-black text-slate-300">
+                <div className="flex h-10 w-10 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm sm:text-xl font-black text-slate-300">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -2122,7 +2124,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 {stagedPlayer && canMakePick ? (
                   /* "THE PICK IS IN..." mode */
                   <>
-                    <div className="text-5xl font-black italic uppercase leading-none tracking-wide text-white animate-pulse">
+                    <div className="text-2xl sm:text-5xl font-black italic uppercase leading-none tracking-wide text-white animate-pulse">
                       THE PICK IS IN...
                     </div>
                     <div className="mt-1 text-sm font-bold text-slate-400">
@@ -2135,7 +2137,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none mb-0.5">
                       {canMakePick ? "Your pick" : "On the clock"}
                     </div>
-                    <div className="text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
+                    <div className="truncate text-2xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
                       {teamOnClock.name}
                     </div>
                   </>
@@ -2268,7 +2270,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               type="text"
               placeholder={stagedPlayer ? `${stagedPlayer.fullName} ${stagedPlayer.position}/${stagedPlayer.nflTeam ?? "FA"}` : "Search players..."}
               value={playerSearch}
-              className="w-52 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-72 transition-all"
+              className="w-28 sm:w-52 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-44 sm:focus:w-72 transition-all"
               style={{
                 paddingLeft: "32px",
                 borderColor: stagedPlayer && !playerSearch ? "#14b8a6" : "rgba(255,255,255,0.08)",
@@ -2287,7 +2289,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             )}
             {/* Dropdown results */}
             {playerSearch.trim().length > 0 && (
-              <div className="absolute top-full left-0 z-50 mt-1 w-80 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
+              <div className="absolute top-full left-0 z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
                 {rankedAvailablePlayers
                   .filter((p) => p.fullName.toLowerCase().includes(playerSearch.toLowerCase()))
                   .slice(0, 8)
@@ -3474,25 +3476,25 @@ function PickRevealModal({
       <div className="w-full overflow-hidden rounded-2xl border border-white/10 shadow-2xl" style={{ maxWidth: 720 }}>
 
         {/* Top accent bar */}
-        <div className="flex items-center justify-between px-6 py-2.5" style={{ background: `linear-gradient(90deg, ${card.sub}40, transparent)`, borderBottom: `2px solid ${card.sub}50` }}>
-          <div className="flex items-center gap-2">
+        <div className="flex items-center justify-between gap-2 px-4 py-2.5 sm:px-6" style={{ background: `linear-gradient(90deg, ${card.sub}40, transparent)`, borderBottom: `2px solid ${card.sub}50` }}>
+          <div className="flex min-w-0 items-center gap-2">
             {leagueLogoUrl && (
               // eslint-disable-next-line @next/next/no-img-element
-              <img src={leagueLogoUrl} alt="League" className="h-5 w-5 rounded-full object-cover opacity-70 ring-1 ring-white/20" />
+              <img src={leagueLogoUrl} alt="League" className="h-5 w-5 shrink-0 rounded-full object-cover opacity-70 ring-1 ring-white/20" />
             )}
-            <span className="text-[11px] font-black uppercase tracking-[0.2em] text-white/60">{draftName}</span>
+            <span className="truncate text-[11px] font-black uppercase tracking-[0.2em] text-white/60">{draftName}</span>
           </div>
-          <span className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: card.sub }}>Selection Has Been Made</span>
+          <span className="shrink-0 text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: card.sub }}>Selection Has Been Made</span>
         </div>
 
         {/* Main section */}
         <div className="relative flex items-stretch bg-slate-950" style={{ minHeight: 220 }}>
           {/* Left — player info */}
-          <div className="flex flex-1 flex-col justify-center px-8 py-8">
+          <div className="flex min-w-0 flex-1 flex-col justify-center px-5 py-6 sm:px-8 sm:py-8">
             <p className="mb-1 text-xs font-black uppercase tracking-[0.25em]" style={{ color: card.sub }}>Selected</p>
             <div className="leading-none">
-              <p className="text-3xl font-black uppercase text-white/80 leading-tight">{first}</p>
-              <p className="text-6xl font-black uppercase text-white leading-none tracking-tight">{last}</p>
+              <p className="text-xl sm:text-3xl font-black uppercase text-white/80 leading-tight">{first}</p>
+              <p className="break-words text-3xl sm:text-6xl font-black uppercase text-white leading-none tracking-tight">{last}</p>
             </div>
             <div className="mt-5 flex items-center gap-2">
               <span className="rounded-lg px-3 py-1.5 text-sm font-black text-slate-950" style={{ backgroundColor: card.sub }}>{pick.playerPosition}</span>
@@ -3501,10 +3503,10 @@ function PickRevealModal({
           </div>
 
           {/* Right — player image slot + team logo */}
-          <div className="relative flex w-56 shrink-0 items-end justify-center overflow-hidden" style={{ background: `linear-gradient(135deg, transparent 30%, ${card.sub}20 100%)` }}>
+          <div className="relative flex w-28 sm:w-56 shrink-0 items-end justify-center overflow-hidden" style={{ background: `linear-gradient(135deg, transparent 30%, ${card.sub}20 100%)` }}>
             {/* Drafting team logo — upper-right, the primary identity during reveal */}
             {team && (
-              <div className="absolute right-3 top-3 flex h-24 w-24 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900/80" style={{ boxShadow: `0 0 0 2px ${card.sub}40, 0 8px 32px rgba(0,0,0,0.5)` }}>
+              <div className="absolute right-2 top-2 flex h-14 w-14 items-center justify-center overflow-hidden rounded-xl border border-white/15 bg-slate-900/80 sm:right-3 sm:top-3 sm:h-24 sm:w-24" style={{ boxShadow: `0 0 0 2px ${card.sub}40, 0 8px 32px rgba(0,0,0,0.5)` }}>
                 {team.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img src={team.logoUrl} alt={team.name} className="h-full w-full object-contain p-1" />
@@ -3530,9 +3532,9 @@ function PickRevealModal({
         </div>
 
         {/* Team section */}
-        <div className="flex items-center gap-5 border-t border-white/8 bg-slate-900/70 px-8 py-5">
+        <div className="flex items-center gap-3 border-t border-white/8 bg-slate-900/70 px-4 py-4 sm:gap-5 sm:px-8 sm:py-5">
           {/* Team avatar */}
-          <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/8 p-1 text-xl font-black text-white">
+          <div className="flex h-11 w-11 sm:h-14 sm:w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-white/8 p-1 text-xl font-black text-white">
             {team?.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img src={team.logoUrl} alt={`${team.name} logo`} className="h-full w-full object-contain" />
@@ -3541,19 +3543,19 @@ function PickRevealModal({
             )}
           </div>
           <div className="min-w-0">
-            <p className="text-2xl font-black uppercase tracking-tight text-white">{team?.name ?? "—"}</p>
+            <p className="truncate text-lg sm:text-2xl font-black uppercase tracking-tight text-white">{team?.name ?? "—"}</p>
             <p className="mt-0.5 text-[11px] font-bold uppercase tracking-[0.2em] text-slate-500">
               Round {pick.round} · Pick {pick.pickNumber}
             </p>
           </div>
           <div className="ml-auto shrink-0 text-right">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700">Overall</p>
-            <p className="text-3xl font-black text-slate-400">#{pick.overallPickNumber}</p>
+            <p className="text-2xl sm:text-3xl font-black text-slate-400">#{pick.overallPickNumber}</p>
           </div>
         </div>
 
         {/* Footer actions */}
-        <div className="flex items-center justify-between border-t border-white/5 bg-black/40 px-6 py-3">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t border-white/5 bg-black/40 px-4 py-3 sm:px-6">
           {/* Reaction sound buttons */}
           <div className="flex items-center gap-2">
             <button type="button" title="Applause"
