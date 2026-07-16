@@ -1,14 +1,13 @@
 export type AnnouncerVoiceProfile = "drafthq:male" | "drafthq:female";
 
 // ── AI announcer availability ────────────────────────────────────────────
-// Cloud voice generation (OpenAI personas + ElevenLabs BYO) is disabled in
-// production unless explicitly enabled. NEXT_PUBLIC_ so the same check works
-// in the browser (hide UI) and on the server (refuse generation).
+// Cloud voice generation (OpenAI personas + ElevenLabs BYO) is disabled
+// everywhere until the feature is fleshed out — opt in per environment with
+// NEXT_PUBLIC_AI_ANNOUNCER_ENABLED=true (e.g. in .env.local while working on
+// it). NEXT_PUBLIC_ so the same check works in the browser (hide UI) and on
+// the server (refuse generation).
 export function isAiAnnouncerEnabled(): boolean {
-  const flag = process.env.NEXT_PUBLIC_AI_ANNOUNCER_ENABLED;
-  if (flag === "true") return true;
-  if (flag === "false") return false;
-  return process.env.NODE_ENV !== "production";
+  return process.env.NEXT_PUBLIC_AI_ANNOUNCER_ENABLED === "true";
 }
 
 // ── AI announcer personas ────────────────────────────────────────────────
