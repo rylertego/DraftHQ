@@ -118,7 +118,6 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [teamsError, setTeamsError] = useState("");
-  const [pastOpen, setPastOpen] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -134,7 +133,10 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
     return () => { active = false; };
   }, [workspace.league.id]);
 
-  const [currentSeason, ...pastSeasons] = workspace.seasons;
+  const [currentSeason] = workspace.seasons;
+  const recentMembers = [...workspace.members]
+    .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
+    .slice(0, 6);
   const draft = currentSeason?.draft;
   const activeTeams = teams.filter((team) => !team.archivedAt);
   const assignedOwners = activeTeams.filter((team) => team.ownerUserId).length;
@@ -239,19 +241,31 @@ export default function LeagueCommandCenter({ workspace, slug, onConfigureDraft,
       {/* ── Bottom row: Activity | Records | Standings (wide) | Checklist ── */}
       <div className={`grid gap-4 sm:grid-cols-2 ${workspace.canManage ? "xl:grid-cols-5" : "xl:grid-cols-4"}`}>
         <Card accentColor={primary} title="League Activity" eyebrow="Recent updates">
-          {pastSeasons.length === 0 ? (
-            <p className="text-sm leading-relaxed text-slate-500">League activity will appear here as members join, settings change, and draft picks are made.</p>
+          {recentMembers.length === 0 ? (
+            <p className="text-sm leading-relaxed text-slate-500">Member activity will appear here as people join the league.</p>
           ) : (
-            <div>
-              <button type="button" onClick={() => setPastOpen((open) => !open)} className="flex w-full items-center justify-between text-left text-sm font-semibold text-slate-300">
-                <span>Past Seasons ({pastSeasons.length})</span><span className={`text-slate-500 transition-transform ${pastOpen ? "rotate-180" : ""}`}>⌄</span>
-              </button>
-              {pastOpen && <div className="mt-2 divide-y divide-slate-800">{pastSeasons.map((season) => (
-                <div key={season.id} className="flex items-center justify-between gap-2 py-2">
-                  <div className="min-w-0"><p className="truncate text-xs font-semibold text-white">{season.name}</p><p className="text-[10px] text-slate-500">{season.year}</p></div>
-                  {season.draft && <Link href={`/draft?draftId=${season.draft.id}&leagueSlug=${slug}`} className="shrink-0 text-xs font-medium text-amber-400">View →</Link>}
+            <div className="divide-y divide-slate-800/70">
+              {recentMembers.map((member) => (
+                <div key={member.id} className="flex items-center gap-2.5 py-2 first:pt-0 last:pb-0">
+                  {member.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={member.avatarUrl} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-bold text-slate-400">
+                      {(member.nickname || member.displayName).slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-xs font-semibold text-white">
+                      {member.nickname || member.displayName}
+                      <span className="font-normal text-slate-500"> joined the league</span>
+                    </p>
+                    <p className="text-[10px] text-slate-500">
+                      {new Date(member.joinedAt).toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}
+                    </p>
+                  </div>
                 </div>
-              ))}</div>}
+              ))}
             </div>
           )}
         </Card>
