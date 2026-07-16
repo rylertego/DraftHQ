@@ -17,6 +17,7 @@ import {
   expireCurrentPick,
   extendClock,
   getByeWeeks,
+  listLandmineVideos,
   makePick,
   pauseDraft,
   resetPickTimer,
@@ -782,7 +783,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [clockEditMin, setClockEditMin] = useState(1);
   const [clockEditSec, setClockEditSec] = useState(30);
   // landmine animation
-  const [landminePick, setLandminePick] = useState<{ playerName: string; teamName: string } | null>(null);
+  const [landminePick, setLandminePick] = useState<{ playerName: string; teamName: string; overallPickNumber: number } | null>(null);
+  // commissioner-uploaded landmine videos; empty = built-in bomb animation
+  const [landmineVideoUrls, setLandmineVideoUrls] = useState<string[]>([]);
   // pick reveal modal
   const [revealPick, setRevealPick] = useState<DraftPick | null>(null);
   const revealInitRef = useRef(false);
@@ -822,6 +825,41 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       announcerClipAudioRef.current = null;
     }
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+  }
+
+  // Landmine picks skip the reveal card, but the pick still gets announced —
+  // after the explosion finishes (wired to LandmineAnimation's onExploded).
+  function announceLandminePick(info: { playerName: string; teamName: string; overallPickNumber: number }) {
+    if (!announcePickEnabled || typeof window === "undefined") return;
+    const text = `With pick ${info.overallPickNumber}, ${info.teamName} selects ${info.playerName}.`;
+    const voiceUri = snapshot?.draft.announcerVoiceUri;
+    const speakViaDevice = () => {
+      if (!window.speechSynthesis) return;
+      const utt = new SpeechSynthesisUtterance(text);
+      utt.rate = 0.85;
+      utt.pitch = 0.95;
+      const voice = resolveAnnouncerVoice(window.speechSynthesis.getVoices(), voiceUri);
+      if (voice) utt.voice = voice;
+      utt.onend = () => { announcementUtteranceRef.current = null; };
+      announcementUtteranceRef.current = utt;
+      window.speechSynthesis.cancel();
+      window.speechSynthesis.speak(utt);
+    };
+    const aiId = getAiAnnouncerId(voiceUri);
+    if (aiId) {
+      void fetchAnnouncerClipUrl(text, aiId, draftId).then((url) => {
+        if (!url) { speakViaDevice(); return; }
+        const audio = new Audio(url);
+        audio.volume = 0.9;
+        announcerClipAudioRef.current = audio;
+        audio.onended = () => {
+          if (announcerClipAudioRef.current === audio) announcerClipAudioRef.current = null;
+        };
+        audio.play().catch(() => speakViaDevice());
+      });
+    } else {
+      speakViaDevice();
+    }
   }
 
   function preloadHeadshot(url: string) {
@@ -965,6 +1003,14 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       });
     }
   }, [leagueSlug, setAccentColor, setBgColor]);
+
+  // Load the landmine video pool once per draft (missing/empty → bomb fallback)
+  useEffect(() => {
+    if (!draftId) return;
+    void listLandmineVideos(draftId)
+      .then((videos) => setLandmineVideoUrls(videos.map((v) => v.url)))
+      .catch(() => {});
+  }, [draftId]);
 
   // Load bye weeks + ESPN rankings for the current NFL season year
   useEffect(() => {
@@ -1163,7 +1209,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         if (walkUpDelayRef.current) { clearTimeout(walkUpDelayRef.current); walkUpDelayRef.current = null; }
         walkUpPlayerRef.current?.stop();
         if (walkUpDefaultAudioRef.current) { walkUpDefaultAudioRef.current.pause(); walkUpDefaultAudioRef.current.currentTime = 0; }
-        setLandminePick({ playerName: newest.playerName, teamName: team?.name ?? "a team" });
+        setLandminePick({ playerName: newest.playerName, teamName: team?.name ?? "a team", overallPickNumber: newest.overallPickNumber });
       } else if (showPickReveal && !isRoundEnd) {
         const headshotUrl = snapshot.players.find((player) => player.id === newest.playerId)?.headshotUrl;
         if (headshotUrl) {
@@ -1221,6 +1267,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     if (suppressRecap) return;
     if (!(draft.showRoundSlide ?? true)) return;
 
+    // A landmine on the round's final pick owns the screen first. Defer the
+    // recap while it plays (the ref is set synchronously by the landmine
+    // branch, which runs earlier in this same commit); when the landmine
+    // dismisses, the landmineActive dep re-runs this effect and — since
+    // lastRecapRoundRef was intentionally NOT advanced — the recap fires then.
+    if (landmineActiveRef.current) return;
+
     // currentPick is 1-indexed; when it equals tc*n+1, round n just finished
     if (cp <= 1 || (cp - 1) % tc !== 0) return;
     const completedRound = Math.floor((cp - 1) / tc);
@@ -1228,7 +1281,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     lastRecapRoundRef.current = completedRound;
     const roundPicks = picks.filter((p) => p.round === completedRound);
     setRoundRecap({ round: completedRound, picks: roundPicks });
-  }, [snapshot?.draft.currentPick, snapshot?.picks.length, suppressRecap]);
+  }, [snapshot?.draft.currentPick, snapshot?.picks.length, suppressRecap, landmineActive]);
 
   // "The pick is in" sound when user stages a player
   const prevStagedRef = useRef<string | null>(null);
@@ -2605,9 +2658,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {/* ── Landmine animation ── */}
       {landminePick && (
         <LandmineAnimation
-          key={`${landminePick.playerName}-${landminePick.teamName}`}
+          key={`${landminePick.overallPickNumber}-${landminePick.playerName}`}
           playerName={landminePick.playerName}
           teamName={landminePick.teamName}
+          // Deterministic by pick number so every client shows the same clip,
+          // cycling through the pool across whammies
+          videoUrl={landmineVideoUrls.length > 0
+            ? landmineVideoUrls[landminePick.overallPickNumber % landmineVideoUrls.length]
+            : undefined}
+          onExploded={() => announceLandminePick(landminePick)}
           onDismiss={() => { prevOnClockTeamIdRef.current = null; setLandmineActive(false); setLandminePick(null); }}
         />
       )}
@@ -2644,7 +2703,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       )}
 
       {/* ── End-of-round recap modal ── */}
-      {roundRecap && !revealPick && (
+      {roundRecap && !revealPick && !landmineActive && (
         <RoundRecapModal
           round={roundRecap.round}
           totalRounds={snapshot.draft.rounds}

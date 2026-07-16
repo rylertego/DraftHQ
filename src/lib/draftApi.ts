@@ -922,6 +922,46 @@ export async function uploadDraftPresentationAudio(draftId: string, slot: "pickI
   return `${data.publicUrl}?t=${Date.now()}`;
 }
 
+// ── Landmine videos ────────────────────────────────────────────────
+// The pool for a draft is the contents of its draft-videos/{draftId} folder —
+// no schema involved. Playback selects deterministically by pick number so
+// every client shows the same clip.
+
+export interface LandmineVideo {
+  name: string;
+  url: string;
+}
+
+export async function uploadLandmineVideo(draftId: string, file: File): Promise<void> {
+  await ensureAnonymousUser();
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "mp4";
+  const path = `${draftId}/landmine-${Date.now()}.${ext}`;
+  const { error } = await supabase.storage
+    .from("draft-videos")
+    .upload(path, file, { contentType: file.type });
+  if (error) throw new Error(error.message);
+}
+
+export async function listLandmineVideos(draftId: string): Promise<LandmineVideo[]> {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.storage
+    .from("draft-videos")
+    .list(draftId, { sortBy: { column: "name", order: "asc" } });
+  if (error) throw new Error(error.message);
+  return (data ?? [])
+    .filter((f) => !!f.name && !f.name.startsWith("."))
+    .map((f) => ({
+      name: f.name,
+      url: supabase.storage.from("draft-videos").getPublicUrl(`${draftId}/${f.name}`).data.publicUrl,
+    }));
+}
+
+export async function deleteLandmineVideo(draftId: string, name: string): Promise<void> {
+  await ensureAnonymousUser();
+  const { error } = await supabase.storage.from("draft-videos").remove([`${draftId}/${name}`]);
+  if (error) throw new Error(error.message);
+}
+
 export async function updateDraftRounds(draftId: string, rounds: number): Promise<Draft> {
   await ensureAnonymousUser();
   const { data, error } = await supabase.rpc("update_draft_extras", {

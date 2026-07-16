@@ -26,7 +26,11 @@ import {
   updateTeamSetup,
   uploadDraftTeamLogo,
   uploadDraftOwnerPhoto,
+  uploadLandmineVideo,
+  listLandmineVideos,
+  deleteLandmineVideo,
   type DraftSetup,
+  type LandmineVideo,
 } from "@/lib/draftApi";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
@@ -193,6 +197,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   // Announcer voice
   const [announcerVoiceUri, setAnnouncerVoiceUri] = useState<string | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
+  // Landmine videos
+  const [landmineVideos, setLandmineVideos] = useState<LandmineVideo[]>([]);
+  const [uploadingLandmineVideo, setUploadingLandmineVideo] = useState(false);
   // ElevenLabs bring-your-own account (key lives in this browser only)
   const [elConnected, setElConnected] = useState(() => !!getStoredElevenLabsKey());
   const [elKeyInput, setElKeyInput] = useState("");
@@ -213,6 +220,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       if (b?.secondaryColor) setBgColor(b.secondaryColor);
     });
   }, [leagueSlug, setAccentColor, setBgColor]);
+
+  // Load the landmine video pool
+  useEffect(() => {
+    if (!draftId) return;
+    void listLandmineVideos(draftId).then(setLandmineVideos).catch(() => {});
+  }, [draftId]);
 
   // Load the voice library when this browser already has a stored key.
   useEffect(() => {
@@ -805,7 +818,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   <p className="text-base font-bold text-white">Draft format</p>
                   <p className="mt-0.5 text-xs text-slate-500 mb-5">Changing teams will add or remove slots from the draft order.</p>
 
-                  <div className="grid gap-5 sm:grid-cols-2 mb-5">
+                  <div className="grid gap-5 sm:grid-cols-3 mb-5">
                     <div>
                       <label className={labelCls}>Teams</label>
                       <div className="flex items-center gap-2">
@@ -860,6 +873,27 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         </select>
                         {isSavingRounds && <span className="shrink-0 text-xs text-slate-500">Saving...</span>}
                       </div>
+                    </div>
+                    <div>
+                      <label className={labelCls}>Player Rankings</label>
+                      <select
+                        disabled={!isCommissioner}
+                        className="w-full disabled:opacity-50"
+                        value={scoringType}
+                        onChange={(e) => {
+                          const val = e.target.value as typeof scoringType;
+                          setScoringType(val);
+                          if (!draftId || !setup) return;
+                          void updateDraftExtras(draftId, { scoringType: val })
+                            .then((d) => setSetup({ ...setup, draft: d }))
+                            .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
+                        }}
+                      >
+                        <option value="standard">Standard</option>
+                        <option value="ppr">PPR</option>
+                        <option value="half_ppr">Half-PPR</option>
+                        <option value="superflex">Superflex</option>
+                      </select>
                     </div>
                   </div>
 
@@ -1196,36 +1230,84 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                 <LandmineRevealButton draftId={draftId} />
                               )}
                             </div>
+
+                            {/* Landmine videos — optional replacement for the bomb animation */}
+                            <div className="border-t border-slate-800 pt-3">
+                              <p className="text-xs font-semibold text-slate-300">Landmine videos <span className="font-normal text-slate-500">(optional)</span></p>
+                              <p className="mb-2 mt-0.5 text-[11px] leading-snug text-slate-500">
+                                Full-screen videos played when a landmine hits, instead of the built-in bomb.
+                                Videos cycle through the pool so everyone sees the same clip. MP4/WebM, max 25 MB, up to 6.
+                              </p>
+                              <div className="space-y-1.5">
+                                {landmineVideos.map((video) => (
+                                  <div key={video.name} className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-1.5">
+                                    <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0 text-red-400">
+                                      <rect x="1" y="3" width="10" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3"/>
+                                      <path d="M11 7l4-2.5v7L11 9" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round"/>
+                                    </svg>
+                                    <span className="min-w-0 flex-1 truncate text-xs text-slate-300">{video.name}</span>
+                                    <a href={video.url} target="_blank" rel="noreferrer" title="Preview"
+                                      className="shrink-0 text-slate-400 transition-colors hover:text-white">
+                                      <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M2 2l8 4-8 4z"/></svg>
+                                    </a>
+                                    {isCommissioner && (
+                                      <button type="button" title="Remove"
+                                        className="shrink-0 text-slate-500 transition-colors hover:text-red-400"
+                                        onClick={async () => {
+                                          if (!draftId) return;
+                                          try {
+                                            await deleteLandmineVideo(draftId, video.name);
+                                            setLandmineVideos((prev) => prev.filter((v) => v.name !== video.name));
+                                            flashSaved();
+                                          } catch (err) {
+                                            setError(err instanceof Error ? err.message : "Unable to remove video.");
+                                          }
+                                        }}>
+                                        <svg viewBox="0 0 12 12" fill="none" className="h-3 w-3">
+                                          <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+                                        </svg>
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                                {isCommissioner && landmineVideos.length < 6 && (
+                                  <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 transition-colors hover:border-slate-500 hover:text-slate-300 ${uploadingLandmineVideo ? "pointer-events-none opacity-50" : ""}`}>
+                                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3 w-3">
+                                      <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
+                                    </svg>
+                                    {uploadingLandmineVideo ? "Uploading…" : "Add a video"}
+                                    <input
+                                      type="file"
+                                      accept="video/mp4,video/webm"
+                                      className="sr-only"
+                                      disabled={!draftId || uploadingLandmineVideo}
+                                      onChange={async (e) => {
+                                        const file = e.target.files?.[0];
+                                        if (!file || !draftId) return;
+                                        if (file.size > 25 * 1024 * 1024) {
+                                          setError("Landmine videos must be 25 MB or smaller.");
+                                          e.target.value = "";
+                                          return;
+                                        }
+                                        setUploadingLandmineVideo(true);
+                                        try {
+                                          await uploadLandmineVideo(draftId, file);
+                                          setLandmineVideos(await listLandmineVideos(draftId));
+                                          flashSaved();
+                                        } catch (err) {
+                                          setError(err instanceof Error ? err.message : "Upload failed.");
+                                        } finally {
+                                          setUploadingLandmineVideo(false);
+                                          e.target.value = "";
+                                        }
+                                      }}
+                                    />
+                                  </label>
+                                )}
+                              </div>
+                            </div>
                           </div>
                         )}
-                      </div>
-                    </div>
-
-                    {/* Player Rankings Type */}
-                    <div className="grid gap-4 py-5 sm:grid-cols-2">
-                      <div>
-                        <p className="font-semibold text-white text-sm">Player Rankings Type</p>
-                        <p className="mt-0.5 text-xs text-slate-500">Standard, PPR, Half-PPR, or Superflex.</p>
-                      </div>
-                      <div>
-                        <select
-                          disabled={!isCommissioner}
-                          className="w-full disabled:opacity-50"
-                          value={scoringType}
-                          onChange={(e) => {
-                            const val = e.target.value as typeof scoringType;
-                            setScoringType(val);
-                            if (!draftId || !setup) return;
-                            void updateDraftExtras(draftId, { scoringType: val })
-                              .then((d) => setSetup({ ...setup, draft: d }))
-                              .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
-                          }}
-                        >
-                          <option value="standard">Standard</option>
-                          <option value="ppr">PPR</option>
-                          <option value="half_ppr">Half-PPR</option>
-                          <option value="superflex">Superflex</option>
-                        </select>
                       </div>
                     </div>
 

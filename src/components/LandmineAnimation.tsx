@@ -6,24 +6,34 @@ export interface LandmineAnimationProps {
   playerName: string;
   teamName: string;
   onDismiss: () => void;
+  /** Fires once, after the explosion sound (or landmine video) has played —
+   * the hook for announcing the pick without talking over it. */
+  onExploded?: () => void;
+  /** When set, this clip plays full-screen instead of the bomb animation.
+   * Playback failure falls back to the bomb. */
+  videoUrl?: string;
 }
 
-function playSound(src: string, volume = 1) {
-  try {
-    const audio = new Audio(src);
-    audio.volume = volume;
-    void audio.play();
-  } catch { /* ignore autoplay blocks */ }
-}
-
-export default function LandmineAnimation({ playerName, teamName, onDismiss }: LandmineAnimationProps) {
-  const [phase, setPhase] = useState<"drop" | "explode">("drop");
+export default function LandmineAnimation({ playerName, teamName, onDismiss, onExploded, videoUrl }: LandmineAnimationProps) {
+  // video → reveal (landmine clip path) · drop → explode (built-in bomb path)
+  const [phase, setPhase] = useState<"video" | "drop" | "explode" | "reveal">(videoUrl ? "video" : "drop");
   const dropTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dismissTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const explodedFiredRef = useRef(false);
   const onDismissRef = useRef(onDismiss);
   useEffect(() => { onDismissRef.current = onDismiss; }, [onDismiss]);
+  const onExplodedRef = useRef(onExploded);
+  useEffect(() => { onExplodedRef.current = onExploded; }, [onExploded]);
 
+  const fireExploded = () => {
+    if (explodedFiredRef.current) return;
+    explodedFiredRef.current = true;
+    onExplodedRef.current?.();
+  };
+
+  // Bomb leadup — only when the bomb path is (or becomes, via fallback) active
   useEffect(() => {
+    if (phase !== "drop") return;
     let cancelled = false;
     const audio = new Audio("/sounds/bomb leadup.mp3");
     audio.volume = 0.8;
@@ -41,15 +51,66 @@ export default function LandmineAnimation({ playerName, teamName, onDismiss }: L
       audio.pause();
       if (dropTimerRef.current) clearTimeout(dropTimerRef.current);
     };
-  }, []);
-
-  useEffect(() => {
-    if (phase === "explode") {
-      playSound("/sounds/bomb blow.mp3", 1.0);
-      dismissTimerRef.current = setTimeout(() => onDismissRef.current(), 6000);
-    }
-    return () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current); };
   }, [phase]);
+
+  // Explosion (bomb path): boom, then announce when it finishes
+  useEffect(() => {
+    if (phase !== "explode") {
+      return () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current); };
+    }
+    const blow = new Audio("/sounds/bomb blow.mp3");
+    blow.volume = 1.0;
+    blow.onended = fireExploded;
+    void blow.play().catch(() => { /* autoplay blocked — fallback timer below */ });
+    // Fallback for blocked audio or engines that never emit `ended`
+    const explodedFallback = setTimeout(fireExploded, 2_800);
+    dismissTimerRef.current = setTimeout(() => onDismissRef.current(), 6000);
+    return () => {
+      blow.onended = null;
+      blow.pause();
+      clearTimeout(explodedFallback);
+      if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // Reveal (after the landmine video): the clip carried its own audio, so
+  // announce immediately and show the card
+  useEffect(() => {
+    if (phase !== "reveal") return;
+    fireExploded();
+    dismissTimerRef.current = setTimeout(() => onDismissRef.current(), 6000);
+    return () => { if (dismissTimerRef.current) clearTimeout(dismissTimerRef.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phase]);
+
+  // ── Landmine video phase ────────────────────────────────────────────────
+  if (phase === "video" && videoUrl) {
+    return (
+      <div
+        className="fixed inset-0 z-[9999] flex items-center justify-center bg-black"
+        onClick={() => setPhase("reveal")}
+      >
+        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
+        <video
+          src={videoUrl}
+          autoPlay
+          playsInline
+          className="h-full w-full object-contain"
+          onEnded={() => setPhase("reveal")}
+          onError={() => setPhase("drop")}
+          ref={(el) => {
+            // Some browsers ignore autoPlay with sound — force it; if the
+            // gesture requirement blocks us, fall back to the bomb.
+            el?.play().catch(() => setPhase("drop"));
+          }}
+        />
+        <p className="absolute bottom-4 left-1/2 -translate-x-1/2 text-xs text-white/30">
+          click anywhere to skip
+        </p>
+      </div>
+    );
+  }
 
   return (
     <>
@@ -101,7 +162,7 @@ export default function LandmineAnimation({ playerName, teamName, onDismiss }: L
       <div
         className="fixed inset-0 z-[9999] flex items-center justify-center"
         style={{
-          background: phase === "explode"
+          background: phase !== "drop"
             ? "radial-gradient(ellipse at center, rgba(120,20,0,0.55) 0%, rgba(0,0,0,0.97) 65%)"
             : "rgba(0,0,0,0.92)",
           backdropFilter: "blur(6px)",
@@ -123,10 +184,11 @@ export default function LandmineAnimation({ playerName, teamName, onDismiss }: L
           </div>
         )}
 
-        {/* Explode + reveal combined */}
-        {phase === "explode" && (
+        {/* Explode + reveal combined (also shown after a landmine video) */}
+        {(phase === "explode" || phase === "reveal") && (
           <div className="relative flex flex-col items-center justify-center gap-6">
             {/* Shockwave ring */}
+            {phase === "explode" && (
             <div
               style={{
                 position: "absolute",
@@ -140,6 +202,7 @@ export default function LandmineAnimation({ playerName, teamName, onDismiss }: L
                 pointerEvents: "none",
               }}
             />
+            )}
 
             {/* Player card — appears immediately with the explosion */}
             <div
