@@ -35,7 +35,7 @@ function formatPickClock(seconds: number) {
   return remainder === 0 ? `${minutes}m` : `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
-function statusLabel(status: LeagueSeason["status"] | undefined, draftStatus?: DraftStatus) {
+function draftLifecycleLabel(status: LeagueSeason["status"] | undefined, draftStatus?: DraftStatus) {
   if (!status) return "No season";
   if (status === "drafting" && !draftStatus) return "No draft";
   if (draftStatus === "setup") return "Pre-draft";
@@ -121,7 +121,7 @@ function MetricTile({
   };
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-950/45 px-4 py-3">
+    <div className="rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
       <p className={`mt-1 text-xl font-black tabular-nums ${toneClass[tone]}`}>{value}</p>
       {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
@@ -148,10 +148,12 @@ function Countdown({
   scheduledAt,
   status,
   accentColor,
+  action,
 }: {
   scheduledAt: string | null;
   status: DraftStatus;
   accentColor: string;
+  action?: React.ReactNode;
 }) {
   const [now, setNow] = useState<number | null>(null);
 
@@ -166,9 +168,12 @@ function Countdown({
 
   if (!scheduledAt) {
     return (
-      <div className="rounded-xl border border-amber-400/20 bg-amber-500/10 px-4 py-3">
-        <p className="text-sm font-bold text-amber-100">Draft date not scheduled</p>
-        <p className="mt-1 text-sm leading-relaxed text-slate-400">Owners need a clear start time before draft night.</p>
+      <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-4">
+        <p className="text-sm font-black text-amber-100">Schedule the draft date</p>
+        <p className="mt-1 text-sm leading-relaxed text-slate-400">
+          Owners need a clear start time before draft night. Set the date before inviting everyone into the room.
+        </p>
+        {action && <div className="mt-4">{action}</div>}
       </div>
     );
   }
@@ -212,7 +217,7 @@ function Countdown({
     <div>
       <div className="grid grid-cols-3 gap-2">
         {values.map(([value, label]) => (
-          <div key={label} className="rounded-xl border border-slate-800 bg-slate-950/55 px-2 py-3 text-center">
+          <div key={label} className="rounded-xl bg-slate-950/45 px-2 py-3 text-center ring-1 ring-white/10">
             <p className="text-2xl font-black tabular-nums text-white">{now === null ? "--" : value}</p>
             <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
           </div>
@@ -317,7 +322,7 @@ export default function LeagueCommandCenter({
   const draftScheduled = Boolean(draft?.scheduledAt);
   const configureHref = draft ? `/teams?draftId=${draft.id}&tab=settings&leagueSlug=${slug}` : null;
   const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
-  const draftLabel = statusLabel(currentSeason?.status, draft?.status ?? null);
+  const draftLabel = draftLifecycleLabel(currentSeason?.status, draft?.status ?? null);
   const draftTone = statusTone(draftLabel);
 
   const readinessItems: Array<{ label: string; done: boolean | null; detail: string }> = [
@@ -326,13 +331,66 @@ export default function LeagueCommandCenter({
     { label: "Draft date set", done: draftScheduled, detail: draft?.scheduledAt ? formatDraftDate(draft.scheduledAt) : "Schedule the draft" },
     { label: "Teams added", done: teamsLoading ? null : teamsReady, detail: teamsLoading ? "Checking teams" : `${activeTeams.length} of ${expectedTeams} teams` },
     { label: "Owners assigned", done: teamsLoading ? null : ownersReady, detail: teamsLoading ? "Checking owners" : `${assignedOwners} of ${activeTeams.length} assigned` },
-    { label: "Draft room ready", done: teamsLoading ? null : draftCreated && teamsReady, detail: draftCreated ? (teamsReady ? "Ready to open" : "Finish team setup") : "Draft not created" },
+    {
+      label: "Draft room ready",
+      done: teamsLoading ? null : draftCreated && draftScheduled && teamsReady && ownersReady,
+      detail: draftCreated && draftScheduled && teamsReady && ownersReady ? "Ready to open" : "Finish setup first",
+    },
   ];
 
   const openItems = readinessItems.filter((item) => item.done === false).length;
   const completedItems = readinessItems.filter((item) => item.done === true).length;
   const readinessPercent = Math.round((completedItems / readinessItems.length) * 100);
   const nextOpenItem = readinessItems.find((item) => item.done === false);
+  const setupReady = openItems === 0 && !teamsLoading && !teamsError;
+  const setupLabel = setupReady && draft?.status === "complete"
+    ? "Draft Complete"
+    : setupReady
+      ? "Ready"
+      : teamsError
+        ? "Needs Attention"
+        : `${readinessPercent}% Ready`;
+  const setupTone: Tone = setupReady ? "complete" : "warning";
+  const scheduledDraftDate = draft?.scheduledAt ? formatDraftDate(draft.scheduledAt) : "";
+  const setupSummary = setupReady && draft?.status === "complete"
+    ? "The draft is complete. Review results and keep the league record current."
+    : teamsError
+      ? "Team data could not be loaded. Resolve the issue before relying on readiness status."
+      : !draftCreated
+        ? "Create this season's draft so commissioners can configure the room."
+        : !draftScheduled
+          ? "Draft setup is underway. Schedule the start time before owners arrive."
+          : !teamsReady
+            ? "Draft setup is underway. Align the team count with league settings before draft night."
+            : !ownersReady
+              ? "Draft setup is underway. Assign every team to an owner before draft night."
+              : `Draft night is scheduled for ${scheduledDraftDate}.`;
+  const nextActionTitle = teamsError
+    ? "Resolve team snapshot"
+    : nextOpenItem?.label === "Draft created"
+      ? "Create draft"
+      : nextOpenItem?.label === "Draft date set"
+        ? "Schedule draft"
+        : nextOpenItem?.label === "Teams added"
+          ? "Review teams"
+          : nextOpenItem?.label === "Owners assigned"
+            ? "Assign owners"
+            : nextOpenItem?.label === "Draft room ready"
+              ? "Finish team setup"
+              : draft?.status === "complete"
+                ? "Review draft"
+                : draft
+                  ? "Enter draft room"
+                  : currentSeason
+                    ? "Create draft"
+                    : "Create season";
+  const nextActionDetail = teamsError
+    ? "The readiness panel cannot confirm teams until the team snapshot loads."
+    : nextOpenItem?.label === "Draft date set"
+      ? "Owners need the start time before they can confidently plan for draft night."
+      : nextOpenItem?.label === "Owners assigned"
+        ? `${expectedTeams - assignedOwners} owner seat${expectedTeams - assignedOwners === 1 ? "" : "s"} still need attention.`
+        : nextOpenItem?.detail ?? (setupReady ? "Everything required for the current draft setup is in a ready state." : "Complete the open setup items before draft night.");
 
   const lastCompletedSeason = workspace.seasons.find(
     (season) => season.status === "complete" && season.standings.length > 0
@@ -346,29 +404,60 @@ export default function LeagueCommandCenter({
     .slice(0, 5);
   const recentTeams = activeTeams.slice(0, 6);
 
-  const primaryAction = roomHref ? (
-    <Link
-      href={roomHref}
-      className="inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950"
-    >
-      Enter Draft Room
-    </Link>
-  ) : currentSeason && workspace.canManage ? (
-    <button
-      type="button"
-      onClick={onConfigureDraft}
-      className="inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950"
-    >
-      Create Draft
-    </button>
-  ) : workspace.canManage ? (
-    <Link
-      href={`/leagues/${slug}/seasons/new`}
-      className="inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950"
-    >
-      Create Season
-    </Link>
+  const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
+  const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
+  const teamSetupHref = `/leagues/${slug}/teams`;
+  const primaryAction = !workspace.canManage && roomHref && setupReady ? (
+    <Link href={roomHref} className={primaryButtonClass}>Enter Draft Room</Link>
+  ) : !currentSeason && workspace.canManage ? (
+    <Link href={`/leagues/${slug}/seasons/new`} className={primaryButtonClass}>Create Season</Link>
+  ) : currentSeason && !draft && workspace.canManage ? (
+    <button type="button" onClick={onConfigureDraft} className={primaryButtonClass}>Create Draft</button>
+  ) : workspace.canManage && draft && !draftScheduled ? (
+    <Link href={configureHref ?? teamSetupHref} className={primaryButtonClass}>Schedule Draft</Link>
+  ) : workspace.canManage && (!teamsReady || !ownersReady) ? (
+    <Link href={teamSetupHref} className={primaryButtonClass}>{teamsReady ? "Assign Owners" : "Review Teams"}</Link>
+  ) : roomHref ? (
+    <Link href={roomHref} className={primaryButtonClass}>{draft?.status === "complete" ? "Review Draft" : "Enter Draft Room"}</Link>
   ) : null;
+  const secondaryAction = workspace.canManage && draft ? (
+    <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>Configure Draft</Link>
+  ) : workspace.canManage ? (
+    <Link href={teamSetupHref} className={secondaryButtonClass}>Manage Teams</Link>
+  ) : null;
+
+  const nextActionPanel = (
+    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Commissioner Action</p>
+      <p className="mt-2 text-xl font-black text-white">{nextActionTitle}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-400">{nextActionDetail}</p>
+
+      <div className="mt-4 flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+          <div
+            className="h-full rounded-full transition-all"
+            style={{ width: `${readinessPercent}%`, backgroundColor: primary }}
+          />
+        </div>
+        <span className="text-xs font-black tabular-nums text-slate-300">{readinessPercent}%</span>
+      </div>
+
+      <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
+        {primaryAction}
+        {secondaryAction}
+      </div>
+
+      {workspace.canManage && draft && (
+        <button
+          type="button"
+          onClick={onResetDraft}
+          className="mt-4 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+        >
+          Reset draft
+        </button>
+      )}
+    </aside>
+  );
 
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5">
@@ -388,72 +477,39 @@ export default function LeagueCommandCenter({
         />
         <div className="relative grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
           <div className="min-w-0">
+            <div className="mb-5 flex items-center gap-3 lg:hidden">
+              <TeamMark src={workspace.league.logoUrl} name={workspace.league.name} className="h-14 w-14" accentColor={primary} />
+              <div className="min-w-0">
+                <p className="truncate text-base font-black text-white">{workspace.league.name}</p>
+                <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: primary }}>
+                  {workspace.members.length} members
+                </p>
+              </div>
+            </div>
             <div className="flex flex-wrap items-center gap-2">
               <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: primary }}>
                 League Command Center
               </p>
-              <StatusBadge label={draftLabel} tone={draftTone} />
+              <StatusBadge label={setupLabel} tone={setupTone} />
             </div>
             <h1 id="league-dashboard-title" className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
               {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
             </h1>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              {draft?.scheduledAt
-                ? `Draft night is scheduled for ${formatDraftDate(draft.scheduledAt)}.`
-                : draft
-                  ? "Draft setup is underway. Schedule the room and finish owner readiness before draft night."
-                  : "Create and configure this season's draft so owners have one clear place to join."}
+              {setupSummary}
             </p>
 
+            <div className="mt-5 lg:hidden">{nextActionPanel}</div>
+
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricTile label="Readiness" value={setupLabel} detail={draft?.name ?? "Season setup"} tone={setupTone} />
               <MetricTile label="Draft Status" value={draftLabel} detail={draft?.name ?? "Season setup"} tone={draftTone} />
               <MetricTile label="Teams" value={teamsLoading ? "--" : `${activeTeams.length}/${expectedTeams}`} detail={teamsReady ? "Roster count ready" : "Match league size"} tone={teamsReady ? "complete" : "warning"} />
               <MetricTile label="Owners" value={teamsLoading ? "--" : `${assignedOwners}/${activeTeams.length}`} detail={ownersReady ? "All assigned" : "Assignments needed"} tone={ownersReady ? "complete" : "warning"} />
-              <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail={draft ? "Snake draft" : "Not configured"} tone="neutral" />
             </div>
           </div>
 
-          <aside className="rounded-2xl border border-white/10 bg-slate-950/55 p-4 backdrop-blur">
-            <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Commissioner Action</p>
-            <p className="mt-2 text-xl font-black text-white">
-              {nextOpenItem?.label ?? (draft ? "Open the draft room" : "Season is ready")}
-            </p>
-            <p className="mt-1 text-sm leading-6 text-slate-400">
-              {nextOpenItem?.detail ?? "Everything required for the current draft setup is in a ready state."}
-            </p>
-
-            <div className="mt-4 flex items-center gap-3">
-              <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-                <div
-                  className="h-full rounded-full transition-all"
-                  style={{ width: `${readinessPercent}%`, backgroundColor: primary }}
-                />
-              </div>
-              <span className="text-xs font-black tabular-nums text-slate-300">{readinessPercent}%</span>
-            </div>
-
-            <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
-              {primaryAction}
-              {workspace.canManage && (
-                <Link
-                  href={configureHref ?? `/leagues/${slug}/teams`}
-                  className="inline-flex items-center justify-center rounded-xl border border-slate-700 bg-slate-900/75 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950"
-                >
-                  {configureHref ? "Configure Draft" : "Manage Teams"}
-                </Link>
-              )}
-            </div>
-
-            {workspace.canManage && draft && (
-              <button
-                type="button"
-                onClick={onResetDraft}
-                className="mt-4 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
-              >
-                Reset draft
-              </button>
-            )}
-          </aside>
+          <div className="hidden lg:block">{nextActionPanel}</div>
         </div>
 
         {teamsError && (
@@ -479,9 +535,19 @@ export default function LeagueCommandCenter({
 
           <SectionPanel title="Draft Countdown" eyebrow="Next event">
             <div className="space-y-4">
-              <Countdown scheduledAt={draft?.scheduledAt ?? null} status={draft?.status ?? null} accentColor={primary} />
-              <div className="grid grid-cols-2 gap-3">
+              <Countdown
+                scheduledAt={draft?.scheduledAt ?? null}
+                status={draft?.status ?? null}
+                accentColor={primary}
+                action={workspace.canManage && draft ? (
+                  <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200">
+                    Schedule Draft
+                  </Link>
+                ) : undefined}
+              />
+              <div className="grid gap-3 sm:grid-cols-3">
                 <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
+                <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
                 <MetricTile label="Expiry" value={draft?.timerBehavior === "auto_draft" ? "Auto" : draft?.timerBehavior === "skip" ? "Skip" : draft ? "Hold" : "--"} detail="Clock behavior" />
               </div>
             </div>
