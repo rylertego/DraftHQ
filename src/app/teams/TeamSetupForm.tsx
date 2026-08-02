@@ -194,6 +194,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [roundSlidePausesClock, setRoundSlidePausesClock] = useState(false);
   // Walk-up music mode
   const [walkUpMusicMode, setWalkUpMusicMode] = useState<"restart" | "resume">("restart");
+  // Awards ceremony music
+  const [awardsSong, setAwardsSong] = useState<WalkUpSong | null>(null);
+  const [showAwardsSongPicker, setShowAwardsSongPicker] = useState(false);
   // Announcer voice
   const [announcerVoiceUri, setAnnouncerVoiceUri] = useState<string | null>(null);
   const [availableVoices, setAvailableVoices] = useState<SpeechSynthesisVoice[]>([]);
@@ -266,6 +269,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         setRoundSlidePausesClock(s.draft.roundSlidePausesClock ?? false);
         setAnnouncerVoiceUri(s.draft.announcerVoiceUri ?? null);
         setWalkUpMusicMode(s.draft.walkUpMusicMode ?? "restart");
+        setAwardsSong(s.draft.awardsSong ?? null);
         if (s.draft.rosterPositions?.length) {
           setRosterPositions(
             DEFAULT_ROSTER_POSITIONS.map((def) => {
@@ -2452,6 +2456,66 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   </div>
                 </div>
 
+                {/* Awards Ceremony Music */}
+                <div className={cardCls}>
+                  <p className="text-base font-bold text-white">Awards Ceremony Music</p>
+                  <p className="mt-0.5 text-xs text-slate-500 mb-4">
+                    The song that plays during the end-of-draft awards ceremony. Pick anything from YouTube, or leave the DraftHQ default.
+                  </p>
+
+                  {awardsSong ? (
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2.5">
+                      {awardsSong.thumbnail ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={awardsSong.thumbnail} alt="" className="h-9 w-9 shrink-0 rounded object-cover" />
+                      ) : (
+                        <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 shrink-0 text-slate-400">
+                          <path d="M6 2v9.27A3 3 0 1 0 7 14V5h5V2H6z"/>
+                        </svg>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-white">{awardsSong.title}</p>
+                        {awardsSong.artist && <p className="truncate text-xs text-slate-500">{awardsSong.artist}</p>}
+                      </div>
+                      {isCommissioner && (
+                        <button
+                          type="button"
+                          title="Use the default track"
+                          className="shrink-0 text-xs text-slate-500 underline transition-colors hover:text-red-400"
+                          onClick={async () => {
+                            setAwardsSong(null);
+                            if (!draftId || !setup) return;
+                            try {
+                              const updated = await updateDraftPresentation(draftId, { clearAwardsSong: true });
+                              setSetup({ ...setup, draft: updated });
+                              flashSaved();
+                            } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
+                          }}
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-3 text-sm text-slate-500">
+                      Using the DraftHQ default celebration track.
+                    </p>
+                  )}
+
+                  {isCommissioner && (
+                    <button
+                      type="button"
+                      onClick={() => setShowAwardsSongPicker(true)}
+                      className="mt-2 flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 transition-colors hover:border-slate-500 hover:text-slate-300"
+                    >
+                      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5">
+                        <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
+                      </svg>
+                      {awardsSong ? "Change song" : "Choose a song"}
+                    </button>
+                  )}
+                </div>
+
                 {/* Voice Reactions */}
                 <div className={cardCls}>
                   <p className="text-base font-bold text-white">Voice Reactions</p>
@@ -2672,6 +2736,21 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           setSongPickerTeamId(null);
         }}
         onClose={() => setSongPickerTeamId(null)}
+      />
+    )}
+
+    {/* Awards ceremony song picker */}
+    {showAwardsSongPicker && (
+      <SongPicker
+        onSelect={(song) => {
+          setAwardsSong(song);
+          setShowAwardsSongPicker(false);
+          if (!draftId || !setup) return;
+          void updateDraftPresentation(draftId, { awardsSong: song })
+            .then((updated) => { setSetup({ ...setup, draft: updated }); flashSaved(); })
+            .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
+        }}
+        onClose={() => setShowAwardsSongPicker(false)}
       />
     )}
 

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import DraftAwardsCeremony from "@/components/DraftAwardsCeremony";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftLobby from "@/components/DraftLobby";
@@ -76,6 +77,7 @@ function DraftCompleteModal({
   leagueSlug,
   myTeamId,
   accentColor,
+  onShowAwards,
   onClose,
 }: {
   draft: Draft;
@@ -84,6 +86,7 @@ function DraftCompleteModal({
   leagueSlug: string | null | undefined;
   myTeamId: string | null;
   accentColor: string | null;
+  onShowAwards: () => void;
   onClose: () => void;
 }) {
   const duration = computeDraftDuration(picks);
@@ -191,7 +194,17 @@ function DraftCompleteModal({
         )}
 
         {/* Actions */}
-        <div className="flex gap-3 px-5 pb-6 pt-3">
+        <div className="px-5 pb-2 pt-3">
+          <button
+            type="button"
+            onClick={onShowAwards}
+            className="flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-black uppercase tracking-wider transition-opacity hover:opacity-90"
+            style={{ backgroundColor: accent, color: "#0f172a" }}
+          >
+            🏆 Awards Ceremony
+          </button>
+        </div>
+        <div className="flex gap-3 px-5 pb-6 pt-1">
           <button
             type="button"
             onClick={downloadCsv}
@@ -205,8 +218,7 @@ function DraftCompleteModal({
           {leagueSlug ? (
             <a
               href={`/leagues/${leagueSlug}`}
-              className="flex flex-1 items-center justify-center rounded-xl px-4 py-3 text-sm font-bold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: accent, color: "#0f172a" }}
+              className="flex flex-1 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
             >
               Return to League
             </a>
@@ -214,8 +226,7 @@ function DraftCompleteModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl px-4 py-3 text-sm font-bold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: accent, color: "#0f172a" }}
+              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
             >
               View Results
             </button>
@@ -727,6 +738,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [posFilter, setPosFilter] = useState("ALL");
   const [showSettings, setShowSettings] = useState(false);
   const [showDraftComplete, setShowDraftComplete] = useState(false);
+  const [showAwards, setShowAwards] = useState(false);
   const [showTvMode, setShowTvMode] = useState(false);
   const showTvModeRef = useRef(false);
   const [tvMasterVolume, setTvMasterVolume] = useState(() => lsNum("tv:masterVolume", 80));
@@ -794,6 +806,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const announcementCloseTimerRef = useRef<number | null>(null);
   const nextAnnouncementTimerRef = useRef<number | null>(null);
   const announcerClipAudioRef = useRef<HTMLAudioElement | null>(null);
+  // Set when a reaction/SFX button is pressed on the reveal card. Those buttons
+  // cancel the announcer's speech, which fires its `onend` — that must not be
+  // mistaken for "the announcement finished, dismiss the card".
+  const reactionUsedRef = useRef(false);
   const headshotPreloadRef = useRef<Map<string, Promise<void>>>(new Map());
   // end-of-round recap
   const [roundRecap, setRoundRecap] = useState<{ round: number; picks: DraftPick[] } | null>(null);
@@ -825,6 +841,19 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       announcerClipAudioRef.current = null;
     }
     if (typeof window !== "undefined") window.speechSynthesis?.cancel();
+  }
+
+  // A reaction/SFX press on the reveal card takes over the dismissal: the card
+  // stays until Next Pick or this extended window elapses.
+  function handleRevealReaction() {
+    reactionUsedRef.current = true;
+    const pickId = revealPick?.id;
+    if (!pickId || typeof window === "undefined") return;
+    if (announcementCloseTimerRef.current) clearTimeout(announcementCloseTimerRef.current);
+    announcementCloseTimerRef.current = window.setTimeout(() => {
+      announcementCloseTimerRef.current = null;
+      setRevealPick((current) => (current?.id === pickId ? null : current));
+    }, 10_000);
   }
 
   // Landmine picks skip the reveal card, but the pick still gets announced —
@@ -1364,6 +1393,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     };
 
     let finished = false;
+    reactionUsedRef.current = false;
     // Prefetched in parallel with the main clip so the on-the-clock follow-up
     // plays seamlessly after the reveal dismisses.
     let nextClipUrl: string | null = null;
@@ -1379,8 +1409,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       return audio.play();
     };
 
-    const finishSelectionAnnouncement = () => {
+    // "speech" = the announcement ended (or was cancelled by a reaction button);
+    // "timer"  = the display window elapsed. Only the timer, Next Pick, and Undo
+    // may dismiss the card once the room has started reacting to the pick.
+    const finishSelectionAnnouncement = (source: "speech" | "timer" = "speech") => {
       if (finished) return;
+      if (source === "speech" && reactionUsedRef.current) return;
       finished = true;
       if (announcementCloseTimerRef.current) clearTimeout(announcementCloseTimerRef.current);
       announcementCloseTimerRef.current = null;
@@ -1413,7 +1447,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       const utt = new SpeechSynthesisUtterance(text);
       utt.rate = 0.85; utt.pitch = 0.95;
       applyConfiguredVoice(utt);
-      utt.onend = finishSelectionAnnouncement;
+      utt.onend = () => finishSelectionAnnouncement("speech");
       // Retaining the utterance prevents Chromium from garbage-collecting it
       // before it emits `end`. The timer is a defensive fallback for browser
       // speech engines that never emit that event.
@@ -1422,7 +1456,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     };
 
     const fallbackMs = Math.max(6_000, text.split(/\s+/).length * 900 + 1_500);
-    announcementCloseTimerRef.current = window.setTimeout(finishSelectionAnnouncement, fallbackMs);
+    announcementCloseTimerRef.current = window.setTimeout(
+      () => finishSelectionAnnouncement("timer"),
+      fallbackMs
+    );
 
     if (aiAnnouncerId) {
       // AI announcer: fetch the cached/generated clip; fall back to the device
@@ -1430,7 +1467,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       void fetchAnnouncerClipUrl(text, aiAnnouncerId, draftId).then((url) => {
         if (finished) return;
         if (!url) { speakViaDevice(); return; }
-        playClip(url, finishSelectionAnnouncement).catch(() => {
+        playClip(url, () => finishSelectionAnnouncement("speech")).catch(() => {
           if (!finished) speakViaDevice();
         });
       });
@@ -1813,6 +1850,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
   // Merge ESPN rankings into player rank field (overrides static rank when available)
   const espnRankMap = buildRankMap(snapshot.players, espnRankings);
+  // Awards and grades need a rank for every player they can get one for. ESPN
+  // rankings may be unavailable (never synced, API down), which would silently
+  // drop every value-based award — fall back to each player's static rank.
+  const awardsRankMap = new Map(espnRankMap);
+  for (const player of snapshot.players) {
+    if (!awardsRankMap.has(player.id) && typeof player.rank === "number") {
+      awardsRankMap.set(player.id, player.rank);
+    }
+  }
   const rankedAvailablePlayers = availablePlayers.map((p) => ({
     ...p,
     rank: espnRankMap.get(p.id) ?? p.rank,
@@ -2157,8 +2203,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           )}
 
           {snapshot.draft.status === "complete" && (
-            <div className="flex shrink-0 items-center px-5 py-3">
-              <span className="text-3xl font-black text-green-400">Draft Complete</span>
+            <div className="flex shrink-0 items-center gap-3 px-5 py-3">
+              <span className="text-xl sm:text-3xl font-black text-green-400">Draft Complete</span>
+              <button
+                type="button"
+                onClick={() => setShowAwards(true)}
+                className="rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-200 transition-colors hover:bg-white/10"
+              >
+                🏆 Awards
+              </button>
             </div>
           )}
 
@@ -2682,6 +2735,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           leagueLogoUrl={leagueLogoUrl ?? undefined}
           playerHeadshotUrl={snapshot.players.find((player) => player.id === revealPick.playerId)?.headshotUrl}
           canUndo={isCommissioner && snapshot.draft.status !== "complete"}
+          onReaction={handleRevealReaction}
           onUndo={() => { cancelPickAnnouncement(); void handleUndoPick(); setRevealPick(null); }}
           onClose={() => { cancelPickAnnouncement(); setRevealPick(null); }}
           sfx1Url={snapshot.draft.sfx1Url}
@@ -2753,7 +2807,23 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           leagueSlug={leagueSlug}
           myTeamId={accessState.kind === "assigned" ? accessState.teamId : null}
           accentColor={primaryColor}
+          onShowAwards={() => { setShowDraftComplete(false); setShowAwards(true); }}
           onClose={() => setShowDraftComplete(false)}
+        />
+      )}
+
+      {/* ── Awards ceremony (above everything, including the complete modal) ── */}
+      {showAwards && snapshot.draft.status === "complete" && (
+        <DraftAwardsCeremony
+          picks={snapshot.picks}
+          teams={snapshot.teams}
+          rankMap={awardsRankMap}
+          draftName={snapshot.draft.name}
+          accentColor={primaryColor}
+          awardsSong={snapshot.draft.awardsSong}
+          musicVolume={musicVolume}
+          leagueLogoUrl={leagueLogoUrl ?? undefined}
+          onClose={() => setShowAwards(false)}
         />
       )}
 
@@ -3452,7 +3522,7 @@ function RoundRecapModal({
 }
 
 function PickRevealModal({
-  pick, teams, draftName, leagueLogoUrl, playerHeadshotUrl, canUndo, onUndo, onClose, sfx1Url, sfx2Url, posReactions, negReactions,
+  pick, teams, draftName, leagueLogoUrl, playerHeadshotUrl, canUndo, onReaction, onUndo, onClose, sfx1Url, sfx2Url, posReactions, negReactions,
 }: {
   pick: DraftPick;
   teams: Team[];
@@ -3460,6 +3530,8 @@ function PickRevealModal({
   leagueLogoUrl?: string;
   playerHeadshotUrl?: string;
   canUndo: boolean;
+  /** Fired when a reaction or SFX plays, so the card isn't auto-dismissed */
+  onReaction: () => void;
   onUndo: () => void;
   onClose: () => void;
   sfx1Url?: string | null;
@@ -3560,6 +3632,7 @@ function PickRevealModal({
           <div className="flex items-center gap-2">
             <button type="button" title="Applause"
               onClick={() => {
+                onReaction();
                 playApplause();
                 if (posReactions?.length) {
                   const phrase = posReactions[Math.floor(Math.random() * posReactions.length)];
@@ -3573,6 +3646,7 @@ function PickRevealModal({
             </button>
             <button type="button" title="Boo"
               onClick={() => {
+                onReaction();
                 playBoo();
                 if (negReactions?.length) {
                   const phrase = negReactions[Math.floor(Math.random() * negReactions.length)];
@@ -3588,7 +3662,7 @@ function PickRevealModal({
             {([{ label: "SFX 1", url: sfx1Url }, { label: "SFX 2", url: sfx2Url }]).map(({ label, url }) => (
               <button key={label} type="button" title={url ? label : "No sound configured"}
                 disabled={!url}
-                onClick={() => { if (url) { const a = new Audio(url); a.volume = 0.7; a.play().catch(() => {}); } }}
+                onClick={() => { if (url) { onReaction(); const a = new Audio(url); a.volume = 0.7; a.play().catch(() => {}); } }}
                 className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-bold transition-colors ${
                   url
                     ? "border-white/10 bg-white/5 text-slate-300 hover:bg-white/10 hover:text-white"

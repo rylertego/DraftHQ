@@ -19,6 +19,31 @@ function useDebounce<T>(value: T, ms: number): T {
   return dv;
 }
 
+/** Extract the 11-char video id from any common YouTube URL shape (watch,
+ * youtu.be, shorts, embed, live, music.youtube.com) or a bare id. */
+export function parseYouTubeVideoId(input: string): string | null {
+  const trimmed = input.trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(trimmed)) return trimmed;
+  let url: URL;
+  try {
+    url = new URL(trimmed);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.replace(/^(www|m|music)\./, "");
+  if (host === "youtu.be") {
+    const id = url.pathname.slice(1).split("/")[0];
+    return /^[A-Za-z0-9_-]{11}$/.test(id) ? id : null;
+  }
+  if (host === "youtube.com") {
+    const v = url.searchParams.get("v");
+    if (v && /^[A-Za-z0-9_-]{11}$/.test(v)) return v;
+    const match = url.pathname.match(/^\/(shorts|embed|live)\/([A-Za-z0-9_-]{11})/);
+    if (match) return match[2];
+  }
+  return null;
+}
+
 const YoutubeLogo = () => (
   <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 shrink-0">
     <path d="M23.5 6.2a3 3 0 0 0-2.1-2.1C19.5 3.6 12 3.6 12 3.6s-7.5 0-9.4.5A3 3 0 0 0 .5 6.2 31 31 0 0 0 0 12a31 31 0 0 0 .5 5.8 3 3 0 0 0 2.1 2.1c1.9.5 9.4.5 9.4.5s7.5 0 9.4-.5a3 3 0 0 0 2.1-2.1A31 31 0 0 0 24 12a31 31 0 0 0-.5-5.8zM9.7 15.5V8.5l6.3 3.5-6.3 3.5z"/>
@@ -50,10 +75,41 @@ export default function SongPicker({ onSelect, onClose }: Props) {
   useEffect(() => { inputRef.current?.focus(); }, []);
 
   useEffect(() => {
-    if (!debouncedQuery.trim()) { setResults([]); return; }
+    if (!debouncedQuery.trim()) { setResults([]); setError(""); return; }
+
+    // YouTube tab takes a pasted link (no API key needed), not a text search.
+    if (tab === "youtube") {
+      const videoId = parseYouTubeVideoId(debouncedQuery);
+      if (!videoId) {
+        setResults([]);
+        setLoading(false);
+        setError("Paste a full YouTube link — youtube.com/watch?v=… or youtu.be/…");
+        return;
+      }
+      setLoading(true); setError("");
+      fetch(`/api/music/youtube-oembed?id=${videoId}`)
+        .then((r) => r.json())
+        .then((d: { title?: string | null; author?: string | null; thumbnail?: string | null; error?: string }) => {
+          if (d.error || !d.title) {
+            setError(d.error ?? "Video not found — check the link.");
+            setResults([]);
+            return;
+          }
+          setResults([{
+            trackId: videoId,
+            title: d.title,
+            artist: d.author ?? "YouTube",
+            thumbnail: d.thumbnail ?? `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
+            url: `https://www.youtube.com/watch?v=${videoId}`,
+          }]);
+        })
+        .catch(() => setError("Couldn't load that video."))
+        .finally(() => setLoading(false));
+      return;
+    }
+
     setLoading(true); setError("");
-    const endpoint = tab === "youtube" ? "/api/music/youtube-search" : "/api/music/spotify-search";
-    fetch(`${endpoint}?q=${encodeURIComponent(debouncedQuery)}`)
+    fetch(`/api/music/spotify-search?q=${encodeURIComponent(debouncedQuery)}`)
       .then((r) => r.json())
       .then((d: { results?: SearchResult[]; error?: string }) => {
         if (d.error) setError(d.error);
@@ -119,7 +175,7 @@ export default function SongPicker({ onSelect, onClose }: Props) {
           <input
             ref={inputRef}
             type="text"
-            placeholder={`Search ${tab === "youtube" ? "YouTube" : "Spotify"}…`}
+            placeholder={tab === "youtube" ? "Paste a YouTube link…" : "Search Spotify…"}
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             className="w-full rounded-xl border border-slate-700 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 focus:outline-none focus:ring-2"
@@ -133,6 +189,11 @@ export default function SongPicker({ onSelect, onClose }: Props) {
           <div className="max-h-72 overflow-y-auto space-y-1 -mx-1 px-1">
             {loading && (
               <div className="flex items-center justify-center py-8 text-slate-500 text-sm">Searching…</div>
+            )}
+            {!loading && results.length === 0 && !debouncedQuery && tab === "youtube" && (
+              <div className="flex items-center justify-center py-8 text-center text-sm text-slate-500">
+                Find the song on YouTube, copy the link, and paste it above.
+              </div>
             )}
             {!loading && results.length === 0 && debouncedQuery && !error && (
               <div className="flex items-center justify-center py-8 text-slate-500 text-sm">No results</div>

@@ -54,6 +54,7 @@ export interface Draft {
   roundSlidePausesClock: boolean;
   announcerVoiceUri: string | null;
   walkUpMusicMode: "restart" | "resume";
+  awardsSong: WalkUpSong | null;
   createdAt: string;
   updatedAt: string;
 }

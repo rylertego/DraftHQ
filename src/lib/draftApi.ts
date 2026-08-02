@@ -57,6 +57,7 @@ interface DraftRow {
   round_slide_pauses_clock: boolean;
   announcer_voice_uri: string | null;
   walk_up_music_mode: "restart" | "resume" | null;
+  awards_song: WalkUpSong | null;
   created_at: string;
   updated_at: string;
 }
@@ -202,6 +203,7 @@ function mapDraft(row: DraftRow): Draft {
     roundSlidePausesClock: row.round_slide_pauses_clock ?? false,
     announcerVoiceUri: row.announcer_voice_uri ?? null,
     walkUpMusicMode: row.walk_up_music_mode ?? "restart",
+    awardsSong: row.awards_song ?? null,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
@@ -387,7 +389,7 @@ export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
     supabase
       .from("drafts")
       .select(
-        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_landmines,landmine_count,hide_player_rankings,sfx_1_url,sfx_2_url,pos_reactions,neg_reactions,pick_is_in_enabled,pick_is_in_sfx_url,draft_start_audio_url,show_round_slide,round_slide_seconds,round_slide_pauses_clock,announcer_voice_uri,walk_up_music_mode,created_at,updated_at"
+        "id,name,join_code,commissioner_user_id,league_id,team_count,rounds,current_pick,status,pick_seconds,pick_deadline_at,paused_remaining_seconds,timer_behavior,clock_extension_seconds,max_clock_extensions,clock_extensions_used,sleeper_league_id,sleeper_draft_id,scheduled_at,scheduled_timezone,roster_positions,scoring_type,use_landmines,landmine_count,hide_player_rankings,sfx_1_url,sfx_2_url,pos_reactions,neg_reactions,pick_is_in_enabled,pick_is_in_sfx_url,draft_start_audio_url,show_round_slide,round_slide_seconds,round_slide_pauses_clock,announcer_voice_uri,walk_up_music_mode,awards_song,created_at,updated_at"
       )
       .eq("id", draftId)
       .single(),
@@ -801,6 +803,8 @@ export async function updateDraftPresentation(
     roundSlidePausesClock: boolean;
     announcerVoiceUri: string | null;
     walkUpMusicMode: "restart" | "resume";
+    awardsSong: WalkUpSong;
+    clearAwardsSong: boolean;
   }>
 ): Promise<Draft> {
   await ensureAnonymousUser();
@@ -814,6 +818,8 @@ export async function updateDraftPresentation(
     p_round_slide_pauses_clock: settings.roundSlidePausesClock ?? null,
     p_announcer_voice_uri: settings.announcerVoiceUri ?? null,
     p_walk_up_music_mode: settings.walkUpMusicMode ?? null,
+    p_awards_song: settings.awardsSong ?? null,
+    p_clear_awards_song: settings.clearAwardsSong ?? null,
   });
   if (error) throw new Error(error.message);
   return mapDraft(data as DraftRow);
