@@ -384,21 +384,22 @@ export default function DraftLobby({
             key={activeTeam.id}
             className="lobby-team-card grid w-full max-w-6xl items-center justify-self-center gap-5 rounded-xl border border-slate-800/90 bg-slate-900/78 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.26)] backdrop-blur-xl md:grid-cols-[minmax(220px,0.62fr)_minmax(0,1.38fr)] md:p-6 lg:min-h-[360px] lg:gap-8"
           >
-          <div className="relative mx-auto flex aspect-square w-full max-w-56 items-center justify-center rounded-xl border border-slate-800/90 bg-slate-950/55 p-6 shadow-inner lg:max-w-64">
-            <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
-          </div>
-
-          <div className="min-w-0 text-center md:text-left">
-            <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
+          <div className="mx-auto w-full max-w-64">
+            <div className="relative left-1/2 mb-3 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-nowrap items-center justify-center gap-2">
               <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]" style={{ backgroundColor: primary + "22", borderColor: primary + "55", color: primary }}>Draft position {activeTeam.draftPosition}</span>
               {activeParticipant?.userId === currentUserId && <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">Your team</span>}
-              {/* Online badge on the featured team */}
               <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeTeamOnlineStatus?.isOnline ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-300" : "border-white/10 bg-white/8 text-slate-500"}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${activeTeamOnlineStatus?.isOnline ? "bg-green-400" : "bg-slate-600"}`} />
                 {activeTeamOnlineStatus?.isOnline ? "Online" : "Not online"}
               </span>
             </div>
-            <h1 className="mt-3 text-balance text-4xl font-black tracking-tight sm:text-5xl">{activeTeam.name}</h1>
+            <div className="relative flex aspect-square w-full items-center justify-center rounded-xl border border-slate-800/90 bg-slate-950/55 p-6 shadow-inner">
+              <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
+            </div>
+          </div>
+
+          <div className="min-w-0 text-center md:text-left">
+            <h1 className="text-balance text-4xl font-black tracking-tight sm:text-5xl">{activeTeam.name}</h1>
             <p className="mt-2 text-base font-semibold text-slate-300">Owner: <span className="text-white">{ownerName}</span></p>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
@@ -464,24 +465,15 @@ export default function DraftLobby({
       </section>
 
       <section className="relative z-10 shrink-0 px-4 pb-3 sm:px-6">
-        <div className="mx-auto grid max-w-6xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto] md:items-center">
+        <div className="mx-auto grid max-w-6xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:grid-cols-2 sm:items-center">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
             <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessLabel}</p>
           </div>
-          <div className="grid grid-cols-2 gap-2 text-sm">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Players Online</p>
-              <p className="mt-1 font-black text-white">{onlineOwnerCount}/{totalTeamCount}</p>
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Assigned</p>
-              <p className="mt-1 font-black text-white">{assignedTeamCount}/{draft.teamCount}</p>
-            </div>
+          <div className="min-w-0 sm:text-right">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Assigned</p>
+            <p className="mt-1 font-black text-white">{assignedTeamCount}/{draft.teamCount}</p>
           </div>
-          <p className="text-xs leading-5 text-slate-400 md:max-w-52 md:text-right">
-            Lobby attendance is informational and does not block draft start.
-          </p>
         </div>
       </section>
 
@@ -566,7 +558,7 @@ export default function DraftLobby({
         </div>
 
         {/* Right: online count + start/waiting */}
-        <div className="flex flex-col items-center gap-2 sm:flex-1 sm:items-end">
+        <div className="flex flex-col items-center gap-2 sm:flex-1">
 
           {/* Online count — visible to everyone */}
           <div className="flex items-center gap-1.5">
