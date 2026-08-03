@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { CommandButton, CommandStatusBadge } from "@/components/CommandCenterUI";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { getDefaultWalkUpSong } from "@/lib/draftAudio";
@@ -78,30 +79,6 @@ function CheckIcon({ className }: { className?: string }) {
     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
       <path d="M3 8l4 4 6-7" />
     </svg>
-  );
-}
-
-function StatusPill({
-  label,
-  tone = "neutral",
-}: {
-  label: string;
-  tone?: "neutral" | "ready" | "warning" | "danger";
-}) {
-  const classes =
-    tone === "ready"
-      ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-200"
-      : tone === "warning"
-        ? "border-amber-400/35 bg-amber-500/12 text-amber-200"
-        : tone === "danger"
-          ? "border-red-400/35 bg-red-500/12 text-red-200"
-          : "border-white/10 bg-white/[0.07] text-slate-300";
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${classes}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label}
-    </span>
   );
 }
 
@@ -363,33 +340,34 @@ export default function DraftLobby({
         <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
       </div>
 
-      <div className="relative z-10 flex shrink-0 items-center gap-3 px-4 pb-3 pt-5 sm:hidden">
-        <Link href={backHref} className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-white/10 bg-black/28 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-300 backdrop-blur transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300">
+      <div className="relative z-10 flex shrink-0 items-center gap-3 px-4 pb-3 pt-4 sm:hidden">
+        <Link href={backHref} className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-200 backdrop-blur transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500">
           Back
         </Link>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Draft Lobby</p>
-          <h1 className="text-base font-black uppercase leading-tight sm:text-lg" style={{ color: primary, textShadow: `0 0 22px ${primary}45` }}>{leagueName ?? draft.name}</h1>
-          <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-300">{draftYear} Draft Night</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Night Command</p>
+          <h1 className="text-xl font-black leading-tight text-white">{leagueName ?? draft.name}</h1>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{draftYear} Draft Lobby</p>
         </div>
       </div>
 
-      <div className="relative z-10 hidden min-h-28 shrink-0 items-center justify-center px-4 pb-2 pt-8 text-center sm:flex sm:min-h-32 sm:px-6 sm:pb-3 sm:pt-10">
-        <Link href={backHref} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 backdrop-blur hover:bg-white/10 sm:left-6">
+      <div className="relative z-10 hidden shrink-0 items-center justify-center px-4 pb-3 pt-5 text-center sm:flex sm:px-6">
+        <Link href={backHref} className="absolute left-4 top-1/2 inline-flex min-h-11 -translate-y-1/2 items-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-200 backdrop-blur hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 sm:left-6">
           ← Back
         </Link>
         <div className="mx-auto max-w-[calc(100%_-_12rem)]">
-          <h1 className="whitespace-normal break-words text-[clamp(1.75rem,2.8vw,3rem)] font-black uppercase leading-tight tracking-[0.08em]" style={{ color: primary, textShadow: `0 0 28px ${primary}45` }}>{leagueName ?? draft.name}</h1>
-          <p className="mt-2 text-xl font-black uppercase tracking-[0.22em] text-slate-300 sm:text-2xl lg:text-3xl">{draftYear} Draft</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Night Command</p>
+          <h1 className="mt-1 whitespace-normal break-words text-3xl font-black leading-tight text-white">{leagueName ?? draft.name}</h1>
+          <p className="mt-1 text-sm font-semibold text-slate-400">{draftYear} Draft Lobby</p>
         </div>
       </div>
 
       <div className="relative z-20 shrink-0 px-4 pb-5 sm:px-6">
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
-          <StatusPill label={readinessLabel} tone={readinessTone} />
-          <StatusPill label={connectionReady ? "Connected" : "Reconnecting"} tone={connectionReady ? "ready" : "warning"} />
-          <StatusPill label={roleLabel} tone={isCommissioner ? "ready" : "neutral"} />
-          <StatusPill label={audioBlocked ? "Audio blocked" : lobbyMuted ? "Audio muted" : "Audio ready"} tone={audioBlocked ? "warning" : "neutral"} />
+          <CommandStatusBadge label={readinessLabel} tone={readinessTone} />
+          <CommandStatusBadge label={connectionReady ? "Connected" : "Reconnecting"} tone={connectionReady ? "complete" : "warning"} />
+          <CommandStatusBadge label={roleLabel} tone={isCommissioner ? "complete" : "neutral"} />
+          <CommandStatusBadge label={audioBlocked ? "Audio Blocked" : lobbyMuted ? "Audio Muted" : "Audio Ready"} tone={audioBlocked ? "warning" : "neutral"} />
         </div>
       </div>
 
@@ -397,33 +375,34 @@ export default function DraftLobby({
         <div className="rounded-2xl border border-white/10 bg-black/34 p-3 backdrop-blur-xl">
           <p className={`text-xs font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessDetail}</p>
           {isCommissioner ? (
-            <button
+            <CommandButton
               type="button"
+              variant={draftReady ? "primary" : "secondary"}
               disabled={isStarting}
               onClick={onStart}
               title={startDisabledReason ?? "Start the draft"}
-              className={`mt-3 min-h-11 w-full rounded-xl border px-5 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 ${draftReady ? "border-transparent" : "border-amber-400/35 bg-amber-500/10 text-amber-200"}`}
+              className={`mt-3 w-full ${draftReady ? "" : "border-amber-400/35 bg-amber-500/12 text-amber-200 hover:bg-amber-500/18"}`}
               style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
             >
-              {isStarting ? "Starting draft..." : "Start Draft"}
-            </button>
+              {isStarting ? "Starting Draft" : draftReady ? "Start Draft" : "Setup Required"}
+            </CommandButton>
           ) : (
             <p className="mt-2 text-xs text-slate-400">Waiting for the commissioner to start the draft.</p>
           )}
         </div>
       </div>
 
-      <section className="relative z-10 flex flex-none items-center justify-center px-4 pb-0 sm:px-8 lg:min-h-0 lg:flex-1">
-        <div className="grid w-full max-w-[1720px] items-center justify-center gap-5 lg:grid-cols-[160px_minmax(0,1fr)_160px] xl:grid-cols-[210px_minmax(0,1fr)_210px] xl:gap-8">
+      <section className="relative z-10 flex flex-none items-center justify-center px-4 pb-0 sm:px-6 lg:min-h-0 lg:flex-1">
+        <div className="grid w-full max-w-7xl items-center justify-center gap-4">
           {/* Side league logos — framing only, kept visually quiet */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={leagueDisplayLogo} alt={`${leagueName ?? draft.name} logo`} className="mx-auto hidden h-36 w-36 object-contain opacity-35 lg:block xl:h-44 xl:w-44" />
+          <img src={leagueDisplayLogo} alt={`${leagueName ?? draft.name} logo`} className="hidden" />
           <div
             key={activeTeam.id}
-            className="lobby-team-card grid w-full max-w-6xl items-center justify-self-center gap-5 rounded-3xl border border-white/10 bg-slate-950/42 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-xl md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)] md:p-8 lg:min-h-[430px] lg:gap-10 lg:py-10"
+            className="lobby-team-card grid w-full max-w-6xl items-center justify-self-center gap-5 rounded-xl border border-slate-800/90 bg-slate-900/78 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.26)] backdrop-blur-xl md:grid-cols-[minmax(220px,0.62fr)_minmax(0,1.38fr)] md:p-6 lg:min-h-[360px] lg:gap-8"
           >
-          <div className="relative mx-auto flex aspect-square w-full max-w-64 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.035] p-7 shadow-inner lg:max-w-72">
-            <div className="absolute inset-x-6 bottom-6 h-px opacity-60" style={{ backgroundColor: primary }} />
+          <div className="relative mx-auto flex aspect-square w-full max-w-56 items-center justify-center rounded-xl border border-slate-800/90 bg-slate-950/55 p-6 shadow-inner lg:max-w-64">
+            <div className="absolute inset-x-5 bottom-5 h-px opacity-60" style={{ backgroundColor: primary }} />
             <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
 
             {/* Online status dot on the active team card */}
@@ -443,12 +422,12 @@ export default function DraftLobby({
                 {activeTeamOnlineStatus?.isOnline ? "Online" : "Not online"}
               </span>
             </div>
-            <h1 className="mt-3 text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">{activeTeam.name}</h1>
+            <h1 className="mt-3 text-balance text-4xl font-black tracking-tight sm:text-5xl">{activeTeam.name}</h1>
             <p className="mt-2 text-base font-semibold text-slate-300">Owner: <span className="text-white">{ownerName}</span></p>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-              <div className="min-h-36 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
-                <p className="text-[9px] font-bold uppercase tracking-[0.18em]" style={{ color: primary }}>Pre-Draft Notes</p>
+              <div className="min-h-32 rounded-xl border border-slate-800/90 bg-slate-950/40 px-4 py-4">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Pre-Draft Notes</p>
                 {preDraftNoteItems.length > 0 ? (
                   <ul className="mt-2.5 space-y-2 text-sm leading-relaxed text-slate-300">
                     {preDraftNoteItems.map((note, index) => (
@@ -464,20 +443,20 @@ export default function DraftLobby({
               </div>
 
               <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Last record</p><p className="mt-1 text-sm font-black">{activeTeam.lastSeasonRecord || "No history"}</p></div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">Playoffs</p><p className="mt-1 text-sm font-black">{activeTeam.lastSeasonPlayoffs == null ? "No history" : activeTeam.lastSeasonPlayoffs ? "Qualified" : "Missed"}</p></div>
-                <div className="rounded-xl border border-white/10 bg-black/20 p-3"><p className="text-[9px] font-bold uppercase tracking-wider text-slate-500">First pick</p><p className="mt-1 truncate text-sm font-black">{activeTeam.lastSeasonPickPlayer || (activeTeam.lastSeasonPick ? `Pick ${activeTeam.lastSeasonPick}` : "No history")}</p></div>
+                <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Last Record</p><p className="mt-1 text-sm font-black">{activeTeam.lastSeasonRecord || "No history"}</p></div>
+                <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Playoffs</p><p className="mt-1 text-sm font-black">{activeTeam.lastSeasonPlayoffs == null ? "No history" : activeTeam.lastSeasonPlayoffs ? "Qualified" : "Missed"}</p></div>
+                <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">First Pick</p><p className="mt-1 truncate text-sm font-black">{activeTeam.lastSeasonPickPlayer || (activeTeam.lastSeasonPick ? `Pick ${activeTeam.lastSeasonPick}` : "No history")}</p></div>
               </div>
             </div>
           </div>
           </div>
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={leagueDisplayLogo} alt="" className="mx-auto hidden h-36 w-36 object-contain opacity-35 lg:block xl:h-44 xl:w-44" />
+          <img src={leagueDisplayLogo} alt="" className="hidden" />
         </div>
       </section>
 
       {/* Team strip — thumbnails with online/offline dots; hugs the team card above */}
-      <section className="relative z-10 shrink-0 px-4 pt-1 pb-2 sm:px-8">
+      <section className="relative z-10 shrink-0 px-4 pt-2 pb-2 sm:px-6">
         <div className="mx-auto flex max-w-6xl gap-2 overflow-x-auto px-1 pb-2 pt-1 [scrollbar-width:thin] lg:justify-center">
           {sortedTeams.map((team, index) => {
             const active = index === activeIndex;
@@ -488,13 +467,13 @@ export default function DraftLobby({
                 key={team.id}
                 type="button"
                 onClick={() => activateTeam(index)}
-                className={`group w-20 shrink-0 rounded-2xl border bg-black/25 p-2 text-center backdrop-blur transition-all sm:w-24 ${active ? "scale-105" : "border-white/10 opacity-65 hover:opacity-100"}`}
-                style={active ? { borderColor: primary, boxShadow: `0 0 22px ${primary}45` } : undefined}
+                className={`group min-h-20 w-20 shrink-0 rounded-xl border p-2 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 sm:w-24 ${active ? "border-blue-400/60 bg-blue-500/12" : "border-slate-800 bg-slate-950/35 hover:border-slate-700 hover:bg-slate-900/70"}`}
+                style={active ? { boxShadow: `0 0 18px ${primary}25` } : undefined}
                 aria-label={`Feature ${team.name}`}
               >
                 {/* Logo with online dot */}
-                <div className="relative mx-auto h-11 w-11 sm:h-13 sm:w-13">
-                  <TeamLogo team={team} fallback={leagueLogoUrl} className="h-full w-full rounded-xl" />
+                <div className="relative mx-auto h-10 w-10 sm:h-11 sm:w-11">
+                  <TeamLogo team={team} fallback={leagueLogoUrl} className="h-full w-full rounded-lg" />
                   <span
                     title={isOnline ? "Online" : "Not online"}
                     className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-black/70 ${isOnline ? "bg-green-400" : "bg-slate-600"}`}
@@ -509,7 +488,7 @@ export default function DraftLobby({
       </section>
 
       <section className="relative z-10 shrink-0 px-4 pb-3 sm:px-6">
-        <div className="mx-auto grid max-w-6xl gap-3 rounded-2xl border border-white/10 bg-black/32 px-4 py-3 backdrop-blur-xl md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto] md:items-center">
+        <div className="mx-auto grid max-w-6xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto] md:items-center">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
             <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessDetail}</p>
@@ -530,14 +509,14 @@ export default function DraftLobby({
         </div>
       </section>
 
-      <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:px-6">
+      <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-slate-800/90 bg-slate-900/78 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] sm:flex-row sm:items-center sm:px-6">
 
         {/* Left: chat + join code (always visible) */}
         <div className="flex flex-wrap items-center justify-center gap-2 sm:flex-1 sm:justify-start">
           <button
             type="button"
             onClick={onChatToggle}
-            className="relative flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="relative flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs font-bold text-slate-200 hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden>
               <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h9A2.5 2.5 0 0 1 17 4.5v6a2.5 2.5 0 0 1-2.5 2.5H9l-4.5 3v-3A2.5 2.5 0 0 1 2 10.5v-6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -555,7 +534,7 @@ export default function DraftLobby({
             type="button"
             onClick={copyJoinCode}
             title={copied ? "Copied!" : "Copy join code"}
-            className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
+            className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:bg-slate-800 hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500"
           >
             <span className="text-[10px] font-bold uppercase tracking-wider">Join code</span>
             <span className="font-mono font-black text-slate-300">{draft.joinCode}</span>
@@ -567,12 +546,12 @@ export default function DraftLobby({
         </div>
 
         {/* Center: playback controls */}
-        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 rounded-xl border border-slate-800/90 bg-slate-950/35 px-3 py-2">
           <span className="hidden text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 xl:inline">Broadcast Controls</span>
           <button type="button" onClick={showPrevious} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Previous team">‹</button>
           <button type="button" onClick={togglePlayback} className="flex h-11 w-11 items-center justify-center rounded-full text-lg font-black" style={{ backgroundColor: primary, color: secondary }} aria-label={isPlaying ? "Pause introductions" : "Play introductions"}>{isPlaying ? "Ⅱ" : "▶"}</button>
           <button type="button" onClick={showNext} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Next team">›</button>
-          <label className="ml-1 flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+          <label className="ml-1 flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
             Advance
             <select value={advanceMode} onChange={(event) => setAdvanceMode(event.target.value as AdvanceMode)} className="border-0 bg-transparent p-0 text-xs font-bold text-white outline-none">
               {ADVANCE_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-slate-900">{option.label}</option>)}
@@ -580,7 +559,7 @@ export default function DraftLobby({
           </label>
 
           {/* Volume */}
-          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2">
             <button
               type="button"
               onClick={() => setLobbyMuted((m) => !m)}
@@ -607,7 +586,21 @@ export default function DraftLobby({
             />
           </div>
 
-          {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300">Enable audio</button>}
+          {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-xl border border-amber-400/35 bg-amber-500/12 px-3 py-2 text-xs font-bold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-300">Enable audio</button>}
+
+          {isCommissioner && (
+            <CommandButton
+              type="button"
+              variant={draftReady ? "primary" : "secondary"}
+              disabled={isStarting}
+              onClick={onStart}
+              title={startDisabledReason ?? "Start the draft"}
+              className={`min-w-36 ${draftReady ? "" : "border-amber-400/35 bg-amber-500/12 text-amber-200 hover:bg-amber-500/18"}`}
+              style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
+            >
+              {isStarting ? "Starting Draft" : draftReady ? "Start Draft" : "Setup Required"}
+            </CommandButton>
+          )}
         </div>
 
         {/* Right: online count + start/waiting */}
@@ -633,16 +626,7 @@ export default function DraftLobby({
           )}
 
           {isCommissioner ? (
-            <button
-              type="button"
-              disabled={isStarting}
-              onClick={onStart}
-              title={startDisabledReason ?? "Start the draft"}
-              className={`w-full rounded-xl border px-6 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 sm:w-auto ${draftReady ? "border-transparent" : "border-amber-400/35 bg-amber-500/10 text-amber-200"}`}
-              style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
-            >
-              {isStarting ? "Starting draft..." : "Start Draft"}
-            </button>
+            <p className="text-center text-xs text-slate-500 sm:text-right">{draftReady ? "Commissioner can start from the control bar." : startDisabledReason}</p>
           ) : (
             <p className="text-center text-xs text-slate-500 sm:text-right">Waiting for the commissioner</p>
           )}
