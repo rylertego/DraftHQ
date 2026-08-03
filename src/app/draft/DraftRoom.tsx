@@ -644,6 +644,7 @@ function TvModeOverlay({
               canMakePick={false}
               canUndoPick={false}
               playerNameSize={5}
+              accentColor={accent}
               onSlotClick={() => {}}
               onUndoPick={() => {}}
             />
@@ -2567,6 +2568,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             }
             teamMap={new Map(snapshot.teams.map((t) => [t.id, t.name]))}
             rosterPositions={snapshot.draft.rosterPositions}
+            accentColor={primaryColor}
             onSlotClick={() => { setActionError(""); setShowPickModal(true); }}
             onUndoPick={handleUndoPick}
             onEditPick={isCommissioner ? (pick) => setEditingPick(pick) : undefined}

@@ -18,6 +18,7 @@ interface DraftBoardProps {
   playerNameSize?: number;
   teamMap?: Map<string, string>;
   rosterPositions?: RosterPosition[] | null;
+  accentColor?: string | null;
   onSlotClick: () => void;
   onUndoPick: () => void;
   onEditPick?: (pick: Pick) => void;
@@ -52,9 +53,14 @@ export default function DraftBoard({
   playerNameSize = 6,
   teamMap,
   rosterPositions,
+  accentColor,
   onEditPick,
 }: DraftBoardProps) {
   const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
+  const accent = accentColor ?? "#14b8a6";
+  const accentGlow = `color-mix(in srgb, ${accent} 18%, transparent)`;
+  const accentBadgeBorder = `color-mix(in srgb, ${accent} 34%, transparent)`;
+  const accentBadgeBg = `color-mix(in srgb, ${accent} 10%, transparent)`;
 
   const posColorMap = buildPositionColorMap(rosterPositions, DEFAULT_POSITION_ACCENTS);
   function getCell(position: string): PositionCellColors {
@@ -142,8 +148,8 @@ export default function DraftBoard({
                             : emptyBg,
                           boxShadow: isCurrent
                             ? pick
-                              ? "inset 0 0 0 2px rgba(20,184,166,0.7), 0 0 24px rgba(20,184,166,0.18)"
-                              : "inset 0 0 0 2px #14b8a6, 0 0 24px rgba(20,184,166,0.18)"
+                              ? `inset 0 0 0 2px ${accent}, 0 0 24px ${accentGlow}`
+                              : `inset 0 0 0 2px ${accent}, 0 0 24px ${accentGlow}`
                             : undefined,
                         }}
                       >
@@ -179,7 +185,14 @@ export default function DraftBoard({
                         ) : (
                           <div className="flex h-full items-center justify-center">
                             {isCurrent && (
-                              <span className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-teal-300">
+                              <span
+                                className="rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-widest"
+                                style={{
+                                  borderColor: accentBadgeBorder,
+                                  backgroundColor: accentBadgeBg,
+                                  color: accent,
+                                }}
+                              >
                                 {draftStatus === "active" ? "Picking" : draftStatus === "setup" ? "Not started" : "Paused"}
                               </span>
                             )}
