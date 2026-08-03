@@ -93,6 +93,16 @@ input[type="radio"] {
   to   { opacity: 1; transform: translateY(0) scale(1); }
 }
 
+.lobby-team-card {
+  animation: lobby-team-in 0.2s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lobby-team-card {
+    animation: none;
+  }
+}
+
 /* ── TV Mode ───────────────────────────────────────────────────────────── */
 /* Lower-third broadcast bar slides up when a new pick lands              */
 @keyframes tv-lower-third-in {

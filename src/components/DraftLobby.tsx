@@ -81,6 +81,30 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
+function StatusPill({
+  label,
+  tone = "neutral",
+}: {
+  label: string;
+  tone?: "neutral" | "ready" | "warning" | "danger";
+}) {
+  const classes =
+    tone === "ready"
+      ? "border-emerald-400/35 bg-emerald-500/12 text-emerald-200"
+      : tone === "warning"
+        ? "border-amber-400/35 bg-amber-500/12 text-amber-200"
+        : tone === "danger"
+          ? "border-red-400/35 bg-red-500/12 text-red-200"
+          : "border-white/10 bg-white/[0.07] text-slate-300";
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] ${classes}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
 export default function DraftLobby({
   draft,
   participants,
@@ -139,6 +163,17 @@ export default function DraftLobby({
     ? participants.find((participant) => participant.teamId === activeTeam.id)
     : null;
   const ownerName = activeTeam?.ownerName || activeParticipant?.displayName || "Owner not assigned";
+  const currentParticipant = participants.find((participant) => participant.userId === currentUserId);
+  const currentUserTeam = currentParticipant?.teamId
+    ? sortedTeams.find((team) => team.id === currentParticipant.teamId)
+    : null;
+  const roleLabel = isCommissioner
+    ? "Commissioner"
+    : currentUserTeam
+      ? `Owner: ${currentUserTeam.name}`
+      : currentParticipant
+        ? "Unassigned member"
+        : "Spectator";
   const preDraftNoteItems = getPreDraftNoteItems(activeTeam?.preDraftNotes);
   const yearInName = draft.name.match(/\b(20\d{2})\b/)?.[1];
   const draftYear = draft.scheduledAt
@@ -161,6 +196,40 @@ export default function DraftLobby({
 
   const onlineOwnerCount = teamOnlineStatus.filter((s) => s.isOnline).length;
   const totalTeamCount = sortedTeams.length;
+  const assignedTeamCount = new Set(
+    participants.flatMap((participant) =>
+      participant.teamId && (participant.role === "owner" || participant.role === "commissioner")
+        ? [participant.teamId]
+        : []
+    )
+  ).size;
+  const unnamedTeamCount = sortedTeams.filter((team) => !team.name.trim()).length;
+  const setupIssues = [
+    sortedTeams.length < draft.teamCount ? `${draft.teamCount - sortedTeams.length} teams not created` : null,
+    sortedTeams.length > draft.teamCount ? `${sortedTeams.length - draft.teamCount} extra teams configured` : null,
+    unnamedTeamCount > 0 ? `${unnamedTeamCount} teams need names` : null,
+    assignedTeamCount < draft.teamCount ? `${draft.teamCount - assignedTeamCount} teams need owners` : null,
+  ].filter(Boolean) as string[];
+  const draftReady = setupIssues.length === 0;
+  const connectionReady = onlineUserIds.includes(currentUserId);
+  const readinessLabel = isStarting
+    ? "Starting draft"
+    : draftReady
+      ? "Draft ready"
+      : "Setup needs attention";
+  const readinessTone = isStarting ? "warning" : draftReady ? "ready" : "warning";
+  const readinessDetail = draftReady
+    ? onlineOwnerCount === totalTeamCount
+      ? "All teams are assigned and all owners are online."
+      : "Setup is complete. Waiting for every owner to join is optional."
+    : setupIssues[0] ?? "Complete setup before starting.";
+  const startDisabledReason = !isCommissioner
+    ? "Only the commissioner can start the draft."
+    : !draftReady
+      ? setupIssues.join(", ")
+      : isStarting
+        ? "Draft start is in progress."
+        : null;
 
   // Offline list — shown to commissioner so they know who is missing.
   const offlineTeamNames = teamOnlineStatus
@@ -277,8 +346,8 @@ export default function DraftLobby({
 
   return (
     <main
-      className="fixed inset-0 z-30 flex min-h-0 flex-col overflow-hidden text-white"
-      style={{ background: `linear-gradient(145deg, ${secondary} 0%, #020617 48%, ${secondary} 100%)` }}
+      className="fixed inset-0 z-30 flex min-h-0 flex-col overflow-y-auto text-white lg:overflow-hidden"
+      style={{ background: `linear-gradient(145deg, ${secondary} 0%, #020617 44%, #050b18 72%, ${secondary} 100%)` }}
     >
       <WalkUpPlayer
         ref={playerRef}
@@ -288,12 +357,24 @@ export default function DraftLobby({
       />
 
       <div className="pointer-events-none absolute inset-0 overflow-hidden">
-        <div className="absolute -left-24 top-12 h-80 w-80 rounded-full blur-[100px] opacity-20" style={{ backgroundColor: primary }} />
-        <div className="absolute right-0 top-1/3 h-96 w-96 rounded-full blur-[130px] opacity-15" style={{ backgroundColor: primary }} />
+        <div className="absolute inset-x-0 top-0 h-px opacity-80" style={{ backgroundColor: primary }} />
+        <div className="absolute inset-x-0 top-0 h-48 bg-gradient-to-b from-white/[0.04] to-transparent" />
+        <div className="absolute inset-x-0 bottom-0 h-56 bg-gradient-to-t from-black/70 to-transparent" />
         <div className="absolute inset-0 opacity-[0.035]" style={{ backgroundImage: "linear-gradient(rgba(255,255,255,.6) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.6) 1px, transparent 1px)", backgroundSize: "48px 48px" }} />
       </div>
 
-      <div className="relative z-10 flex min-h-28 shrink-0 items-center justify-center px-4 pb-2 pt-8 text-center sm:min-h-32 sm:px-6 sm:pb-3 sm:pt-10">
+      <div className="relative z-10 flex shrink-0 items-center gap-3 px-4 pb-3 pt-5 sm:hidden">
+        <Link href={backHref} className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-white/10 bg-black/28 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-300 backdrop-blur transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300">
+          Back
+        </Link>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Draft Lobby</p>
+          <h1 className="text-base font-black uppercase leading-tight sm:text-lg" style={{ color: primary, textShadow: `0 0 22px ${primary}45` }}>{leagueName ?? draft.name}</h1>
+          <p className="mt-1 text-xs font-black uppercase tracking-[0.16em] text-slate-300">{draftYear} Draft Night</p>
+        </div>
+      </div>
+
+      <div className="relative z-10 hidden min-h-28 shrink-0 items-center justify-center px-4 pb-2 pt-8 text-center sm:flex sm:min-h-32 sm:px-6 sm:pb-3 sm:pt-10">
         <Link href={backHref} className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full border border-white/10 bg-black/20 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-300 backdrop-blur hover:bg-white/10 sm:left-6">
           ← Back
         </Link>
@@ -303,18 +384,46 @@ export default function DraftLobby({
         </div>
       </div>
 
-      <section className="relative z-10 flex min-h-0 flex-1 items-center justify-center px-4 pb-0 sm:px-8">
+      <div className="relative z-20 shrink-0 px-4 pb-5 sm:px-6">
+        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
+          <StatusPill label={readinessLabel} tone={readinessTone} />
+          <StatusPill label={connectionReady ? "Connected" : "Reconnecting"} tone={connectionReady ? "ready" : "warning"} />
+          <StatusPill label={roleLabel} tone={isCommissioner ? "ready" : "neutral"} />
+          <StatusPill label={audioBlocked ? "Audio blocked" : lobbyMuted ? "Audio muted" : "Audio ready"} tone={audioBlocked ? "warning" : "neutral"} />
+        </div>
+      </div>
+
+      <div className="relative z-10 shrink-0 px-4 pb-3 sm:hidden">
+        <div className="rounded-2xl border border-white/10 bg-black/34 p-3 backdrop-blur-xl">
+          <p className={`text-xs font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessDetail}</p>
+          {isCommissioner ? (
+            <button
+              type="button"
+              disabled={isStarting}
+              onClick={onStart}
+              title={startDisabledReason ?? "Start the draft"}
+              className={`mt-3 min-h-11 w-full rounded-xl border px-5 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 ${draftReady ? "border-transparent" : "border-amber-400/35 bg-amber-500/10 text-amber-200"}`}
+              style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
+            >
+              {isStarting ? "Starting draft..." : "Start Draft"}
+            </button>
+          ) : (
+            <p className="mt-2 text-xs text-slate-400">Waiting for the commissioner to start the draft.</p>
+          )}
+        </div>
+      </div>
+
+      <section className="relative z-10 flex flex-none items-center justify-center px-4 pb-0 sm:px-8 lg:min-h-0 lg:flex-1">
         <div className="grid w-full max-w-[1720px] items-center justify-center gap-5 lg:grid-cols-[160px_minmax(0,1fr)_160px] xl:grid-cols-[210px_minmax(0,1fr)_210px] xl:gap-8">
           {/* Side league logos — framing only, kept visually quiet */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={leagueDisplayLogo} alt={`${leagueName ?? draft.name} logo`} className="mx-auto hidden h-36 w-36 object-contain opacity-35 lg:block xl:h-44 xl:w-44" />
           <div
             key={activeTeam.id}
-            className="grid w-full max-w-6xl justify-self-center items-center gap-5 rounded-[2rem] border border-white/10 bg-black/30 p-5 shadow-2xl backdrop-blur-xl md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)] md:p-8 lg:min-h-[430px] lg:gap-10 lg:py-10"
-            style={{ animation: "lobby-team-in 0.2s ease-out" }}
+            className="lobby-team-card grid w-full max-w-6xl items-center justify-self-center gap-5 rounded-3xl border border-white/10 bg-slate-950/42 p-5 shadow-[0_24px_80px_rgba(0,0,0,0.42)] backdrop-blur-xl md:grid-cols-[minmax(220px,0.7fr)_minmax(0,1.3fr)] md:p-8 lg:min-h-[430px] lg:gap-10 lg:py-10"
           >
-          <div className="relative mx-auto flex aspect-square w-full max-w-64 items-center justify-center rounded-[2rem] border border-white/10 bg-white/[0.035] p-7 shadow-inner lg:max-w-72">
-            <div className="absolute inset-4 rounded-[1.5rem] opacity-20 blur-2xl" style={{ backgroundColor: primary }} />
+          <div className="relative mx-auto flex aspect-square w-full max-w-64 items-center justify-center rounded-3xl border border-white/10 bg-white/[0.035] p-7 shadow-inner lg:max-w-72">
+            <div className="absolute inset-x-6 bottom-6 h-px opacity-60" style={{ backgroundColor: primary }} />
             <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
 
             {/* Online status dot on the active team card */}
@@ -326,16 +435,16 @@ export default function DraftLobby({
 
           <div className="min-w-0 text-center md:text-left">
             <div className="flex flex-wrap items-center justify-center gap-2 md:justify-start">
-              <span className="rounded-full px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]" style={{ backgroundColor: primary + "22", color: primary }}>Draft position {activeTeam.draftPosition}</span>
-              {activeParticipant?.userId === currentUserId && <span className="rounded-full bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">Your team</span>}
+              <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]" style={{ backgroundColor: primary + "22", borderColor: primary + "55", color: primary }}>Draft position {activeTeam.draftPosition}</span>
+              {activeParticipant?.userId === currentUserId && <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">Your team</span>}
               {/* Online badge on the featured team */}
-              <span className={`flex items-center gap-1.5 rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeTeamOnlineStatus?.isOnline ? "bg-green-500/15 text-green-400" : "bg-white/8 text-slate-500"}`}>
+              <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeTeamOnlineStatus?.isOnline ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-300" : "border-white/10 bg-white/8 text-slate-500"}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${activeTeamOnlineStatus?.isOnline ? "bg-green-400" : "bg-slate-600"}`} />
                 {activeTeamOnlineStatus?.isOnline ? "Online" : "Not online"}
               </span>
             </div>
-            <h1 className="mt-3 truncate text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">{activeTeam.name}</h1>
-            <p className="mt-2 text-base font-semibold text-slate-300">{ownerName}</p>
+            <h1 className="mt-3 text-balance text-4xl font-black tracking-tight sm:text-5xl lg:text-6xl">{activeTeam.name}</h1>
+            <p className="mt-2 text-base font-semibold text-slate-300">Owner: <span className="text-white">{ownerName}</span></p>
 
             <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
               <div className="min-h-36 rounded-xl border border-white/10 bg-black/20 px-4 py-4">
@@ -399,6 +508,28 @@ export default function DraftLobby({
         </div>
       </section>
 
+      <section className="relative z-10 shrink-0 px-4 pb-3 sm:px-6">
+        <div className="mx-auto grid max-w-6xl gap-3 rounded-2xl border border-white/10 bg-black/32 px-4 py-3 backdrop-blur-xl md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto] md:items-center">
+          <div className="min-w-0">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
+            <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessDetail}</p>
+          </div>
+          <div className="grid grid-cols-2 gap-2 text-sm">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Owners Online</p>
+              <p className="mt-1 font-black text-white">{onlineOwnerCount}/{totalTeamCount}</p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Assigned</p>
+              <p className="mt-1 font-black text-white">{assignedTeamCount}/{draft.teamCount}</p>
+            </div>
+          </div>
+          <p className="text-xs leading-5 text-slate-400 md:max-w-52 md:text-right">
+            {isCommissioner ? "Commissioner controls are active on this device." : "Waiting for the commissioner to start the draft."}
+          </p>
+        </div>
+      </section>
+
       <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-white/10 bg-black/35 px-4 py-3 backdrop-blur-xl sm:flex-row sm:items-center sm:px-6">
 
         {/* Left: chat + join code (always visible) */}
@@ -406,7 +537,7 @@ export default function DraftLobby({
           <button
             type="button"
             onClick={onChatToggle}
-            className="relative flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/10"
+            className="relative flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-bold text-slate-200 hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300"
           >
             <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden>
               <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h9A2.5 2.5 0 0 1 17 4.5v6a2.5 2.5 0 0 1-2.5 2.5H9l-4.5 3v-3A2.5 2.5 0 0 1 2 10.5v-6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -424,7 +555,7 @@ export default function DraftLobby({
             type="button"
             onClick={copyJoinCode}
             title={copied ? "Copied!" : "Copy join code"}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
+            className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-blue-300"
           >
             <span className="text-[10px] font-bold uppercase tracking-wider">Join code</span>
             <span className="font-mono font-black text-slate-300">{draft.joinCode}</span>
@@ -436,11 +567,12 @@ export default function DraftLobby({
         </div>
 
         {/* Center: playback controls */}
-        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2">
+        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-2">
+          <span className="hidden text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 xl:inline">Broadcast Controls</span>
           <button type="button" onClick={showPrevious} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Previous team">‹</button>
           <button type="button" onClick={togglePlayback} className="flex h-11 w-11 items-center justify-center rounded-full text-lg font-black" style={{ backgroundColor: primary, color: secondary }} aria-label={isPlaying ? "Pause introductions" : "Play introductions"}>{isPlaying ? "Ⅱ" : "▶"}</button>
           <button type="button" onClick={showNext} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Next team">›</button>
-          <label className="ml-1 flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
+          <label className="ml-1 flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-slate-400">
             Advance
             <select value={advanceMode} onChange={(event) => setAdvanceMode(event.target.value as AdvanceMode)} className="border-0 bg-transparent p-0 text-xs font-bold text-white outline-none">
               {ADVANCE_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-slate-900">{option.label}</option>)}
@@ -448,7 +580,7 @@ export default function DraftLobby({
           </label>
 
           {/* Volume */}
-          <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
+          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2">
             <button
               type="button"
               onClick={() => setLobbyMuted((m) => !m)}
@@ -475,7 +607,7 @@ export default function DraftLobby({
             />
           </div>
 
-          {audioBlocked && <button type="button" onClick={enableAudio} className="rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300">Enable audio</button>}
+          {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-xl border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs font-bold text-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300">Enable audio</button>}
         </div>
 
         {/* Right: online count + start/waiting */}
@@ -505,8 +637,9 @@ export default function DraftLobby({
               type="button"
               disabled={isStarting}
               onClick={onStart}
-              className="w-full rounded-xl px-6 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 sm:w-auto"
-              style={{ backgroundColor: primary, color: secondary }}
+              title={startDisabledReason ?? "Start the draft"}
+              className={`w-full rounded-xl border px-6 py-3 text-sm font-black uppercase tracking-[0.14em] shadow-lg transition-opacity hover:opacity-90 disabled:cursor-wait disabled:opacity-50 sm:w-auto ${draftReady ? "border-transparent" : "border-amber-400/35 bg-amber-500/10 text-amber-200"}`}
+              style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
             >
               {isStarting ? "Starting draft..." : "Start Draft"}
             </button>
