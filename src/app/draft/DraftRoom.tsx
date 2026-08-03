@@ -255,6 +255,7 @@ function DraftCompleteModal({
 
 function TvModeOverlay({
   draft,
+  draftName,
   picks,
   teams,
   players,
@@ -266,6 +267,15 @@ function TvModeOverlay({
   nextUpSlots,
   accentColor,
   leagueName,
+  tickerMode,
+  boardView,
+  onBoardViewChange,
+  posFilter,
+  onPosFilterChange,
+  enabledPositions,
+  chatUnread,
+  showChat,
+  onChatToggle,
   revealActive,
   landmineActive,
   tvMasterVolume,
@@ -275,6 +285,7 @@ function TvModeOverlay({
   onExit,
 }: {
   draft: Draft;
+  draftName: string;
   picks: DraftPick[];
   teams: Team[];
   players: Player[];
@@ -286,6 +297,15 @@ function TvModeOverlay({
   nextUpSlots: { teamName: string; overallPickNumber: number }[];
   accentColor: string | null;
   leagueName: string | undefined;
+  tickerMode: "ticker" | "nav";
+  boardView: "draft" | "players" | "roster" | "rounds";
+  onBoardViewChange: (v: "draft" | "players" | "roster" | "rounds") => void;
+  posFilter: string;
+  onPosFilterChange: (pos: string) => void;
+  enabledPositions: string[];
+  chatUnread: number;
+  showChat: boolean;
+  onChatToggle: () => void;
   revealActive: boolean;
   landmineActive: boolean;
   tvMasterVolume: number;
@@ -480,14 +500,6 @@ function TvModeOverlay({
 
                     {/* Logo with accent broadcast framing */}
                     <div className="relative shrink-0">
-                      <div
-                        className="absolute rounded-[2rem]"
-                        style={{
-                          inset: -12,
-                          border: `1px solid ${accent}45`,
-                          boxShadow: `0 0 46px ${accent}22`,
-                        }}
-                      />
                       {teamOnClock.logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -693,35 +705,22 @@ function TvModeOverlay({
           )}
         </div>
 
-        {/* RECENT PICKS TICKER */}
-        {sorted.length > 0 && (
-          <div className="shrink-0 border-t border-white/8 bg-black">
-            <div className="flex h-14 items-center gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span className="mr-3 shrink-0 text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">
-                Recent
-              </span>
-              {[...sorted].reverse().slice(0, 30).map((p) => {
-                const pickedBy = teams.find((t) => t.id === p.teamId);
-                return (
-                  <div
-                    key={p.id}
-                    className="flex shrink-0 items-center gap-2 rounded-lg bg-white/[0.04] px-3.5 py-1.5"
-                  >
-                    <span className="text-xs font-black" style={{ color: accent }}>{p.round}.{p.pickNumber}</span>
-                    <span className="text-base font-semibold text-white">{p.playerName}</span>
-                    <span
-                      className="text-sm font-black"
-                      style={{ color: POSITION_COLORS[p.playerPosition] ?? "#94A3B8" }}
-                    >
-                      {p.playerPosition}
-                    </span>
-                    {pickedBy && <span className="text-xs font-semibold text-slate-500">{pickedBy.name}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <DraftTicker
+          draftName={draftName}
+          leagueName={leagueName}
+          picks={picks}
+          teams={teams}
+          unread={chatUnread}
+          isChatOpen={showChat}
+          onChatToggle={onChatToggle}
+          accentColor={accent}
+          mode={tickerMode}
+          boardView={boardView}
+          onBoardViewChange={onBoardViewChange}
+          posFilter={posFilter}
+          onPosFilterChange={onPosFilterChange}
+          enabledPositions={enabledPositions}
+        />
       </div>
     </div>
   );
@@ -2817,6 +2816,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {showTvMode && (
         <TvModeOverlay
           draft={snapshot.draft}
+          draftName={snapshot.draft.name}
           picks={snapshot.picks}
           teams={snapshot.teams}
           players={snapshot.players}
@@ -2828,6 +2828,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           nextUpSlots={nextUpSlots}
           accentColor={primaryColor}
           leagueName={leagueBranding?.name ?? undefined}
+          tickerMode={tickerMode}
+          boardView={boardView}
+          onBoardViewChange={setBoardView}
+          posFilter={posFilter}
+          onPosFilterChange={setPosFilter}
+          enabledPositions={enabledPositions}
+          chatUnread={chatUnread}
+          showChat={showChat}
+          onChatToggle={() => setShowChat((v) => !v)}
           revealActive={revealPick !== null}
           landmineActive={landmineActive}
           tvMasterVolume={tvMasterVolume}
