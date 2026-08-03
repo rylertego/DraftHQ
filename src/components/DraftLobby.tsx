@@ -561,9 +561,9 @@ export default function DraftLobby({
         <div className="flex flex-col items-center gap-2 sm:flex-1 sm:items-end">
 
           {/* Online count — visible to everyone */}
-          <div className="flex items-center gap-1.5">
+          <div className="flex w-36 items-center justify-center gap-1.5">
             <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
-            <span className="text-xs font-semibold text-slate-300">
+            <span className="whitespace-nowrap text-xs font-semibold text-slate-300">
               {onlineOwnerCount} / {totalTeamCount} players online
             </span>
           </div>
