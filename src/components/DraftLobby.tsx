@@ -465,7 +465,7 @@ export default function DraftLobby({
       </section>
 
       <section className="relative z-10 shrink-0 px-4 pb-3 sm:px-6">
-        <div className="mx-auto grid max-w-6xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:grid-cols-2 sm:items-center">
+        <div className="mx-auto grid w-full max-w-3xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:grid-cols-2 sm:items-center">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
             <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessLabel}</p>
