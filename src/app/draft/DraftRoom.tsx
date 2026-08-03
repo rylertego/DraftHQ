@@ -2041,7 +2041,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         <div className="flex items-stretch divide-x divide-white/5 overflow-hidden">
 
           {/* Timer block */}
-          <div className="flex shrink-0 items-center gap-2.5 px-2.5 py-2 sm:gap-4 sm:px-4 sm:py-3">
+          <div className="flex shrink-0 items-center gap-2.5 px-2.5 py-3 sm:gap-4 sm:px-4 sm:py-4">
             {/* Commissioner clock controls */}
             {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
               <div className="flex flex-col gap-1.5">
@@ -2145,7 +2145,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           </div>
 
           {/* Round / Pick */}
-          <div className="flex shrink-0 items-center gap-3 px-3 py-2 sm:gap-5 sm:px-5 sm:py-3">
+          <div className="flex shrink-0 items-center gap-3 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4">
             <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Round</div>
               <div className="text-3xl sm:text-5xl font-black leading-none">{currentRound ?? (snapshot.draft.status === "complete" ? "—" : "1")}</div>
@@ -2158,13 +2158,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Team on clock + Next Up stacked */}
           {teamOnClock && snapshot.draft.status !== "complete" && (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 sm:gap-4 sm:px-5">
+            <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4">
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={teamOnClock.logoUrl} alt="" className="h-16 w-16 shrink-0 object-contain sm:h-20 sm:w-20" />
+                <img src={teamOnClock.logoUrl} alt="" className="h-20 w-20 shrink-0 object-contain sm:h-28 sm:w-28" />
               ) : (
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-black text-slate-300 sm:h-20 sm:w-20 sm:text-xl">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-black text-slate-300 sm:h-28 sm:w-28 sm:text-2xl">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
