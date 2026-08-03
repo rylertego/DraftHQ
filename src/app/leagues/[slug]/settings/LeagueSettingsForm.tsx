@@ -10,7 +10,6 @@ import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import type { LeagueTheme } from "@/types/league";
 import {
   CommandButton,
-  CommandEmptyState,
   CommandPanel,
   CommandStatusBadge,
   commandHelperClass,
@@ -461,9 +460,6 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
 
   const displayLogoUrl = pendingLogo?.preview ?? logoUrl;
   const displayBannerUrl = pendingBanner?.preview ?? bannerUrl;
-  const selectedPair = COLOR_PAIRS.find(
-    (p) => p.primary.toLowerCase() === primaryColor.toLowerCase()
-  );
   const hasUnsavedGeneral =
     name.trim() !== savedGeneral.name ||
     logoUrl !== savedGeneral.logoUrl ||
@@ -489,7 +485,7 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       {toast && <Toast msg={toast.msg} type={toast.type} onDismiss={() => setToast(null)} />}
 
       <section className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-        <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_340px] lg:items-center">
+        <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_260px] lg:items-center">
           <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primaryColor }} />
           <div>
             <div className="flex flex-wrap items-center gap-2">
@@ -504,7 +500,7 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
 
           <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Settings Status</p>
-            <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
               <div>
                 <p className="text-lg font-black text-white tabular-nums">{teamCount}</p>
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Teams</p>
@@ -512,10 +508,6 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
               <div>
                 <p className="text-lg font-black text-white tabular-nums">{connectedProvider}</p>
                 <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">History</p>
-              </div>
-              <div>
-                <p className="text-lg font-black text-white tabular-nums">{hasUnsavedGeneral ? "Open" : "Saved"}</p>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Changes</p>
               </div>
             </div>
           </div>
@@ -674,175 +666,126 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       )}
 
       {tab === "general" && (
-        <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="space-y-5">
-            <CommandPanel
-              eyebrow="Core Configuration"
-              title="League Identity"
-              description="These settings define how the league appears in DraftHQ workspaces, teams, and draft-night surfaces."
-            >
-              <div className="grid gap-5 md:grid-cols-2">
-                <div className="md:col-span-2">
-                  <label className={commandLabelClass} htmlFor="settings-league-name">League Name</label>
-                  <input
-                    id="settings-league-name"
-                    required
-                    maxLength={100}
-                    disabled={!canManage}
-                    className={commandInputClass}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    aria-invalid={!name.trim()}
-                  />
-                  <p className={commandHelperClass}>Shown in the sidebar, dashboard, invitations, and league-level pages.</p>
-                </div>
-
-                <div>
-                  <label className={commandLabelClass} htmlFor="settings-team-count">Active Teams</label>
-                  <p className="mb-2 text-sm leading-6 text-slate-400">Number of active franchise teams. Archived teams do not count toward this total.</p>
-                  <div className="flex items-center gap-3">
-                    <button
-                      type="button"
-                      disabled={!canManage || teamCount <= 2}
-                      onClick={() => setTeamCount((n) => Math.max(2, n - 1))}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Decrease active teams"
-                    >
-                      -
-                    </button>
-                    <input
-                      id="settings-team-count"
-                      type="number"
-                      min={2}
-                      max={32}
-                      disabled={!canManage}
-                      className={`${commandInputClass} w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-                      value={teamCount}
-                      onChange={(e) => {
-                        const v = parseInt(e.target.value, 10);
-                        if (!isNaN(v) && v >= 2 && v <= 32) setTeamCount(v);
-                      }}
-                    />
-                    <button
-                      type="button"
-                      disabled={!canManage || teamCount >= 32}
-                      onClick={() => setTeamCount((n) => Math.min(32, n + 1))}
-                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                      aria-label="Increase active teams"
-                    >
-                      +
-                    </button>
-                  </div>
-                </div>
-              </div>
-            </CommandPanel>
-
-            <CommandPanel
-              eyebrow="Brand System"
-              title="League Branding"
-              description="Customize the crest, banner, and broadcast colors that make this league feel distinct."
-            >
-              <div className="space-y-5">
-                <div className="grid gap-5 md:grid-cols-2">
-                  <ImageUploadField
-                    label="Logo"
-                    displayUrl={displayLogoUrl}
-                    disabled={!canManage}
-                    aspectRatio="square"
-                    sizeHint="4 MB max. Square recommended."
-                    onSelect={(file, preview) => setPendingLogo({ file, preview })}
-                    onClear={() => { setPendingLogo(null); setLogoUrl(""); }}
-                    onError={showToast}
-                  />
-
-                  <ImageUploadField
-                    label="Banner"
-                    displayUrl={displayBannerUrl}
-                    disabled={!canManage}
-                    aspectRatio="banner"
-                    sizeHint="4 MB max. 16:9 recommended."
-                    onSelect={(file, preview) => setPendingBanner({ file, preview })}
-                    onClear={() => { setPendingBanner(null); setBannerUrl(""); }}
-                    onError={showToast}
-                  />
-                </div>
-
-                <div className="border-t border-slate-800/80 pt-5">
-                  <ColorPairPicker
-                    primaryColor={primaryColor}
-                    secondaryColor={secondaryColor}
-                    disabled={!canManage}
-                    onChange={(p, s) => { setPrimaryColor(p); setSecondaryColor(s); setAccentColor(p); setBgColor(s); }}
-                  />
-                </div>
-              </div>
-            </CommandPanel>
-          </div>
-
-          <aside className="lg:sticky lg:top-6 lg:self-start">
-            <div className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-              <div className="relative p-5" style={{ backgroundColor: secondaryColor }}>
-                <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primaryColor }} />
-                {displayBannerUrl && (
-                  <div className="absolute inset-0 opacity-20">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={displayBannerUrl} alt="" className="h-full w-full object-cover" />
-                  </div>
-                )}
-                <div className="relative flex items-center gap-3">
-                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/60">
-                    {displayLogoUrl ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={displayLogoUrl} alt="" className="h-full w-full object-cover" />
-                    ) : (
-                      <span className="text-xl font-black" style={{ color: primaryColor }}>{name.slice(0, 1).toUpperCase() || "?"}</span>
-                    )}
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-lg font-black text-white">{name || "Unnamed League"}</p>
-                    <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: primaryColor }}>{selectedPair?.name ?? "Custom"} Theme</p>
-                  </div>
-                </div>
+        <form onSubmit={handleSubmit} className="space-y-5">
+          <CommandPanel
+            eyebrow="Core Configuration"
+            title="League Identity"
+            description="These settings define how the league appears in DraftHQ workspaces, teams, and draft-night surfaces."
+          >
+            <div className="grid gap-5 md:grid-cols-2">
+              <div className="md:col-span-2">
+                <label className={commandLabelClass} htmlFor="settings-league-name">League Name</label>
+                <input
+                  id="settings-league-name"
+                  required
+                  maxLength={100}
+                  disabled={!canManage}
+                  className={commandInputClass}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  aria-invalid={!name.trim()}
+                />
+                <p className={commandHelperClass}>Shown in the sidebar, dashboard, invitations, and league-level pages.</p>
               </div>
 
-              <div className="space-y-4 p-5">
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Teams</p>
-                    <p className="mt-1 text-xl font-black text-white tabular-nums">{teamCount}</p>
-                  </div>
-                  <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Save Mode</p>
-                    <p className="mt-1 text-xl font-black text-white">Manual</p>
-                  </div>
-                </div>
-
-                <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-white">General Settings</p>
-                    <CommandStatusBadge label={hasUnsavedGeneral ? "Unsaved" : "Saved"} tone={hasUnsavedGeneral ? "warning" : "complete"} />
-                  </div>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">
-                    Changes apply only after Save Settings succeeds. Media uploads are included in that save.
-                  </p>
-                </div>
-
-                {canManage ? (
-                  <CommandButton
-                    type="submit"
-                    variant="primary"
-                    disabled={isSaving || !hasUnsavedGeneral}
-                    className="w-full"
-                    style={{ backgroundColor: primaryColor, color: secondaryColor }}
+              <div>
+                <label className={commandLabelClass} htmlFor="settings-team-count">Active Teams</label>
+                <p className="mb-2 text-sm leading-6 text-slate-400">Number of active franchise teams. Archived teams do not count toward this total.</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    disabled={!canManage || teamCount <= 2}
+                    onClick={() => setTeamCount((n) => Math.max(2, n - 1))}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Decrease active teams"
                   >
-                    {isSaving ? "Saving..." : hasUnsavedGeneral ? "Save Settings" : "Saved"}
-                  </CommandButton>
-                ) : (
-                  <CommandEmptyState title="Read-only settings" description="You do not have permission to edit this league." />
-                )}
+                    -
+                  </button>
+                  <input
+                    id="settings-team-count"
+                    type="number"
+                    min={2}
+                    max={32}
+                    disabled={!canManage}
+                    className={`${commandInputClass} w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                    value={teamCount}
+                    onChange={(e) => {
+                      const v = parseInt(e.target.value, 10);
+                      if (!isNaN(v) && v >= 2 && v <= 32) setTeamCount(v);
+                    }}
+                  />
+                  <button
+                    type="button"
+                    disabled={!canManage || teamCount >= 32}
+                    onClick={() => setTeamCount((n) => Math.min(32, n + 1))}
+                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                    aria-label="Increase active teams"
+                  >
+                    +
+                  </button>
+                </div>
               </div>
             </div>
-          </aside>
+          </CommandPanel>
+
+          <CommandPanel
+            eyebrow="Brand System"
+            title="League Branding"
+            description="Customize the crest, banner, and broadcast colors that make this league feel distinct."
+          >
+            <div className="space-y-5">
+              <div className="grid gap-5 md:grid-cols-2">
+                <ImageUploadField
+                  label="Logo"
+                  displayUrl={displayLogoUrl}
+                  disabled={!canManage}
+                  aspectRatio="square"
+                  sizeHint="4 MB max. Square recommended."
+                  onSelect={(file, preview) => setPendingLogo({ file, preview })}
+                  onClear={() => { setPendingLogo(null); setLogoUrl(""); }}
+                  onError={showToast}
+                />
+
+                <ImageUploadField
+                  label="Banner"
+                  displayUrl={displayBannerUrl}
+                  disabled={!canManage}
+                  aspectRatio="banner"
+                  sizeHint="4 MB max. 16:9 recommended."
+                  onSelect={(file, preview) => setPendingBanner({ file, preview })}
+                  onClear={() => { setPendingBanner(null); setBannerUrl(""); }}
+                  onError={showToast}
+                />
+              </div>
+
+              <div className="border-t border-slate-800/80 pt-5">
+                <ColorPairPicker
+                  primaryColor={primaryColor}
+                  secondaryColor={secondaryColor}
+                  disabled={!canManage}
+                  onChange={(p, s) => { setPrimaryColor(p); setSecondaryColor(s); setAccentColor(p); setBgColor(s); }}
+                />
+              </div>
+            </div>
+          </CommandPanel>
+
+          <div className="flex flex-col gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-slate-400">
+              Save Settings applies league identity and branding changes.
+            </p>
+            {canManage && (
+              <CommandButton
+                type="submit"
+                variant="primary"
+                disabled={isSaving || !hasUnsavedGeneral}
+                className="w-full sm:w-auto sm:min-w-40"
+                style={{ backgroundColor: primaryColor, color: secondaryColor }}
+              >
+                {isSaving ? "Saving..." : "Save Settings"}
+              </CommandButton>
+            )}
+            {!canManage && <p className="text-sm font-semibold text-slate-500">You do not have permission to edit this league.</p>}
+          </div>
         </form>
       )}
     </div>
