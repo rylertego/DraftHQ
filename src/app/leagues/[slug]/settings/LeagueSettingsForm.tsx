@@ -37,6 +37,12 @@ const COLOR_PAIRS: ColorPair[] = [
   { name: "Sunset",  primary: "#FB923C", secondary: "#1C0E06" },
 ];
 
+const PROVIDER_ICONS = {
+  sleeper: "/providers/sleeper.png",
+  espn: "/providers/espn.png",
+  yahoo: "/providers/yahoo.png",
+} as const;
+
 // ── Image compression ─────────────────────────────────────────────────────────
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
@@ -286,7 +292,6 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const [sleeperResult, setSleeperResult] = useState<SleeperHistorySyncResult | null>(null);
   const [activeIntegration, setActiveIntegration] = useState<"sleeper" | "espn" | "yahoo" | null>(null);
   const [isDisconnecting, setIsDisconnecting] = useState(false);
-  const [appIcons, setAppIcons] = useState<Record<string, string | null>>({ sleeper: null, espn: null, yahoo: null });
 
   const [pendingLogo, setPendingLogo] = useState<{ file: File; preview: string } | null>(null);
   const [pendingBanner, setPendingBanner] = useState<{ file: File; preview: string } | null>(null);
@@ -349,22 +354,6 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       .finally(() => { if (active) setIsLoading(false); });
     return () => { active = false; };
   }, [router, slug, setAccentColor, setBgColor]);
-
-  useEffect(() => {
-    let active = true;
-    Promise.all(["sleeper", "espn", "yahoo"].map(async (app) => {
-      try {
-        const res = await fetch(`/api/app-icon?app=${app}`);
-        const data = await res.json() as { url: string | null };
-        return [app, data.url] as const;
-      } catch {
-        return [app, null] as const;
-      }
-    })).then((results) => {
-      if (active) setAppIcons(Object.fromEntries(results));
-    });
-    return () => { active = false; };
-  }, []);
 
   async function handleDisconnect() {
     if (!leagueId) return;
@@ -554,9 +543,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
               <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                   <div className="flex gap-3">
-                    {appIcons.sleeper
-                      ? <img src={appIcons.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" /> // eslint-disable-line @next/next/no-img-element
-                      : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#00DE82] text-lg font-black text-black">S</div>}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
                     <div>
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="text-lg font-black text-white">Sleeper</h3>
@@ -640,15 +628,14 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
               </div>
 
               {([
-                { id: "espn", name: "ESPN", color: "#CC0000", fallback: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
-                { id: "yahoo", name: "Yahoo", color: "#6001D2", fallback: "Y!", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
+                { id: "espn", name: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
+                { id: "yahoo", name: "Yahoo", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
               ] as const).map((provider) => (
                 <div key={provider.id} className="rounded-xl border border-slate-800/80 bg-slate-950/25 p-4 opacity-80">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex gap-3">
-                      {appIcons[provider.id]
-                        ? <img src={appIcons[provider.id] ?? ""} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" /> // eslint-disable-line @next/next/no-img-element
-                        : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white" style={{ backgroundColor: provider.color }}>{provider.fallback}</div>}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-lg font-black text-white">{provider.name}</h3>
