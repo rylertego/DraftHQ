@@ -361,12 +361,11 @@ export default function DraftLobby({
           {isCommissioner ? (
             <CommandButton
               type="button"
-              variant={draftReady ? "primary" : "secondary"}
+              variant="secondary"
               disabled={isStarting}
               onClick={onStart}
               title={startDisabledReason ?? "Start the draft"}
-              className={`mt-3 w-full ${draftReady ? "" : "border-amber-400/35 bg-amber-500/12 text-amber-200 hover:bg-amber-500/18"}`}
-              style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
+              className="mt-3 w-full !border-emerald-400/45 !bg-emerald-500/12 !text-emerald-200 hover:!border-emerald-300/60 hover:!bg-emerald-500/18 focus:ring-emerald-300"
             >
               {isStarting ? "Starting Draft" : "Start Draft"}
             </CommandButton>
@@ -580,12 +579,11 @@ export default function DraftLobby({
           {isCommissioner ? (
             <CommandButton
               type="button"
-              variant={draftReady ? "primary" : "secondary"}
+              variant="secondary"
               disabled={isStarting}
               onClick={onStart}
               title={startDisabledReason ?? "Start the draft"}
-              className={`min-w-36 ${draftReady ? "" : "border-amber-400/35 bg-amber-500/12 text-amber-200 hover:bg-amber-500/18"}`}
-              style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
+              className="min-w-36 !border-emerald-400/45 !bg-emerald-500/12 !text-emerald-200 hover:!border-emerald-300/60 hover:!bg-emerald-500/18 focus:ring-emerald-300"
             >
               {isStarting ? "Starting Draft" : "Start Draft"}
             </CommandButton>
