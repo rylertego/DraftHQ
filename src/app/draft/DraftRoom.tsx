@@ -2162,7 +2162,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={teamOnClock.logoUrl} alt="" className="h-14 w-14 shrink-0 rounded-full object-cover sm:h-20 sm:w-20" />
+                <img src={teamOnClock.logoUrl} alt="" className="h-16 w-16 shrink-0 object-contain sm:h-20 sm:w-20" />
               ) : (
                 <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-black text-slate-300 sm:h-20 sm:w-20 sm:text-xl">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
