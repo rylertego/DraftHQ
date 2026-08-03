@@ -43,7 +43,6 @@ import { getDraftClockSeconds, formatDraftClock } from "@/lib/draftTimer";
 import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { getLeagueBranding, type LeagueBranding } from "@/lib/leagueApi";
-import { buildDraftAccentVars, getReadableTextColor } from "@/lib/draftAccent";
 import DraftHQLogo from "@/components/DraftHQLogo";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
 import LandmineAnimation from "@/components/LandmineAnimation";
@@ -1878,6 +1877,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
 
   const primaryColor = leagueBranding?.primaryColor ?? null;
+  const secondaryColor = leagueBranding?.secondaryColor ?? null;
   const leagueLogoUrl = leagueBranding?.logoUrl ?? null;
 
   // Next-up queue: next 10 teams in pick order after the current pick
@@ -1911,29 +1911,14 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const timerWarn = timerSeconds <= 30 && !timerUrgent && snapshot.draft.status === "active" && Boolean(snapshot.draft.pickDeadlineAt);
   const timerColor = timerUrgent ? "text-red-400" : timerWarn ? "text-amber-400" : "text-white";
 
-  const draftAccentVars = buildDraftAccentVars(primaryColor);
-  const headerGradient = {
-    background:
-      "linear-gradient(135deg, var(--dhq-accent-surface-strong) 0%, rgba(15,23,42,0.82) 42%, rgba(2,6,23,0.96) 100%)",
-    borderColor: "var(--dhq-accent-border)",
-    boxShadow: "inset 0 2px 0 var(--dhq-accent), 0 18px 52px rgba(2,6,23,0.34)",
-  };
+  const headerGradient = primaryColor
+    ? { background: `linear-gradient(135deg, ${primaryColor}18 0%, ${secondaryColor ?? primaryColor}08 100%)` }
+    : { background: "linear-gradient(135deg, rgba(20,184,166,0.08) 0%, rgba(15,23,42,0) 100%)" };
 
-  const accentStyle = primaryColor
-    ? { backgroundColor: primaryColor, color: getReadableTextColor(primaryColor) }
-    : { backgroundColor: "#14b8a6", color: "#020617" };
+  const accentStyle = primaryColor ? { backgroundColor: primaryColor, color: secondaryColor ?? "#0f172a" } : {};
 
   return (
-    <div
-      data-draft-room-root
-      className="flex h-dvh flex-col overflow-hidden bg-[#020617] text-white"
-      style={{
-        ...draftAccentVars,
-        backgroundImage:
-          "linear-gradient(rgba(148,163,184,0.045)_1px,transparent_1px), linear-gradient(90deg,rgba(148,163,184,0.045)_1px,transparent_1px), radial-gradient(circle_at_18%_0%,var(--dhq-accent-surface-strong),transparent_32%), radial-gradient(circle_at_88%_8%,var(--dhq-accent-surface),transparent_34%)",
-        backgroundSize: "64px 64px, 64px 64px, 100% 100%, 100% 100%",
-      }}
-    >
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#020617] text-white [background-image:linear-gradient(rgba(148,163,184,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.045)_1px,transparent_1px),radial-gradient(circle_at_18%_0%,rgba(20,184,166,0.13),transparent_32%),radial-gradient(circle_at_88%_8%,rgba(59,130,246,0.1),transparent_34%)] [background-size:64px_64px,64px_64px,100%_100%,100%_100%]">
       <WalkUpPlayer
         ref={walkUpPlayerRef}
         onPlaybackBlocked={() => {
@@ -2044,10 +2029,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               <span className="h-8 w-px bg-white/8" />
               <div className="flex min-w-0 items-baseline gap-3">
                 <span className="hidden sm:inline shrink-0 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">On the clock</span>
-                <span
-                  className="truncate text-xl sm:text-3xl font-black uppercase leading-none"
-                  style={{ color: "var(--dhq-accent-text)", textShadow: "0 0 24px var(--dhq-accent-glow)" }}
-                >
+                <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
                   {teamOnClock.name}
                 </span>
               </div>
@@ -2055,7 +2037,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           )}
         </div>
       ) : (
-      <div className="shrink-0 border-b" style={headerGradient}>
+      <div className="shrink-0 border-b border-white/5" style={headerGradient}>
         <div className="flex items-stretch divide-x divide-white/5 overflow-hidden">
 
           {/* Timer block */}
@@ -2180,12 +2162,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={teamOnClock.logoUrl}
-                  alt=""
-                  className="h-20 w-20 shrink-0 object-contain sm:h-28 sm:w-28"
-                  style={{ filter: "drop-shadow(0 0 20px var(--dhq-accent-glow-strong))" }}
-                />
+                <img src={teamOnClock.logoUrl} alt="" className="h-20 w-20 shrink-0 object-contain sm:h-28 sm:w-28" />
               ) : (
                 <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-black text-slate-300 sm:h-28 sm:w-28 sm:text-2xl">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
@@ -2208,13 +2185,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none mb-0.5">
                       {canMakePick ? "Your pick" : "On the clock"}
                     </div>
-                    <div
-                      className="truncate text-2xl sm:text-5xl font-black uppercase leading-none tracking-wide"
-                      style={{
-                        color: "var(--dhq-accent-text)",
-                        textShadow: "0 0 34px var(--dhq-accent-glow)",
-                      }}
-                    >
+                    <div className="truncate text-2xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
                       {teamOnClock.name}
                     </div>
                   </>
@@ -2274,19 +2245,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {(showBoardMenu || showCommishMenu) && (
         <div className="fixed inset-0 z-30" onClick={() => { setShowBoardMenu(false); setShowCommishMenu(false); }} />
       )}
-      <div
-        className="relative z-40 shrink-0 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b px-3 py-1.5"
-        style={{
-          borderColor: "var(--dhq-accent-border)",
-          background: "linear-gradient(90deg, var(--dhq-accent-surface) 0%, rgba(15,23,42,0.92) 26%, rgba(15,23,42,0.9) 100%)",
-        }}
-      >
+      <div className="relative z-40 shrink-0 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-white/5 bg-slate-900/90 px-3 py-1.5">
         {/* ── Left: board dropdown + commish menu ── */}
         <div className="flex items-center gap-2">
           <div className="relative">
             <button type="button"
               className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-white/10 transition-colors"
-              style={boardView === "draft" ? { borderColor: "var(--dhq-accent-border)", color: "var(--dhq-accent-text)", boxShadow: "inset 0 0 0 1px var(--dhq-accent-surface)" } : undefined}
               onClick={() => { setShowBoardMenu((v) => !v); setShowCommishMenu(false); }}>
               {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : "Round Summary"}
               <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5 text-slate-500"><path d="M0 0l5 6 5-6z"/></svg>
@@ -2418,8 +2382,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button type="button"
               className="rounded-lg px-4 py-1.5 text-xs font-black uppercase tracking-wider transition-all hover:opacity-90"
               style={stagedPlayer
-                ? { backgroundColor: "var(--dhq-accent)", color: "var(--dhq-accent-on)", boxShadow: "0 0 18px var(--dhq-accent-glow-strong)" }
-                : { ...accentStyle, opacity: 0.72, boxShadow: "0 0 14px var(--dhq-accent-glow)" }
+                ? { backgroundColor: "#14b8a6", color: "#0f172a", boxShadow: "0 0 14px #14b8a660" }
+                : (accentStyle.backgroundColor ? { ...accentStyle, opacity: 0.65 } : { backgroundColor: "#14b8a6", color: "#0f172a", opacity: 0.65 })
               }
               onClick={() => {
                 setActionError("");
@@ -2443,8 +2407,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           <div className="relative">
             <button type="button" title="Sound effects"
               onClick={() => setShowSoundMenu((v) => !v)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSoundMenu ? "text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
-              style={showSoundMenu ? { backgroundColor: "var(--dhq-accent-surface-strong)", color: "var(--dhq-accent-text)" } : undefined}>
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSoundMenu ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
                 <path d="M10 3L5.5 7H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h2.5L10 17V3zm4.243 1.757a8 8 0 0 1 0 11.314l-1.415-1.414a6 6 0 0 0 0-8.486l1.415-1.414zm-2.829 2.829a4 4 0 0 1 0 5.656l-1.414-1.414a2 2 0 0 0 0-2.828l1.414-1.414z"/>
               </svg>
@@ -2542,8 +2505,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Compact / fullscreen toggle */}
           <button type="button" title={compactHeader ? "Expand header" : "Compact header"}
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${compactHeader ? "text-slate-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
-            style={compactHeader ? { backgroundColor: "var(--dhq-accent-surface-strong)", color: "var(--dhq-accent-text)" } : undefined}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${compactHeader ? "bg-white/10 text-slate-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
             onClick={() => setCompactHeader((v) => !v)}>
             {compactHeader ? (
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="h-5 w-5">
@@ -2558,8 +2520,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* TV / Broadcast mode toggle */}
           <button type="button" title="TV Mode — project on screen"
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showTvMode ? "text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
-            style={showTvMode ? { backgroundColor: "var(--dhq-accent-surface-strong)", color: "var(--dhq-accent-text)" } : undefined}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showTvMode ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
             onClick={() => { setShowSettings(false); setShowTvMode((v) => !v); }}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
               <rect x="2" y="3" width="16" height="11" rx="1.5" fill="none"/>
@@ -2569,8 +2530,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Settings — proper cog icon */}
           <button type="button" title="Settings"
-            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSettings ? "text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
-            style={showSettings ? { backgroundColor: "var(--dhq-accent-surface-strong)", color: "var(--dhq-accent-text)" } : undefined}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSettings ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
             onClick={() => setShowSettings((v) => !v)}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
               <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 0 1-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 0 1 .947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 0 1 2.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 0 1 2.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 0 1 .947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 0 1-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 0 1-2.287-.947zM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" clipRule="evenodd"/>
@@ -2600,7 +2560,6 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             teamMap={new Map(snapshot.teams.map((t) => [t.id, t.name]))}
             rosterPositions={snapshot.draft.rosterPositions}
             accentColor={primaryColor}
-            currentTeamName={teamOnClock?.name ?? null}
             onSlotClick={() => { setActionError(""); setShowPickModal(true); }}
             onUndoPick={handleUndoPick}
             onEditPick={isCommissioner ? (pick) => setEditingPick(pick) : undefined}

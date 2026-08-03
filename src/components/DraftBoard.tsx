@@ -2,7 +2,6 @@
 import { useState } from "react";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { buildPositionColorMap, positionCellColors } from "@/lib/positionColors";
-import { buildDraftAccentVars } from "@/lib/draftAccent";
 import type { PositionCellColors } from "@/lib/positionColors";
 import type { DraftStatus, Pick, RosterPosition, Team } from "@/types/draft";
 
@@ -20,7 +19,6 @@ interface DraftBoardProps {
   teamMap?: Map<string, string>;
   rosterPositions?: RosterPosition[] | null;
   accentColor?: string | null;
-  currentTeamName?: string | null;
   onSlotClick: () => void;
   onUndoPick: () => void;
   onEditPick?: (pick: Pick) => void;
@@ -56,12 +54,13 @@ export default function DraftBoard({
   teamMap,
   rosterPositions,
   accentColor,
-  currentTeamName,
   onEditPick,
 }: DraftBoardProps) {
   const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
   const accent = accentColor ?? "#14b8a6";
-  const accentVars = buildDraftAccentVars(accent);
+  const accentGlow = `color-mix(in srgb, ${accent} 18%, transparent)`;
+  const accentBadgeBorder = `color-mix(in srgb, ${accent} 34%, transparent)`;
+  const accentBadgeBg = `color-mix(in srgb, ${accent} 10%, transparent)`;
 
   const posColorMap = buildPositionColorMap(rosterPositions, DEFAULT_POSITION_ACCENTS);
   function getCell(position: string): PositionCellColors {
@@ -87,15 +86,7 @@ export default function DraftBoard({
   const rowHeight = `${Math.round(32 + NAME_SIZE_REM[playerNameSize - 1] * 18)}px`;
 
   return (
-    <section
-      className="flex h-full flex-col overflow-hidden rounded-lg border bg-slate-950/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]"
-      style={{
-        ...accentVars,
-        borderColor: "var(--dhq-accent-border)",
-        boxShadow: "inset 0 1px 0 rgba(255,255,255,0.035), 0 0 0 1px var(--dhq-accent-surface), 0 0 42px var(--dhq-accent-surface)",
-      }}
-      onClick={() => setPopupPick(null)}
-    >
+    <section className="flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" onClick={() => setPopupPick(null)}>
       <div className="min-h-0 flex-1 overflow-auto [touch-action:pan-x_pan-y]">
         <table className="w-full border-separate border-spacing-0" style={{ tableLayout: "fixed" }}>
           <colgroup>
@@ -107,25 +98,11 @@ export default function DraftBoard({
               <th className="sticky left-0 top-0 z-20 border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
                 RD
               </th>
-              {teams.map((name, i) => {
-                const isCurrentTeam = currentTeamName === name;
-                return (
-                <th
-                  key={i}
-                  className={`sticky top-0 z-10 whitespace-nowrap border-r border-b px-2 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] ${myTeamName === name ? "text-teal-300" : "text-slate-400"}`}
-                  style={{
-                    borderColor: isCurrentTeam ? "var(--dhq-accent-border-strong)" : "rgba(30,41,59,0.9)",
-                    background: isCurrentTeam
-                      ? "linear-gradient(180deg, var(--dhq-accent-surface-strong), rgba(2,6,23,0.98))"
-                      : "#020617",
-                    color: isCurrentTeam ? "var(--dhq-accent-text)" : undefined,
-                    boxShadow: isCurrentTeam ? "inset 0 2px 0 var(--dhq-accent), inset 0 -1px 0 var(--dhq-accent-border)" : undefined,
-                  }}
-                >
+              {teams.map((name, i) => (
+                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] ${myTeamName === name ? "text-teal-300" : "text-slate-400"}`}>
                   {name}
                 </th>
-                );
-              })}
+              ))}
             </tr>
           </thead>
           <tbody className="h-full">
@@ -151,8 +128,6 @@ export default function DraftBoard({
                     const pick = getPick(slot.overallPickNumber);
                     const isCurrent = slot.overallPickNumber === currentPickNumber;
                     const isSkipped = !pick && slot.overallPickNumber < currentPickNumber;
-                    const expectedName = teams[parseInt(slot.teamId) - 1];
-                    const isCurrentTeamColumn = currentTeamName === expectedName;
                     const cell = pick ? getCell(pick.playerPosition) : null;
                     const byeWeek = pick?.nflTeam ? (byeWeeks?.get(pick.nflTeam) ?? null) : null;
 
@@ -169,16 +144,12 @@ export default function DraftBoard({
                             : isSkipped
                             ? "rgba(71,20,20,0.5)"
                             : isCurrent
-                            ? "var(--dhq-accent-surface-strong)"
-                            : isCurrentTeamColumn
-                            ? "var(--dhq-accent-surface)"
+                            ? "rgba(30,58,138,0.3)"
                             : emptyBg,
                           boxShadow: isCurrent
                             ? pick
-                              ? "inset 0 0 0 2px var(--dhq-accent), inset 0 0 36px var(--dhq-accent-surface-strong), 0 0 28px var(--dhq-accent-glow)"
-                              : "inset 0 0 0 2px var(--dhq-accent), inset 0 0 36px var(--dhq-accent-surface-strong), 0 0 28px var(--dhq-accent-glow)"
-                            : isCurrentTeamColumn
-                            ? "inset 3px 0 0 var(--dhq-accent-border)"
+                              ? `inset 0 0 0 2px ${accent}, 0 0 24px ${accentGlow}`
+                              : `inset 0 0 0 2px ${accent}, 0 0 24px ${accentGlow}`
                             : undefined,
                         }}
                       >
@@ -217,10 +188,9 @@ export default function DraftBoard({
                               <span
                                 className="rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-widest"
                                 style={{
-                                  borderColor: "var(--dhq-accent-border-strong)",
-                                  backgroundColor: "var(--dhq-accent-surface-strong)",
-                                  color: "var(--dhq-accent-text)",
-                                  boxShadow: "0 0 18px var(--dhq-accent-glow)",
+                                  borderColor: accentBadgeBorder,
+                                  backgroundColor: accentBadgeBg,
+                                  color: accent,
                                 }}
                               >
                                 {draftStatus === "active" ? "Picking" : draftStatus === "setup" ? "Not started" : "Paused"}

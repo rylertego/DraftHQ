@@ -3,7 +3,6 @@
 import { useState } from "react";
 import type { Pick, Team } from "@/types/draft";
 import DraftHQLogo from "@/components/DraftHQLogo";
-import { buildDraftAccentVars } from "@/lib/draftAccent";
 
 type BoardView = "draft" | "players" | "roster" | "rounds";
 
@@ -60,7 +59,6 @@ export default function DraftTicker({
 }: DraftTickerProps) {
   const posButtons = ["All", ...(enabledPositions ?? DEFAULT_POS_BUTTONS)];
   const [speedIndex, setSpeedIndex] = useState(DEFAULT_SPEED_INDEX);
-  const accentVars = buildDraftAccentVars(accentColor);
 
   const teamMap = new Map(teams.map((t) => [t.id, t.name]));
   const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
@@ -85,7 +83,7 @@ export default function DraftTicker({
           return (
             <span key={p.id} className="flex items-center">
               {/* Pick number colored */}
-              <span className="font-black text-sm" style={{ color: "var(--dhq-accent-text)" }}>
+              <span className="font-black text-sm" style={{ color: accentColor }}>
                 {round}.{pickInRound}
               </span>
               {/* Team name slightly dimmed */}
@@ -105,7 +103,7 @@ export default function DraftTicker({
                 {p.playerPosition}
               </span>
               {i < sorted.length - 1 && (
-                <span className="mx-8" style={{ color: "var(--dhq-accent-border)" }}>·</span>
+                <span className="mx-8 text-slate-700">·</span>
               )}
             </span>
           );
@@ -116,18 +114,10 @@ export default function DraftTicker({
   }
 
   return (
-    <div
-      className="shrink-0 flex items-stretch border-t bg-black"
-      style={{
-        ...accentVars,
-        height: "58px",
-        borderColor: "var(--dhq-accent-border)",
-        boxShadow: "0 -12px 34px var(--dhq-accent-surface)",
-      }}
-    >
+    <div className="shrink-0 flex items-stretch border-t border-white/8 bg-black" style={{ height: "58px" }}>
 
       {/* ── Left: DraftHQ brand + chat button ── */}
-      <div className="flex shrink-0 items-center gap-3 border-r px-5" style={{ borderColor: "var(--dhq-accent-border)" }}>
+      <div className="flex shrink-0 items-center gap-3 border-r border-white/8 px-5">
         <DraftHQLogo accentColor={accentColor} className="h-10 w-auto" />
 
         <button
@@ -135,7 +125,7 @@ export default function DraftTicker({
           aria-label={isChatOpen ? "Close chat" : "Open chat"}
           onClick={onChatToggle}
           className="relative ml-1 flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-          style={isChatOpen ? { backgroundColor: "var(--dhq-accent-surface-strong)", color: "var(--dhq-accent-text)", boxShadow: "0 0 16px var(--dhq-accent-glow)" } : { color: "#64748b" }}
+          style={isChatOpen ? { backgroundColor: `${accentColor}30`, color: accentColor } : { color: "#64748b" }}
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
             <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H6l-4 4V5z" clipRule="evenodd"/>
@@ -174,13 +164,10 @@ export default function DraftTicker({
                 type="button"
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
                   active
-                    ? "text-slate-950"
+                    ? "border-white/30 bg-white text-slate-950"
                     : "border-white/8 bg-white/5 hover:bg-white/10"
                 }`}
-                style={active
-                  ? { borderColor: "var(--dhq-accent-border-strong)", backgroundColor: "var(--dhq-accent)", color: "var(--dhq-accent-on)" }
-                  : color ? { color } : {}
-                }
+                style={!active && color ? { color } : {}}
                 onClick={() => {
                   onPosFilterChange?.(key);
                   onBoardViewChange?.("players");
@@ -203,10 +190,9 @@ export default function DraftTicker({
                 type="button"
                 className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
                   active
-                    ? "text-slate-950"
+                    ? "border-white/30 bg-white text-slate-950"
                     : "border-white/8 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
                 }`}
-                style={active ? { borderColor: "var(--dhq-accent-border-strong)", backgroundColor: "var(--dhq-accent)", color: "var(--dhq-accent-on)" } : undefined}
                 onClick={() => onBoardViewChange?.(value)}
               >
                 {label}
@@ -218,7 +204,7 @@ export default function DraftTicker({
 
       {/* ── Right: speed controls (ticker only) ── */}
       {mode === "ticker" && (
-        <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-l px-3" style={{ borderColor: "var(--dhq-accent-border)" }}>
+        <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-l border-white/8 px-3">
           <button type="button" title="Speed up"
             disabled={speedIndex >= SPEEDS.length - 1}
             className="flex h-5 w-6 items-center justify-center text-slate-600 hover:text-slate-300 disabled:opacity-20 transition-colors"
