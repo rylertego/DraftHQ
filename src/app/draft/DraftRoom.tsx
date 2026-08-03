@@ -2552,11 +2552,6 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             canUndoPick={canUndoPick && !isUndoing}
             byeWeeks={byeWeeks.size > 0 ? byeWeeks : undefined}
             playerNameSize={playerNameSize}
-            myTeamName={
-              accessState.kind === "assigned"
-                ? snapshot.teams.find((t) => t.id === accessState.teamId)?.name
-                : undefined
-            }
             teamMap={new Map(snapshot.teams.map((t) => [t.id, t.name]))}
             rosterPositions={snapshot.draft.rosterPositions}
             accentColor={primaryColor}
