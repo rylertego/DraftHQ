@@ -2037,23 +2037,17 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           )}
         </div>
       ) : (
-      <div className="shrink-0 border-b border-white/10 bg-slate-950/92 px-3 py-3 shadow-[0_16px_44px_rgba(2,6,23,0.42)] backdrop-blur" style={headerGradient}>
-        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.72fr)_minmax(260px,0.78fr)] lg:items-stretch">
+      <div className="shrink-0 border-b border-white/5" style={headerGradient}>
+        <div className="flex items-stretch divide-x divide-white/5 overflow-hidden">
 
           {/* Timer block */}
-          <div className={`order-2 flex items-center justify-center gap-3 rounded-lg border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] lg:order-2 ${
-            timerUrgent
-              ? "border-red-400/40 bg-red-950/35"
-              : timerWarn
-              ? "border-amber-400/35 bg-amber-950/25"
-              : "border-white/10 bg-slate-900/78"
-          }`}>
+          <div className="flex shrink-0 items-center gap-2.5 px-2.5 py-2 sm:gap-4 sm:px-4 sm:py-3">
             {/* Commissioner clock controls */}
             {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
               <div className="flex flex-col gap-1.5">
                 {snapshot.draft.status === "active" ? (
                   <button type="button" title="Pause draft" disabled={isControllingDraft}
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-40"
+                    className="flex h-7 w-7 items-center justify-center rounded bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-40 transition-colors"
                     onClick={() => void handleDraftControl(() => pauseDraft(draftId as string))}>
                     <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5">
                       <rect x="1.5" y="1" width="3" height="10" rx="0.75"/>
@@ -2062,7 +2056,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   </button>
                 ) : (
                   <button type="button" title="Resume draft" disabled={isControllingDraft}
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-400/12 text-emerald-300 transition-colors hover:bg-emerald-400/18 hover:text-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 disabled:opacity-40"
+                    className="flex h-7 w-7 items-center justify-center rounded bg-green-700/60 text-green-300 hover:bg-green-700 hover:text-white disabled:opacity-40 transition-colors"
                     onClick={() => void handleDraftControl(() => resumeDraft(draftId as string))}>
                     <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5">
                       <polygon points="2,1 11,6 2,11"/>
@@ -2072,7 +2066,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 {/* Edit clock button — opens set-clock popup */}
                 <div className="relative">
                   <button type="button" title="Set pick clock"
-                    className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60"
+                    className="flex h-7 w-7 items-center justify-center rounded bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
                     onClick={() => {
                       const cur = snapshot.draft.pickSeconds;
                       setClockEditMin(Math.floor(cur / 60));
@@ -2114,7 +2108,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   )}
                 </div>
                 <button type="button" title="Reset timer" disabled={isControllingDraft || !["active","paused"].includes(snapshot.draft.status) || snapshot.draft.pickSeconds === 0}
-                  className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-30"
+                  className="flex h-7 w-7 items-center justify-center rounded bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30 transition-colors"
                   onClick={() => void handleDraftControl(() => resetPickTimer(draftId as string))}>
                   <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5">
                     <path d="M6 2a4 4 0 1 0 3.46 2h-1.2A2.8 2.8 0 1 1 6 3.2V2.5L8 1 6 0v2z"/>
@@ -2125,7 +2119,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
             {/* Clock display */}
             <div className="flex flex-col items-center gap-1.5">
-              <span className={`font-mono text-5xl sm:text-7xl font-black tabular-nums leading-none ${timerColor}`}>
+              <span className={`font-mono text-4xl sm:text-6xl font-black tabular-nums leading-none ${timerColor}`}>
                 {snapshot.draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
               </span>
               {/* Extension slots */}
@@ -2151,12 +2145,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           </div>
 
           {/* Round / Pick */}
-          <div className="order-3 grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-slate-900/78 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] lg:order-3">
-            <div className="rounded-md border border-white/8 bg-black/18 px-3 py-2 text-center">
+          <div className="flex shrink-0 items-center gap-3 px-3 py-2 sm:gap-5 sm:px-5 sm:py-3">
+            <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Round</div>
               <div className="text-3xl sm:text-5xl font-black leading-none">{currentRound ?? (snapshot.draft.status === "complete" ? "—" : "1")}</div>
             </div>
-            <div className="rounded-md border border-white/8 bg-black/18 px-3 py-2 text-center">
+            <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Pick</div>
               <div className="text-3xl sm:text-5xl font-black leading-none">{currentPickInRound ?? "—"}</div>
             </div>
@@ -2164,13 +2158,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Team on clock + Next Up stacked */}
           {teamOnClock && snapshot.draft.status !== "complete" && (
-            <div className="order-1 flex min-w-0 items-center gap-3 rounded-lg border border-white/10 bg-slate-900/78 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:order-1">
+            <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 sm:gap-4 sm:px-5">
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={teamOnClock.logoUrl} alt="" className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-lg object-cover ring-1 ring-white/15" />
+                <img src={teamOnClock.logoUrl} alt="" className="h-10 w-10 sm:h-16 sm:w-16 shrink-0 rounded-full object-cover ring-2 ring-white/10" />
               ) : (
-                <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-sm sm:text-xl font-black text-slate-300">
+                <div className="flex h-10 w-10 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm sm:text-xl font-black text-slate-300">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -2178,7 +2172,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 {stagedPlayer && canMakePick ? (
                   /* "THE PICK IS IN..." mode */
                   <>
-                    <div className="text-3xl sm:text-5xl font-black italic uppercase leading-none tracking-wide text-white animate-pulse">
+                    <div className="text-2xl sm:text-5xl font-black italic uppercase leading-none tracking-wide text-white animate-pulse">
                       THE PICK IS IN...
                     </div>
                     <div className="mt-1 text-sm font-bold text-slate-400">
@@ -2191,7 +2185,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none mb-0.5">
                       {canMakePick ? "Your pick" : "On the clock"}
                     </div>
-                    <div className="truncate text-3xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
+                    <div className="truncate text-2xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
                       {teamOnClock.name}
                     </div>
                   </>
@@ -2199,7 +2193,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 {nextUpSlots.length > 0 && (
                   <div className="flex items-center gap-4 mt-1.5 overflow-hidden whitespace-nowrap">
                     <span className="shrink-0 text-xs font-black uppercase tracking-[0.2em] text-slate-500">Next Up:</span>
-                    {nextUpSlots.slice(0, 5).map((slot, i) => (
+                    {nextUpSlots.map((slot, i) => (
                       <span key={slot.overallPickNumber} className={`shrink-0 text-sm font-bold ${i === 0 ? "text-slate-200" : "text-slate-500"}`}>
                         {slot.teamName}
                       </span>
@@ -2251,12 +2245,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {(showBoardMenu || showCommishMenu) && (
         <div className="fixed inset-0 z-30" onClick={() => { setShowBoardMenu(false); setShowCommishMenu(false); }} />
       )}
-      <div className="relative z-40 shrink-0 grid grid-cols-1 items-center gap-2 border-b border-white/10 bg-slate-950/90 px-3 py-2 shadow-[0_12px_30px_rgba(2,6,23,0.32)] backdrop-blur md:grid-cols-[auto_minmax(280px,1fr)_auto]">
+      <div className="relative z-40 shrink-0 grid grid-cols-[auto_1fr_auto] items-center gap-2 border-b border-white/5 bg-slate-900/90 px-3 py-1.5">
         {/* ── Left: board dropdown + commish menu ── */}
         <div className="flex items-center gap-2">
           <div className="relative">
             <button type="button"
-              className="flex h-9 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 text-xs font-black uppercase tracking-[0.12em] text-slate-200 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300/60"
+              className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-white/10 transition-colors"
               onClick={() => { setShowBoardMenu((v) => !v); setShowCommishMenu(false); }}>
               {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : "Round Summary"}
               <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5 text-slate-500"><path d="M0 0l5 6 5-6z"/></svg>
@@ -2280,7 +2274,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           {isCommissioner && (
             <div className="relative">
               <button type="button"
-                className="flex h-9 items-center gap-0.5 rounded-md border border-white/10 bg-white/5 px-2.5 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300/60"
+                className="flex items-center gap-0.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm font-bold text-slate-300 hover:bg-white/10 transition-colors"
                 onClick={() => { setShowCommishMenu((v) => !v); setShowBoardMenu(false); }}>
                 ···
               </button>
@@ -2322,8 +2316,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         </div>
 
         {/* ── Center: search dropdown + Draft Player ── */}
-        <div className="flex min-w-0 items-center justify-center gap-2">
-          <div className="relative w-full max-w-xl">
+        <div className="flex items-center justify-center gap-2">
+          <div className="relative">
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="pointer-events-none absolute top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-500" style={{ left: "10px" }}>
               <circle cx="6.5" cy="6.5" r="4"/><path d="M11 11l3 3"/>
             </svg>
@@ -2331,7 +2325,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               type="text"
               placeholder={stagedPlayer ? `${stagedPlayer.fullName} ${stagedPlayer.position}/${stagedPlayer.nflTeam ?? "FA"}` : "Search players..."}
               value={playerSearch}
-              className="h-10 w-full rounded-md border bg-white/5 py-2 pr-9 text-sm font-semibold placeholder:text-slate-500 transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300/60"
+              className="w-28 sm:w-52 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-44 sm:focus:w-72 transition-all"
               style={{
                 paddingLeft: "32px",
                 borderColor: stagedPlayer && !playerSearch ? "#14b8a6" : "rgba(255,255,255,0.08)",
@@ -2344,13 +2338,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             />
             {(playerSearch || stagedPlayer) && (
               <button type="button" onClick={() => { setPlayerSearch(""); setStagedPlayerId(null); }}
-                className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-md text-slate-500 hover:bg-white/5 hover:text-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-300/60">
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300">
                 <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" fill="none"/></svg>
               </button>
             )}
             {/* Dropdown results */}
             {playerSearch.trim().length > 0 && (
-              <div className="absolute left-0 top-full z-50 mt-1 w-full min-w-[min(24rem,calc(100vw-2rem))] overflow-hidden rounded-lg border border-white/10 bg-slate-950 shadow-2xl">
+              <div className="absolute top-full left-0 z-50 mt-1 w-[min(20rem,calc(100vw-2rem))] overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
                 {rankedAvailablePlayers
                   .filter((p) => p.fullName.toLowerCase().includes(playerSearch.toLowerCase()))
                   .slice(0, 8)
@@ -2386,7 +2380,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {canMakePick && snapshot.draft.status === "active" && (
             <button type="button"
-              className="h-10 shrink-0 rounded-md px-4 text-xs font-black uppercase tracking-[0.14em] transition-all hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-teal-300/70"
+              className="rounded-lg px-4 py-1.5 text-xs font-black uppercase tracking-wider transition-all hover:opacity-90"
               style={stagedPlayer
                 ? { backgroundColor: "#14b8a6", color: "#0f172a", boxShadow: "0 0 14px #14b8a660" }
                 : (accentStyle.backgroundColor ? { ...accentStyle, opacity: 0.65 } : { backgroundColor: "#14b8a6", color: "#0f172a", opacity: 0.65 })
@@ -2407,16 +2401,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
         {/* ── Right: connection dot · sound · fullscreen toggle · settings ── */}
         <div className="flex items-center justify-end gap-0.5">
-          <div className="mr-2 hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400 sm:flex" title={status}>
-            <span className={`h-2 w-2 rounded-full ${status === "connected" ? "bg-green-400" : "bg-yellow-400 animate-pulse"}`} />
-            {status === "connected" ? "Live" : "Syncing"}
-          </div>
+          <div className={`h-2 w-2 rounded-full mr-2 ${status === "connected" ? "bg-green-400" : "bg-yellow-400 animate-pulse"}`} title={status} />
 
           {/* Sound menu */}
           <div className="relative">
             <button type="button" title="Sound effects"
               onClick={() => setShowSoundMenu((v) => !v)}
-              className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300/60 ${showSoundMenu ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>
+              className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSoundMenu ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}>
               <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
                 <path d="M10 3L5.5 7H3a1 1 0 0 0-1 1v4a1 1 0 0 0 1 1h2.5L10 17V3zm4.243 1.757a8 8 0 0 1 0 11.314l-1.415-1.414a6 6 0 0 0 0-8.486l1.415-1.414zm-2.829 2.829a4 4 0 0 1 0 5.656l-1.414-1.414a2 2 0 0 0 0-2.828l1.414-1.414z"/>
               </svg>
@@ -2514,7 +2505,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Compact / fullscreen toggle */}
           <button type="button" title={compactHeader ? "Expand header" : "Compact header"}
-            className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300/60 ${compactHeader ? "bg-white/10 text-slate-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${compactHeader ? "bg-white/10 text-slate-200" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
             onClick={() => setCompactHeader((v) => !v)}>
             {compactHeader ? (
               <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="h-5 w-5">
@@ -2529,7 +2520,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* TV / Broadcast mode toggle */}
           <button type="button" title="TV Mode — project on screen"
-            className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300/60 ${showTvMode ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showTvMode ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
             onClick={() => { setShowSettings(false); setShowTvMode((v) => !v); }}>
             <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-5 w-5">
               <rect x="2" y="3" width="16" height="11" rx="1.5" fill="none"/>
@@ -2539,7 +2530,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Settings — proper cog icon */}
           <button type="button" title="Settings"
-            className={`flex h-9 w-9 items-center justify-center rounded-md transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300/60 ${showSettings ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg transition-colors ${showSettings ? "bg-white/10 text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
             onClick={() => setShowSettings((v) => !v)}>
             <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
               <path fillRule="evenodd" d="M11.49 3.17c-.38-1.56-2.6-1.56-2.98 0a1.532 1.532 0 0 1-2.286.948c-1.372-.836-2.942.734-2.106 2.106.54.886.061 2.042-.947 2.287-1.561.379-1.561 2.6 0 2.978a1.532 1.532 0 0 1 .947 2.287c-.836 1.372.734 2.942 2.106 2.106a1.532 1.532 0 0 1 2.287.947c.379 1.561 2.6 1.561 2.978 0a1.533 1.533 0 0 1 2.287-.947c1.372.836 2.942-.734 2.106-2.106a1.533 1.533 0 0 1 .947-2.287c1.561-.379 1.561-2.6 0-2.978a1.532 1.532 0 0 1-.947-2.287c.836-1.372-.734-2.942-2.106-2.106a1.532 1.532 0 0 1-2.287-.947zM10 13a3 3 0 1 0 0-6 3 3 0 0 0 0 6z" clipRule="evenodd"/>
