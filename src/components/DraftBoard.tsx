@@ -18,6 +18,7 @@ interface DraftBoardProps {
   teamMap?: Map<string, string>;
   rosterPositions?: RosterPosition[] | null;
   accentColor?: string | null;
+  tvMode?: boolean;
   onSlotClick: () => void;
   onUndoPick: () => void;
   onEditPick?: (pick: Pick) => void;
@@ -52,6 +53,7 @@ export default function DraftBoard({
   teamMap,
   rosterPositions,
   accentColor,
+  tvMode = false,
   onEditPick,
 }: DraftBoardProps) {
   const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
@@ -81,7 +83,25 @@ export default function DraftBoard({
   }
 
   // Row height: top padding (6) + first-name row (14) + gap (2) + last-name text + bottom breathing room (10)
-  const rowHeight = `${Math.round(32 + NAME_SIZE_REM[playerNameSize - 1] * 18)}px`;
+  const baseRowHeight = Math.round(32 + NAME_SIZE_REM[playerNameSize - 1] * 18);
+  const rowHeight = tvMode
+    ? `clamp(${baseRowHeight}px, calc((100vh - 540px) / ${rounds}), 126px)`
+    : `${baseRowHeight}px`;
+  const headerTextClass = tvMode
+    ? "text-[clamp(11px,0.55vw,18px)]"
+    : "text-[11px]";
+  const firstNameTextClass = tvMode
+    ? "text-[clamp(10px,0.45vw,15px)]"
+    : "text-[10px]";
+  const detailTextClass = tvMode
+    ? "text-[clamp(10px,0.45vw,15px)]"
+    : "text-[10px]";
+  const badgeTextClass = tvMode
+    ? "text-[clamp(10px,0.42vw,14px)]"
+    : "text-[10px]";
+  const playerLastNameSize = tvMode
+    ? `clamp(${NAME_SIZE_REM[playerNameSize - 1]}rem, 1.1vw, 2.8rem)`
+    : `${NAME_SIZE_REM[playerNameSize - 1]}rem`;
 
   return (
     <section className="flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" onClick={() => setPopupPick(null)}>
@@ -93,11 +113,11 @@ export default function DraftBoard({
           </colgroup>
           <thead>
             <tr>
-              <th className="sticky left-0 top-0 z-20 border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <th className={`sticky left-0 top-0 z-20 border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center font-black uppercase tracking-wider text-slate-500 ${tvMode ? "text-[clamp(10px,0.5vw,16px)]" : "text-[10px]"}`}>
                 RD
               </th>
               {teams.map((name, i) => (
-                <th key={i} className="sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] text-slate-400">
+                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center font-black uppercase tracking-[0.12em] text-slate-400 ${headerTextClass}`}>
                   {name}
                 </th>
               ))}
@@ -116,7 +136,7 @@ export default function DraftBoard({
               return (
                 <tr key={round}>
                   <td
-                    className="sticky left-0 z-10 border-r border-b border-slate-800/90 px-2 text-xs font-black text-slate-500 text-center align-middle"
+                    className={`sticky left-0 z-10 border-r border-b border-slate-800/90 px-2 font-black text-slate-500 text-center align-middle ${tvMode ? "text-[clamp(12px,0.55vw,18px)]" : "text-xs"}`}
                     style={{ height: rowHeight, backgroundColor: isEvenRow ? "#0d1a2e" : "#020617" }}
                   >
                     {round}
@@ -161,22 +181,22 @@ export default function DraftBoard({
                             } : undefined}
                           >
                             <div className="flex items-center justify-between gap-1 leading-none mb-0.5">
-                              <span className="truncate text-[10px] font-semibold uppercase leading-none" style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.75 }}>
+                              <span className={`truncate font-semibold uppercase leading-none ${firstNameTextClass}`} style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.75 }}>
                                 {firstName}
                               </span>
-                              <span className="shrink-0 text-[10px] font-bold leading-none whitespace-nowrap" style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.8 }}>
+                              <span className={`shrink-0 font-bold leading-none whitespace-nowrap ${detailTextClass}`} style={{ color: cell?.sub ?? "#94A3B8", opacity: 0.8 }}>
                                 {byeWeek && <span className="mr-0.5">{byeWeek}</span>}
                                 <span>{pick.nflTeam}</span>
                                 <span className="font-black ml-0.5">{pick.playerPosition}</span>
                               </span>
                             </div>
-                            <div className="truncate font-black leading-tight tracking-tight" style={{ color: cell?.text ?? "#fff", fontSize: `${NAME_SIZE_REM[playerNameSize - 1]}rem` }}>
+                            <div className="truncate font-black leading-tight tracking-tight" style={{ color: cell?.text ?? "#fff", fontSize: playerLastNameSize }}>
                               {lastName}
                             </div>
                           </div>
                         ) : isSkipped ? (
                           <div className="flex h-full items-center justify-center">
-                            <span className="text-[10px] font-black uppercase tracking-widest text-red-400/70">
+                            <span className={`${badgeTextClass} font-black uppercase tracking-widest text-red-400/70`}>
                               Skipped
                             </span>
                           </div>
@@ -184,7 +204,7 @@ export default function DraftBoard({
                           <div className="flex h-full items-center justify-center">
                             {isCurrent && (
                               <span
-                                className="rounded-full border px-2 py-1 text-[10px] font-black uppercase tracking-widest"
+                                className={`rounded-full border px-2 py-1 font-black uppercase tracking-widest ${badgeTextClass}`}
                                 style={{
                                   borderColor: accentBadgeBorder,
                                   backgroundColor: accentBadgeBg,

@@ -305,9 +305,27 @@ function TvModeOverlay({
   const sortedTeamNames = [...teams]
     .sort((a, b) => a.draftPosition - b.draftPosition)
     .map((t) => t.name);
+  const timerState =
+    draft.status === "complete"
+      ? "complete"
+      : draft.status !== "active"
+      ? "paused"
+      : draft.pickSeconds > 0 && timerSeconds <= 0
+      ? "expired"
+      : draft.pickSeconds > 0 && timerSeconds <= 10
+      ? "warning"
+      : "running";
+  const timerStateLabel =
+    timerState === "expired"
+      ? "Expired"
+      : timerState === "warning"
+      ? "Final Seconds"
+      : timerState === "paused"
+      ? "Paused"
+      : "Running";
 
   // Spotlight background radiates from the on-clock team (left side)
-  const bgSpotlight = `radial-gradient(ellipse 75% 90% at 28% 45%, ${accent}0d 0%, transparent 65%), radial-gradient(ellipse 40% 60% at 28% 45%, ${accent}07 0%, transparent 50%)`;
+  const bgSpotlight = `radial-gradient(ellipse 70% 100% at 28% 45%, ${accent}10 0%, transparent 62%), radial-gradient(ellipse 42% 75% at 58% 48%, ${accent}08 0%, transparent 55%)`;
 
   return (
     <div className="fixed inset-0 z-[45] flex flex-col overflow-hidden" style={{ backgroundColor: "#020617" }}>
@@ -315,7 +333,7 @@ function TvModeOverlay({
       {/* ── Header ── */}
       <div
         className="flex shrink-0 items-center justify-between px-5"
-        style={{ height: 52, borderBottom: `1px solid ${accent}20`, background: `linear-gradient(to bottom, ${accent}09, transparent)` }}
+        style={{ height: 46, borderBottom: `1px solid ${accent}20`, background: `linear-gradient(to bottom, ${accent}09, transparent)` }}
       >
         {/* Brand */}
         <div className="flex items-center gap-3">
@@ -329,10 +347,10 @@ function TvModeOverlay({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 opacity-35 transition-opacity hover:opacity-100 focus-within:opacity-100">
           {/* Round / pick badge */}
           {currentRound !== null && draft.status !== "complete" && (
-            <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1">
+            <div className="hidden items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Rd</span>
               <span className="text-lg font-black text-white">{currentRound}</span>
               <span className="text-slate-700 mx-0.5">·</span>
@@ -404,7 +422,7 @@ function TvModeOverlay({
           <button
             type="button"
             onClick={onExit}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10"
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-bold text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
           >
             <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="h-3 w-3">
               <path d="M1 1l10 10M11 1L1 11" />
@@ -420,7 +438,7 @@ function TvModeOverlay({
         {/* PRESENTATION AREA — 55 % of content height */}
         <div
           className="relative flex shrink-0 flex-col overflow-hidden"
-          style={{ height: "55%", background: bgSpotlight }}
+          style={{ height: "clamp(320px, 34vh, 420px)", background: bgSpotlight }}
         >
           {/* Vignette */}
           <div
@@ -429,10 +447,10 @@ function TvModeOverlay({
           />
 
           {/* HERO ROW — on-clock left, timer right */}
-          <div className="relative flex min-h-0 flex-1 items-stretch">
+          <div className="relative grid min-h-0 flex-1 grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] items-stretch">
 
             {/* LEFT: Team on the clock */}
-            <div className="flex flex-1 flex-col justify-center px-10 py-6">
+            <div className="flex min-w-0 flex-col justify-center px-10 py-5">
               {draft.status === "complete" ? (
                 <div
                   className="font-black uppercase leading-none text-green-400"
@@ -442,29 +460,32 @@ function TvModeOverlay({
                 </div>
               ) : teamOnClock ? (
                 <>
-                  <div className="mb-4 text-[10px] font-black uppercase tracking-[0.35em] text-slate-600">
-                    On the Clock
+                  <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.35em]" style={{ color: accent }}>
+                      On the Clock
+                    </div>
+                    {currentRound !== null && (
+                      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Round</span>
+                        <span className="text-2xl font-black leading-none text-white">{currentRound}</span>
+                        <span className="h-5 w-px bg-white/10" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Pick</span>
+                        <span className="text-2xl font-black leading-none text-white">{currentPickInRound ?? "-"}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Logo + name side-by-side so the logo is a dominant TV visual */}
                   <div className="flex min-w-0 items-center gap-6">
 
-                    {/* Logo with animated accent glow */}
+                    {/* Logo with accent broadcast framing */}
                     <div className="relative shrink-0">
-                      {/* Outer slow pulse ring */}
                       <div
-                        className="absolute rounded-full animate-pulse"
+                        className="absolute rounded-[2rem]"
                         style={{
-                          inset: -24,
-                          background: `radial-gradient(circle, ${accent}30 0%, transparent 70%)`,
-                        }}
-                      />
-                      {/* Inner steady glow */}
-                      <div
-                        className="absolute rounded-full"
-                        style={{
-                          inset: -8,
-                          background: `radial-gradient(circle, ${accent}25 0%, transparent 65%)`,
+                          inset: -12,
+                          border: `1px solid ${accent}45`,
+                          boxShadow: `0 0 46px ${accent}22`,
                         }}
                       />
                       {teamOnClock.logoUrl ? (
@@ -472,16 +493,14 @@ function TvModeOverlay({
                         <img
                           src={teamOnClock.logoUrl}
                           alt=""
-                          className="relative h-[clamp(8rem,14vw,16rem)] w-[clamp(8rem,14vw,16rem)] rounded-full object-cover"
-                          style={{ boxShadow: `0 0 0 4px ${accent}70, 0 0 48px 12px ${accent}30` }}
+                          className="relative h-[clamp(8rem,11vw,13rem)] w-[clamp(8rem,11vw,13rem)] object-contain"
                         />
                       ) : (
                         <div
-                          className="relative flex h-[clamp(8rem,14vw,16rem)] w-[clamp(8rem,14vw,16rem)] items-center justify-center rounded-full font-black text-white"
+                          className="relative flex h-[clamp(8rem,11vw,13rem)] w-[clamp(8rem,11vw,13rem)] items-center justify-center rounded-3xl font-black text-white"
                           style={{
                             fontSize: "clamp(2.5rem, 5vw, 6rem)",
                             backgroundColor: `${accent}18`,
-                            boxShadow: `0 0 0 4px ${accent}70, 0 0 48px 12px ${accent}30`,
                           }}
                         >
                           {teamOnClock.name.slice(0, 2).toUpperCase()}
@@ -493,34 +512,34 @@ function TvModeOverlay({
                     <div className="min-w-0 flex-1">
                       <div
                         className="line-clamp-2 break-words font-black uppercase leading-tight tracking-wide"
-                        style={{ fontSize: "clamp(1.75rem, 3.5vw, 5rem)", color: accent }}
+                        style={{ fontSize: "clamp(2rem, 3.6vw, 4.6rem)", color: accent }}
                       >
                         {teamOnClock.name}
                       </div>
 
                       {/* Next up — visual numbered pills */}
                       {nextUpSlots.length > 0 && (
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <span className="mr-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-700">
-                            Next
+                        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                          <span className="mr-0.5 text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">
+                            Next Up
                           </span>
                       {nextUpSlots.slice(0, 5).map((slot, i) => {
                         const slotTeam = teams.find((t) => t.name === slot.teamName);
                         return (
                           <div
                             key={slot.overallPickNumber}
-                            className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5"
+                            className="flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.045] px-3 py-1.5"
                           >
-                            <span className="text-[10px] font-black text-slate-700">{i + 1}</span>
+                            <span className="text-[11px] font-black" style={{ color: i === 0 ? accent : "#64748b" }}>{i + 1}</span>
                             {slotTeam?.logoUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={slotTeam.logoUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                              <img src={slotTeam.logoUrl} alt="" className="h-5 w-5 object-contain" />
                             ) : (
                               <span className="text-[10px] font-bold text-slate-600">
                                 {slot.teamName.slice(0, 2).toUpperCase()}
                               </span>
                             )}
-                            <span className="text-sm font-bold text-slate-300">{slot.teamName}</span>
+                            <span className="text-base font-bold text-slate-300">{slot.teamName}</span>
                           </div>
                         );
                       })}
@@ -535,24 +554,46 @@ function TvModeOverlay({
             </div>
 
             {/* Divider */}
-            <div className="w-px shrink-0 self-stretch" style={{ backgroundColor: `${accent}12` }} />
+            <div className="hidden" />
 
             {/* RIGHT: TIMER — the dominant focal point */}
             <div
-              className="flex w-[45%] shrink-0 flex-col items-center justify-center px-8 py-6"
+              className="flex min-w-0 flex-col items-center justify-center px-8 py-5"
+              style={{
+                borderLeft: `1px solid ${accent}16`,
+                background: `linear-gradient(90deg, transparent, ${accent}08)`,
+              }}
             >
               {draft.status !== "complete" && (
                 <>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor:
+                          timerState === "expired"
+                            ? "#ef4444"
+                            : timerState === "warning"
+                            ? "#f59e0b"
+                            : timerState === "paused"
+                            ? "#94a3b8"
+                            : accent,
+                      }}
+                    />
+                    <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+                      {timerStateLabel}
+                    </span>
+                  </div>
                   <div
                     className={`font-mono font-black tabular-nums leading-none ${
                       draft.pickSeconds > 0 ? timerColor : "text-slate-800"
                     }`}
-                    style={{ fontSize: "clamp(5rem, 15vw, 20rem)" }}
+                    style={{ fontSize: "clamp(4.25rem, 8.5vw, 10rem)" }}
                   >
                     {draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
                   </div>
                   {draft.pickSeconds > 0 && (
-                    <div className="mt-2 text-[9px] font-black uppercase tracking-[0.3em] text-slate-700">
+                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
                       Time Remaining
                     </div>
                   )}
@@ -565,29 +606,29 @@ function TvModeOverlay({
           {lastPick && (
             <div
               key={lastPick.overallPickNumber}
-              className="relative shrink-0 flex items-center gap-5 overflow-hidden px-8"
+              className="relative shrink-0 flex items-center gap-4 overflow-hidden px-8"
               style={{
-                height: 80,
-                background: `linear-gradient(90deg, ${accent}22 0%, rgba(2,6,23,0.97) 60%)`,
+                height: 66,
+                background: `linear-gradient(90deg, ${accent}20 0%, rgba(2,6,23,0.97) 55%)`,
                 borderTop: `2px solid ${accent}30`,
                 animation: "tv-lower-third-in 0.45s cubic-bezier(0.22,1,0.36,1)",
               }}
             >
               {/* Label + pick number */}
               <div className="shrink-0 text-right">
-                <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: accent }}>
+                <div className="text-[9px] font-black uppercase tracking-[0.28em]" style={{ color: accent }}>
                   Last Pick
                 </div>
-                <div className="text-[10px] font-bold text-slate-700">
+                <div className="text-xs font-bold text-slate-500">
                   {lastPick.round}.{lastPick.pickNumber} · #{lastPick.overallPickNumber}
                 </div>
               </div>
 
-              <div className="h-10 w-px shrink-0 bg-white/10" />
+              <div className="hidden" />
 
               {/* Headshot slot — layout-ready; renders image when available */}
               <div
-                className="h-14 w-14 shrink-0 overflow-hidden rounded-full"
+                className="h-12 w-12 shrink-0 overflow-hidden rounded-full"
                 style={{ border: `2px solid ${accent}30`, backgroundColor: "rgba(15,23,42,0.6)" }}
               >
                 {lastPickHeadshot ? (
@@ -600,21 +641,21 @@ function TvModeOverlay({
 
               {/* Player info */}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[clamp(1.1rem,2.2vw,2rem)] font-black leading-tight text-white">
+                <div className="truncate text-[clamp(1.1rem,1.7vw,1.7rem)] font-black leading-tight text-white">
                   {lastPick.playerName}
                 </div>
-                <div className="mt-0.5 flex items-center gap-2">
+                <div className="mt-0.5 flex items-center gap-2 text-sm">
                   <span
                     className="rounded px-2 py-0.5 text-xs font-black text-slate-950"
                     style={{ backgroundColor: POSITION_COLORS[lastPick.playerPosition] ?? "#94A3B8" }}
                   >
                     {lastPick.playerPosition}
                   </span>
-                  <span className="text-sm font-bold text-slate-400">{lastPick.nflTeam ?? "FA"}</span>
+                  <span className="font-bold text-slate-400">{lastPick.nflTeam ?? "FA"}</span>
                   {lastPickTeam && (
                     <>
                       <span className="text-slate-700">·</span>
-                      <span className="text-sm text-slate-500">
+                      <span className="text-slate-500">
                         Drafted by{" "}
                         <span className="font-semibold text-slate-300">{lastPickTeam.name}</span>
                       </span>
@@ -645,6 +686,7 @@ function TvModeOverlay({
               canUndoPick={false}
               playerNameSize={5}
               accentColor={accent}
+              tvMode
               onSlotClick={() => {}}
               onUndoPick={() => {}}
             />
@@ -654,8 +696,8 @@ function TvModeOverlay({
         {/* RECENT PICKS TICKER */}
         {sorted.length > 0 && (
           <div className="shrink-0 border-t border-white/8 bg-black">
-            <div className="flex h-11 items-center gap-1 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span className="mr-3 shrink-0 text-[9px] font-black uppercase tracking-[0.2em] text-slate-700">
+            <div className="flex h-14 items-center gap-2 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+              <span className="mr-3 shrink-0 text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">
                 Recent
               </span>
               {[...sorted].reverse().slice(0, 30).map((p) => {
@@ -663,17 +705,17 @@ function TvModeOverlay({
                 return (
                   <div
                     key={p.id}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.03] px-3 py-1"
+                    className="flex shrink-0 items-center gap-2 rounded-lg bg-white/[0.04] px-3.5 py-1.5"
                   >
-                    <span className="text-[10px] font-bold text-slate-700">{p.round}.{p.pickNumber}</span>
-                    <span className="text-sm font-semibold text-white">{p.playerName}</span>
+                    <span className="text-xs font-black" style={{ color: accent }}>{p.round}.{p.pickNumber}</span>
+                    <span className="text-base font-semibold text-white">{p.playerName}</span>
                     <span
-                      className="text-xs font-black"
+                      className="text-sm font-black"
                       style={{ color: POSITION_COLORS[p.playerPosition] ?? "#94A3B8" }}
                     >
                       {p.playerPosition}
                     </span>
-                    {pickedBy && <span className="text-[10px] text-slate-700">{pickedBy.name}</span>}
+                    {pickedBy && <span className="text-xs font-semibold text-slate-500">{pickedBy.name}</span>}
                   </div>
                 );
               })}
