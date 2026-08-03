@@ -140,17 +140,6 @@ export default function DraftLobby({
     ? participants.find((participant) => participant.teamId === activeTeam.id)
     : null;
   const ownerName = activeTeam?.ownerName || activeParticipant?.displayName || "Owner not assigned";
-  const currentParticipant = participants.find((participant) => participant.userId === currentUserId);
-  const currentUserTeam = currentParticipant?.teamId
-    ? sortedTeams.find((team) => team.id === currentParticipant.teamId)
-    : null;
-  const roleLabel = isCommissioner
-    ? "Commissioner"
-    : currentUserTeam
-      ? `Owner: ${currentUserTeam.name}`
-      : currentParticipant
-        ? "Unassigned member"
-        : "Spectator";
   const preDraftNoteItems = getPreDraftNoteItems(activeTeam?.preDraftNotes);
   const yearInName = draft.name.match(/\b(20\d{2})\b/)?.[1];
   const draftYear = draft.scheduledAt
@@ -195,11 +184,6 @@ export default function DraftLobby({
       ? "Draft ready"
       : "Setup needs attention";
   const readinessTone = isStarting ? "warning" : draftReady ? "ready" : "warning";
-  const readinessDetail = draftReady
-    ? onlineOwnerCount === totalTeamCount
-      ? "All teams are assigned and all owners are online."
-      : "Setup is complete. Waiting for every owner to join is optional."
-    : setupIssues[0] ?? "Complete setup before starting.";
   const startDisabledReason = !isCommissioner
     ? "Only the commissioner can start the draft."
     : !draftReady
@@ -207,11 +191,6 @@ export default function DraftLobby({
       : isStarting
         ? "Draft start is in progress."
         : null;
-
-  // Offline list — shown to commissioner so they know who is missing.
-  const offlineTeamNames = teamOnlineStatus
-    .filter((s) => !s.isOnline)
-    .map((s) => s.team.name);
 
   const activeTeamOnlineStatus = teamOnlineStatus.find((s) => s.team.id === activeTeam?.id);
 
@@ -345,7 +324,7 @@ export default function DraftLobby({
           Back
         </Link>
         <div className="min-w-0">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Night Command</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Day Lobby</p>
           <h1 className="text-xl font-black leading-tight text-white">{leagueName ?? draft.name}</h1>
           <p className="mt-1 text-sm font-semibold text-slate-400">{draftYear} Draft Lobby</p>
         </div>
@@ -356,7 +335,7 @@ export default function DraftLobby({
           ← Back
         </Link>
         <div className="mx-auto max-w-[calc(100%_-_12rem)]">
-          <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Night Command</p>
+          <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Day Lobby</p>
           <h1 className="mt-1 whitespace-normal break-words text-3xl font-black leading-tight text-white">{leagueName ?? draft.name}</h1>
           <p className="mt-1 text-sm font-semibold text-slate-400">{draftYear} Draft Lobby</p>
         </div>
@@ -366,14 +345,19 @@ export default function DraftLobby({
         <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
           <CommandStatusBadge label={readinessLabel} tone={readinessTone} />
           <CommandStatusBadge label={connectionReady ? "Connected" : "Reconnecting"} tone={connectionReady ? "complete" : "warning"} />
-          <CommandStatusBadge label={roleLabel} tone={isCommissioner ? "complete" : "neutral"} />
           <CommandStatusBadge label={audioBlocked ? "Audio Blocked" : lobbyMuted ? "Audio Muted" : "Audio Ready"} tone={audioBlocked ? "warning" : "neutral"} />
         </div>
       </div>
 
       <div className="relative z-10 shrink-0 px-4 pb-3 sm:hidden">
-        <div className="rounded-2xl border border-white/10 bg-black/34 p-3 backdrop-blur-xl">
-          <p className={`text-xs font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessDetail}</p>
+        <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Players Online</span>
+            <span className="flex items-center gap-1.5 text-xs font-black text-white">
+              <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
+              {onlineOwnerCount}/{totalTeamCount}
+            </span>
+          </div>
           {isCommissioner ? (
             <CommandButton
               type="button"
@@ -387,7 +371,7 @@ export default function DraftLobby({
               {isStarting ? "Starting Draft" : draftReady ? "Start Draft" : "Setup Required"}
             </CommandButton>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">Waiting for the commissioner to start the draft.</p>
+            <p className="mt-2 text-xs text-slate-400">Waiting for the draft to start.</p>
           )}
         </div>
       </div>
@@ -402,14 +386,7 @@ export default function DraftLobby({
             className="lobby-team-card grid w-full max-w-6xl items-center justify-self-center gap-5 rounded-xl border border-slate-800/90 bg-slate-900/78 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.26)] backdrop-blur-xl md:grid-cols-[minmax(220px,0.62fr)_minmax(0,1.38fr)] md:p-6 lg:min-h-[360px] lg:gap-8"
           >
           <div className="relative mx-auto flex aspect-square w-full max-w-56 items-center justify-center rounded-xl border border-slate-800/90 bg-slate-950/55 p-6 shadow-inner lg:max-w-64">
-            <div className="absolute inset-x-5 bottom-5 h-px opacity-60" style={{ backgroundColor: primary }} />
             <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
-
-            {/* Online status dot on the active team card */}
-            <span
-              title={activeTeamOnlineStatus?.isOnline ? "Owner is online" : "Owner is not online"}
-              className={`absolute bottom-3 right-3 h-4 w-4 rounded-full ring-2 ring-black/60 ${activeTeamOnlineStatus?.isOnline ? "bg-green-400" : "bg-slate-600"}`}
-            />
           </div>
 
           <div className="min-w-0 text-center md:text-left">
@@ -491,11 +468,11 @@ export default function DraftLobby({
         <div className="mx-auto grid max-w-6xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] md:grid-cols-[minmax(0,1.2fr)_minmax(0,0.8fr)_auto] md:items-center">
           <div className="min-w-0">
             <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
-            <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessDetail}</p>
+            <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessLabel}</p>
           </div>
           <div className="grid grid-cols-2 gap-2 text-sm">
             <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Owners Online</p>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Players Online</p>
               <p className="mt-1 font-black text-white">{onlineOwnerCount}/{totalTeamCount}</p>
             </div>
             <div>
@@ -504,7 +481,7 @@ export default function DraftLobby({
             </div>
           </div>
           <p className="text-xs leading-5 text-slate-400 md:max-w-52 md:text-right">
-            {isCommissioner ? "Commissioner controls are active on this device." : "Waiting for the commissioner to start the draft."}
+            Lobby attendance is informational and does not block draft start.
           </p>
         </div>
       </section>
@@ -587,8 +564,20 @@ export default function DraftLobby({
           </div>
 
           {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-xl border border-amber-400/35 bg-amber-500/12 px-3 py-2 text-xs font-bold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-300">Enable audio</button>}
+        </div>
 
-          {isCommissioner && (
+        {/* Right: online count + start/waiting */}
+        <div className="flex flex-col items-center gap-2 sm:flex-1 sm:items-end">
+
+          {/* Online count — visible to everyone */}
+          <div className="flex items-center gap-1.5">
+            <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
+            <span className="text-xs font-semibold text-slate-300">
+              {onlineOwnerCount} / {totalTeamCount} players online
+            </span>
+          </div>
+
+          {isCommissioner ? (
             <CommandButton
               type="button"
               variant={draftReady ? "primary" : "secondary"}
@@ -600,35 +589,8 @@ export default function DraftLobby({
             >
               {isStarting ? "Starting Draft" : draftReady ? "Start Draft" : "Setup Required"}
             </CommandButton>
-          )}
-        </div>
-
-        {/* Right: online count + start/waiting */}
-        <div className="flex flex-col items-center gap-1.5 sm:flex-1 sm:items-end">
-
-          {/* Online count — visible to everyone */}
-          <div className="flex items-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
-            <span className="text-xs font-semibold text-slate-300">
-              {onlineOwnerCount} / {totalTeamCount} owners online
-            </span>
-          </div>
-
-          {/* Commissioner: list of who is missing */}
-          {isCommissioner && offlineTeamNames.length > 0 && (
-            <p className="max-w-48 text-right text-[10px] leading-snug text-slate-600">
-              Not here yet:{" "}
-              <span className="text-slate-500">
-                {offlineTeamNames.slice(0, 3).join(", ")}
-                {offlineTeamNames.length > 3 && ` +${offlineTeamNames.length - 3} more`}
-              </span>
-            </p>
-          )}
-
-          {isCommissioner ? (
-            <p className="text-center text-xs text-slate-500 sm:text-right">{draftReady ? "Commissioner can start from the control bar." : startDisabledReason}</p>
           ) : (
-            <p className="text-center text-xs text-slate-500 sm:text-right">Waiting for the commissioner</p>
+            <p className="text-center text-xs text-slate-500 sm:text-right">Waiting for the draft to start</p>
           )}
         </div>
       </footer>
