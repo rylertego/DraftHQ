@@ -368,7 +368,7 @@ export default function DraftLobby({
               className={`mt-3 w-full ${draftReady ? "" : "border-amber-400/35 bg-amber-500/12 text-amber-200 hover:bg-amber-500/18"}`}
               style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
             >
-              {isStarting ? "Starting Draft" : draftReady ? "Start Draft" : "Setup Required"}
+              {isStarting ? "Starting Draft" : "Start Draft"}
             </CommandButton>
           ) : (
             <p className="mt-2 text-xs text-slate-400">Waiting for the draft to start.</p>
@@ -587,7 +587,7 @@ export default function DraftLobby({
               className={`min-w-36 ${draftReady ? "" : "border-amber-400/35 bg-amber-500/12 text-amber-200 hover:bg-amber-500/18"}`}
               style={draftReady ? { backgroundColor: primary, color: secondary } : undefined}
             >
-              {isStarting ? "Starting Draft" : draftReady ? "Start Draft" : "Setup Required"}
+              {isStarting ? "Starting Draft" : "Start Draft"}
             </CommandButton>
           ) : (
             <p className="text-center text-xs text-slate-500 sm:text-right">Waiting for the draft to start</p>
