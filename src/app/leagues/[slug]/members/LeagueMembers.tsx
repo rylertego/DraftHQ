@@ -16,6 +16,16 @@ import {
 import type { PendingLeagueInvitation } from "@/lib/leagueApi";
 import { supabase } from "@/lib/supabase";
 import type { LeagueMember } from "@/types/league";
+import {
+  CommandButton,
+  CommandEmptyState,
+  CommandModal,
+  CommandPanel,
+  CommandStatusBadge,
+  commandHelperClass,
+  commandInputClass,
+  commandLabelClass,
+} from "@/components/CommandCenterUI";
 
 // ── Invite modal ──────────────────────────────────────────────────────────────
 
@@ -42,30 +52,32 @@ function InviteMemberModal({ leagueId, onClose, onAdded, onInviteSent }: { leagu
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-white">Add Member</h2>
-        <p className="mt-1 text-sm text-slate-400">They&apos;ll receive a pending invitation and can join or decline from DraftHQ.</p>
-        <form onSubmit={(e) => void handleSubmit(e)} className="mt-5 space-y-4">
+    <CommandModal
+      eyebrow="League Access"
+      title="Add Member"
+      description="They will receive a pending invitation and can join or decline from DraftHQ."
+      badge={<CommandStatusBadge label="Invite" tone="ready" />}
+      onClose={loading ? undefined : onClose}
+      footer={(
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <CommandButton type="button" onClick={onClose} disabled={loading} className="sm:min-w-28">
+            Cancel
+          </CommandButton>
+          <CommandButton type="submit" form="invite-member-form" variant="primary" disabled={loading || !email.trim()} className="sm:min-w-40" style={{ backgroundColor: primary, color: secondary }}>
+            {loading ? "Sending..." : "Send Invitation"}
+          </CommandButton>
+        </div>
+      )}
+    >
+        <form id="invite-member-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">Email address</label>
-            <input type="email" autoFocus className="w-full" placeholder="teammate@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <label className={commandLabelClass}>Email Address</label>
+            <input type="email" autoFocus className={commandInputClass} placeholder="teammate@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <p className={commandHelperClass}>Invitations are managed from the Pending Invitations section.</p>
           </div>
-          {error && <p className="text-sm text-red-400">{error}</p>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} disabled={loading}
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading || !email.trim()}
-              className="flex-1 rounded-xl py-2.5 text-sm font-bold disabled:opacity-40 disabled:cursor-not-allowed transition-opacity hover:opacity-90"
-              style={{ backgroundColor: primary, color: secondary }}>
-              {loading ? "Sending..." : "Send Invitation"}
-            </button>
-          </div>
+          {error && <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
         </form>
-      </div>
-    </div>
+    </CommandModal>
   );
 }
 
@@ -89,23 +101,23 @@ function RemoveConfirmModal({ member, leagueId, onClose, onRemoved }: { member: 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-white">Remove {member.displayName}?</h2>
-        <p className="mt-2 text-sm text-slate-400">They will be removed from this league. This does not affect any draft picks or history.</p>
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-        <div className="mt-5 flex gap-3">
-          <button type="button" onClick={onClose} disabled={loading}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors">
-            Cancel
-          </button>
-          <button type="button" onClick={() => void handleRemove()} disabled={loading}
-            className="flex-1 rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40 transition-colors">
+    <CommandModal
+      eyebrow="Member Access"
+      title={`Remove ${member.displayName}?`}
+      description="They will be removed from this league. This does not affect any draft picks or history."
+      badge={<CommandStatusBadge label="Destructive" tone="danger" />}
+      onClose={loading ? undefined : onClose}
+      footer={(
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <CommandButton type="button" onClick={onClose} disabled={loading} className="sm:min-w-28">Cancel</CommandButton>
+          <CommandButton type="button" variant="danger" onClick={() => void handleRemove()} disabled={loading} className="sm:min-w-32">
             {loading ? "Removing..." : "Remove"}
-          </button>
+          </CommandButton>
         </div>
-      </div>
-    </div>
+      )}
+    >
+      {error && <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
+    </CommandModal>
   );
 }
 
@@ -129,25 +141,26 @@ function TransferOwnershipModal({ member, leagueId, onClose, onTransferred }: { 
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-white">Transfer ownership to {member.displayName}?</h2>
-        <p className="mt-2 text-sm text-slate-400">
-          They will become the league owner with full commissioner control. You will be demoted to co-commissioner and retain access. <span className="text-orange-400 font-medium">This cannot be undone without their cooperation.</span>
-        </p>
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-        <div className="mt-5 flex gap-3">
-          <button type="button" onClick={onClose} disabled={loading}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors">
-            Cancel
-          </button>
-          <button type="button" onClick={() => void handleTransfer()} disabled={loading}
-            className="flex-1 rounded-xl bg-orange-600 py-2.5 text-sm font-semibold text-white hover:bg-orange-500 disabled:opacity-40 transition-colors">
+    <CommandModal
+      eyebrow="Ownership"
+      title={`Transfer ownership to ${member.displayName}?`}
+      description="They will become the league owner with full commissioner control. You will be demoted to co-commissioner and retain access."
+      badge={<CommandStatusBadge label="Requires Trust" tone="warning" />}
+      onClose={loading ? undefined : onClose}
+      footer={(
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <CommandButton type="button" onClick={onClose} disabled={loading} className="sm:min-w-28">Cancel</CommandButton>
+          <CommandButton type="button" variant="danger" onClick={() => void handleTransfer()} disabled={loading} className="sm:min-w-44">
             {loading ? "Transferring..." : "Transfer Ownership"}
-          </button>
+          </CommandButton>
         </div>
-      </div>
-    </div>
+      )}
+    >
+      <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200">
+        This cannot be undone without their cooperation.
+      </p>
+      {error && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
+    </CommandModal>
   );
 }
 
@@ -215,19 +228,29 @@ function EditMemberProfileModal({
   const initials = (nickname || member.displayName).charAt(0).toUpperCase();
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="text-lg font-bold text-white">Edit League Profile</h2>
-        <p className="mt-1 text-sm text-slate-400">This profile is only visible within this league.</p>
-
-        <form onSubmit={(e) => void handleSubmit(e)} className="mt-5 space-y-5">
+    <CommandModal
+      eyebrow="League Profile"
+      title="Edit League Profile"
+      description="This profile is only visible within this league."
+      badge={<CommandStatusBadge label="Personal" tone="ready" />}
+      onClose={saving || uploadingAvatar ? undefined : onClose}
+      footer={(
+        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+          <CommandButton type="button" onClick={onClose} disabled={saving} className="sm:min-w-28">Cancel</CommandButton>
+          <CommandButton type="submit" form="edit-member-profile-form" variant="primary" disabled={saving || uploadingAvatar} className="sm:min-w-36" style={{ backgroundColor: primary, color: secondary }}>
+            {saving ? "Saving..." : "Save Profile"}
+          </CommandButton>
+        </div>
+      )}
+    >
+        <form id="edit-member-profile-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
 
           {/* Avatar */}
           <div className="flex items-center gap-4">
             <div className="shrink-0">
               {avatarUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt="Avatar" className="h-16 w-16 rounded-full border border-slate-700 object-cover" />
+                <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full border border-slate-700 object-cover" />
               ) : (
                 <div className="flex h-16 w-16 items-center justify-center rounded-full border border-slate-700 text-xl font-bold" style={{ backgroundColor: primary + "22", color: primary }}>
                   {initials}
@@ -235,7 +258,7 @@ function EditMemberProfileModal({
               )}
             </div>
             <div className="space-y-1.5">
-              <label className="cursor-pointer rounded-lg border border-slate-600 bg-slate-800 px-3 py-1.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
+              <label className="inline-flex min-h-10 cursor-pointer items-center rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800">
                 {uploadingAvatar ? "Uploading..." : "Upload photo"}
                 <input
                   ref={fileInputRef}
@@ -247,7 +270,7 @@ function EditMemberProfileModal({
                 />
               </label>
               {avatarUrl && (
-                <button type="button" className="block text-xs text-slate-500 hover:text-red-400 transition-colors" onClick={() => setAvatarUrl(null)}>
+                <button type="button" className="block text-xs font-bold text-slate-500 transition-colors hover:text-red-300" onClick={() => setAvatarUrl(null)}>
                   Remove photo
                 </button>
               )}
@@ -256,29 +279,29 @@ function EditMemberProfileModal({
 
           {/* Nickname */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label className={commandLabelClass}>
               League Nickname
             </label>
             <input
               type="text"
               maxLength={50}
               placeholder={member.displayName}
-              className="w-full"
+              className={commandInputClass}
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
             />
-            <p className="mt-1 text-xs text-slate-600">Leave blank to use your display name.</p>
+            <p className={commandHelperClass}>Leave blank to use your display name.</p>
           </div>
 
           {/* Bio */}
           <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <label className={commandLabelClass}>
               Bio / Trash Talk
             </label>
             <textarea
               maxLength={280}
               rows={3}
-              className="w-full resize-none"
+              className={`${commandInputClass} resize-none`}
               placeholder="Your league persona..."
               value={bio}
               onChange={(e) => setBio(e.target.value)}
@@ -286,22 +309,9 @@ function EditMemberProfileModal({
             <p className="mt-1 text-right text-xs text-slate-500">{bio.length}/280</p>
           </div>
 
-          {error && <p className="text-sm text-red-400">{error}</p>}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} disabled={saving}
-              className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={saving || uploadingAvatar}
-              className="flex-1 rounded-xl py-2.5 text-sm font-bold disabled:opacity-40 transition-opacity hover:opacity-90"
-              style={{ backgroundColor: primary, color: secondary }}>
-              {saving ? "Saving..." : "Save Profile"}
-            </button>
-          </div>
+          {error && <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
         </form>
-      </div>
-    </div>
+    </CommandModal>
   );
 }
 
@@ -354,32 +364,33 @@ function MemberCard({
   }, [menuOpen]);
 
   return (
-    <article className="group relative flex items-center gap-3 rounded-2xl border bg-slate-900 p-4" style={{ borderColor: isElevated ? primary + "44" : "rgba(100,116,139,0.2)" }}>
+    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_180px_auto] sm:items-center">
       {member.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={member.avatarUrl} alt="" className="h-12 w-12 shrink-0 rounded-full object-cover" />
+        <img src={member.avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover sm:absolute sm:left-4" />
       ) : (
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ backgroundColor: primary + "22", color: primary }}>
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black sm:absolute sm:left-4" style={{ backgroundColor: primary + "22", color: primary }}>
           {initials}
         </div>
       )}
-      <div className="min-w-0 flex-1">
+      <div className="min-w-0 pl-14 sm:pl-14">
         <div className="flex items-center gap-2">
-          <h3 className="truncate font-semibold text-white">{member.displayName}</h3>
+          <h3 className="truncate font-bold text-white">{member.displayName}</h3>
           {isSelf && <span className="text-xs text-slate-500">(you)</span>}
         </div>
-        <p className="text-xs font-semibold uppercase tracking-wide" style={{ color: isElevated ? primary : "#64748b" }}>
-          {ROLE_LABELS[member.role] ?? member.role}
-        </p>
         {member.bio && <p className="mt-1 truncate text-xs text-slate-500">{member.bio}</p>}
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="pl-14 sm:pl-0">
+        <CommandStatusBadge label={ROLE_LABELS[member.role] ?? member.role} tone={isElevated ? "complete" : "neutral"} />
+      </div>
+
+      <div className="flex items-center gap-2 pl-14 sm:justify-end sm:pl-0">
         {isSelf && (
           <button
             type="button"
             onClick={onEditProfile}
-            className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs font-medium text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+            className="inline-flex min-h-9 items-center rounded-xl border border-slate-700/80 px-3 py-1.5 text-xs font-bold text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 hover:text-white"
           >
             Edit profile
           </button>
@@ -387,13 +398,14 @@ function MemberCard({
         {showMenu && (
           <div className="relative" ref={menuRef}>
             <button type="button" onClick={() => setMenuOpen((o) => !o)}
-              className={`flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-800 hover:text-white transition-colors ${menuOpen ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}>
+              className={`flex h-10 w-10 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-slate-800 hover:text-white ${menuOpen ? "opacity-100" : "opacity-100 sm:opacity-0 sm:group-hover:opacity-100"}`}
+              aria-label={`Open actions for ${member.displayName}`}>
               <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
                 <circle cx="8" cy="3" r="1.2" /><circle cx="8" cy="8" r="1.2" /><circle cx="8" cy="13" r="1.2" />
               </svg>
             </button>
             {menuOpen && (
-              <div className="absolute right-0 top-full z-20 min-w-[190px] rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-xl">
+              <div className="absolute right-0 top-full z-20 min-w-[210px] rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-xl">
                 {isMainCommissioner && (
                   isCoCommissioner ? (
                     <button type="button" onClick={() => { setMenuOpen(false); onSetRole("member"); }}
@@ -432,7 +444,7 @@ function MemberCard({
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function LeagueMembers({ slug: _slug, embedded = false }: { slug: string; embedded?: boolean }) {
+export default function LeagueMembers({ slug, embedded = false }: { slug: string; embedded?: boolean }) {
   const { workspace, error, isLoading, reload } = useWorkspace();
   const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
@@ -494,21 +506,34 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
 
   const isMainCommissioner = workspace.league.ownerUserId === currentUserId;
 
-  const content = (
-    <div className="space-y-6">
+  const elevatedCount = workspace.members.filter((member) => member.role === "commissioner" || member.role === "co-commissioner").length;
+  const memberCount = workspace.members.length;
 
-      <section>
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-bold text-white">
-            Members <span className="text-lg font-normal text-slate-500">({workspace.members.length})</span>
-          </h2>
-          {workspace.canManage && (
-            <button type="button" onClick={() => setShowInvite(true)}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: primary, color: secondary }}>
-              + Add Member
-            </button>
-          )}
+  const content = (
+    <div className={`space-y-5 ${embedded ? "" : "p-6"}`} data-league-slug={slug}>
+      <CommandPanel
+        eyebrow="League Access"
+        title="Members"
+        description="Review who has league access, assign commissioner roles, and manage invitation status."
+        action={workspace.canManage ? (
+          <CommandButton type="button" variant="primary" onClick={() => setShowInvite(true)} style={{ backgroundColor: primary, color: secondary }}>
+            Add Member
+          </CommandButton>
+        ) : undefined}
+      >
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Current Members</p>
+            <p className="mt-1 text-xl font-black text-white tabular-nums">{memberCount}</p>
+          </div>
+          <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Commissioners</p>
+            <p className="mt-1 text-xl font-black text-white tabular-nums">{elevatedCount}</p>
+          </div>
+          <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
+            <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Pending Invites</p>
+            <p className="mt-1 text-xl font-black text-white tabular-nums">{pendingInvites.length}</p>
+          </div>
         </div>
 
         {roleError && (
@@ -518,7 +543,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
           </p>
         )}
 
-        <div className="mt-4 grid gap-3 sm:grid-cols-2">
+        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30">
           {workspace.members.map((member) => (
             <MemberCard
               key={member.id}
@@ -533,16 +558,18 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
             />
           ))}
         </div>
-      </section>
+      </CommandPanel>
 
       {workspace.canManage && pendingInvites.length > 0 && (
-        <section>
-          <h2 className="text-2xl font-bold text-white">
-            Pending Invitations <span className="text-lg font-normal text-slate-500">({pendingInvites.length})</span>
-          </h2>
-          <div className="mt-4 space-y-2">
+        <CommandPanel
+          eyebrow="Invitations"
+          title="Pending Invitations"
+          description="Invites remain pending until the recipient accepts or a commissioner revokes them."
+          action={<CommandStatusBadge label={`${pendingInvites.length} Pending`} tone="warning" />}
+        >
+          <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30">
             {pendingInvites.map((inv) => (
-              <div key={inv.id} className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/60 bg-slate-900 px-4 py-3">
+              <div key={inv.id} className="flex items-center justify-between gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0">
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-white">{inv.email}</p>
                   <p className="mt-0.5 text-xs text-slate-500">
@@ -555,7 +582,7 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
                   aria-label="Cancel invitation"
                   disabled={revokingId === inv.id}
                   onClick={() => void handleRevokeInvite(inv.id)}
-                  className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-slate-500 hover:bg-red-950/50 hover:text-red-400 disabled:opacity-40 transition-colors"
+                  className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-slate-500 transition-colors hover:bg-red-950/50 hover:text-red-400 disabled:opacity-40"
                 >
                   <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4">
                     <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
@@ -564,15 +591,12 @@ export default function LeagueMembers({ slug: _slug, embedded = false }: { slug:
               </div>
             ))}
           </div>
-        </section>
+        </CommandPanel>
       )}
 
-      <section>
-        <h2 className="text-2xl font-bold text-white">Past Members</h2>
-        <p className="mt-4 rounded-2xl border bg-slate-900/40 px-6 py-8 text-center text-sm text-slate-500" style={{ borderColor: primary + "44" }}>
-          Member history coming soon. Past members will appear here once archive tracking is enabled.
-        </p>
-      </section>
+      <CommandPanel eyebrow="Archive" title="Past Members" description="Former-member history will appear here once archive tracking is enabled.">
+        <CommandEmptyState title="No former members tracked yet" description="DraftHQ currently preserves current membership and pending invitations. Past-member archive support is not enabled for this league." />
+      </CommandPanel>
 
       {showInvite && (
         <InviteMemberModal leagueId={workspace.league.id} onClose={() => setShowInvite(false)} onAdded={() => { reload(); setPendingRev((r) => r + 1); }} onInviteSent={showInviteSentToast} />

@@ -8,6 +8,15 @@ import { supabase } from "@/lib/supabase";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import type { LeagueTheme } from "@/types/league";
+import {
+  CommandButton,
+  CommandEmptyState,
+  CommandPanel,
+  CommandStatusBadge,
+  commandHelperClass,
+  commandInputClass,
+  commandLabelClass,
+} from "@/components/CommandCenterUI";
 import LeagueMembers from "../members/LeagueMembers";
 
 interface ColorPair {
@@ -137,9 +146,15 @@ function ImageUploadField({
 
   return (
     <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <div className="flex items-center gap-4">
-        <div className={`shrink-0 overflow-hidden rounded-xl border border-slate-700 bg-slate-800 ${aspectRatio === "square" ? "h-16 w-16" : "h-14 w-28"}`}>
+      <p className={commandLabelClass}>{label}</p>
+      <div className="flex items-center gap-4 rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className={`group relative shrink-0 overflow-hidden rounded-xl border border-dashed border-slate-600/90 bg-slate-950/70 transition-colors hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-50 ${aspectRatio === "square" ? "h-20 w-20" : "h-16 w-32"}`}
+          aria-label={`Upload ${label.toLowerCase()}`}
+        >
           {displayUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={displayUrl} alt="" className="h-full w-full object-cover" />
@@ -152,14 +167,17 @@ function ImageUploadField({
               </svg>
             </div>
           )}
-        </div>
-        <div>
+          <span className="absolute inset-x-0 bottom-0 bg-slate-950/82 px-2 py-1.5 text-center text-[10px] font-black uppercase tracking-[0.14em] text-white opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+            {displayUrl ? "Replace" : "Upload"}
+          </span>
+        </button>
+        <div className="min-w-0">
           <div className="flex items-center gap-2">
             <button
               type="button"
               disabled={disabled}
               onClick={() => inputRef.current?.click()}
-              className="flex items-center gap-1.5 rounded-lg border border-slate-600 bg-slate-800 px-3 py-2 text-xs font-semibold text-slate-300 hover:text-white disabled:opacity-50 transition-colors"
+              className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-xs font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
             >
               <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
                 <path d="M8 2v8M5 5l3-3 3 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
@@ -169,12 +187,12 @@ function ImageUploadField({
             </button>
             {displayUrl && (
               <button type="button" disabled={disabled} onClick={onClear}
-                className="rounded-lg border border-slate-700 px-3 py-2 text-xs text-slate-500 hover:border-red-700 hover:text-red-400 disabled:opacity-50 transition-colors">
+                className="inline-flex min-h-10 items-center rounded-xl border border-slate-700/80 px-3 py-2 text-xs font-bold text-slate-500 transition-colors hover:border-red-400/50 hover:bg-red-500/10 hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-40">
                 Remove
               </button>
             )}
           </div>
-          {sizeHint && <p className="mt-1.5 text-[11px] text-slate-600">{sizeHint}</p>}
+          {sizeHint && <p className={commandHelperClass}>{sizeHint}</p>}
         </div>
         <input ref={inputRef} type="file" accept="image/*" className="hidden" onChange={handleChange} />
       </div>
@@ -196,8 +214,9 @@ function ColorPairPicker({
 }) {
   return (
     <div>
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">League Colors</p>
-      <div className="grid grid-cols-5 gap-2.5">
+      <p className={commandLabelClass}>League Colors</p>
+      <p className="mb-3 text-sm leading-6 text-slate-400">Choose the broadcast accent and dark field color used across league surfaces.</p>
+      <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
         {COLOR_PAIRS.map((pair) => {
           const isSelected =
             pair.primary.toLowerCase() === primaryColor.toLowerCase() &&
@@ -209,15 +228,15 @@ function ColorPairPicker({
               disabled={disabled}
               onClick={() => onChange(pair.primary, pair.secondary)}
               title={pair.name}
-              className={`group relative overflow-hidden rounded-xl border-2 transition-all ${
+              className={`group relative min-h-[88px] overflow-hidden rounded-xl border transition-all focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 ${
                 isSelected
-                  ? "border-white scale-105 shadow-lg"
-                  : "border-transparent hover:border-slate-500 hover:scale-102"
+                  ? "border-white shadow-[0_12px_28px_rgba(59,130,246,0.22)]"
+                  : "border-slate-800 hover:border-slate-600"
               } disabled:cursor-not-allowed disabled:opacity-50`}
             >
               {/* Mini preview card */}
-              <div className="h-16 w-full flex flex-col items-center justify-center gap-1.5 px-2" style={{ backgroundColor: pair.secondary }}>
-                <div className="w-full rounded-md py-1 text-[9px] font-bold text-center" style={{ backgroundColor: pair.primary, color: pair.secondary }}>
+              <div className="flex h-16 w-full flex-col items-center justify-center gap-1.5 px-2" style={{ backgroundColor: pair.secondary }}>
+                <div className="w-full rounded-md py-1 text-center text-[9px] font-bold" style={{ backgroundColor: pair.primary, color: pair.secondary }}>
                   Draft
                 </div>
                 <div className="w-3/4 rounded-md border py-0.5" style={{ borderColor: pair.primary, opacity: 0.7 }} />
@@ -272,6 +291,14 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
 
   const [pendingLogo, setPendingLogo] = useState<{ file: File; preview: string } | null>(null);
   const [pendingBanner, setPendingBanner] = useState<{ file: File; preview: string } | null>(null);
+  const [savedGeneral, setSavedGeneral] = useState({
+    name: "",
+    logoUrl: "",
+    bannerUrl: "",
+    primaryColor: COLOR_PAIRS[0].primary,
+    secondaryColor: COLOR_PAIRS[0].secondary,
+    teamCount: 12,
+  });
 
   const [toast, setToast] = useState<{ msg: string; type: "success" | "error" } | null>(null);
   const toastTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -306,6 +333,14 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         setAccentColor(primary);
         setBgColor(secondary);
         setTeamCount(s.league.teamCount ?? 12);
+        setSavedGeneral({
+          name: s.league.name,
+          logoUrl: s.league.logoUrl ?? "",
+          bannerUrl: s.league.bannerUrl ?? "",
+          primaryColor: primary,
+          secondaryColor: secondary,
+          teamCount: s.league.teamCount ?? 12,
+        });
         setSleeperLeagueId(s.league.sleeperLeagueId ?? "");
         setSleeperLastSyncedAt(s.league.sleeperLastSyncedAt);
         setActiveIntegration(s.league.activeIntegration);
@@ -384,6 +419,7 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         name, slug: slugFromName(name), logoUrl: finalLogo, bannerUrl: finalBanner,
         primaryColor, secondaryColor, theme, teamCount,
       });
+      setSavedGeneral({ name: name.trim(), logoUrl: finalLogo, bannerUrl: finalBanner, primaryColor, secondaryColor, teamCount });
       reloadWorkspace();
       showToast("Settings saved", "success");
       if (saved.slug !== slug) {
@@ -428,207 +464,251 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const selectedPair = COLOR_PAIRS.find(
     (p) => p.primary.toLowerCase() === primaryColor.toLowerCase()
   );
+  const hasUnsavedGeneral =
+    name.trim() !== savedGeneral.name ||
+    logoUrl !== savedGeneral.logoUrl ||
+    bannerUrl !== savedGeneral.bannerUrl ||
+    primaryColor !== savedGeneral.primaryColor ||
+    secondaryColor !== savedGeneral.secondaryColor ||
+    teamCount !== savedGeneral.teamCount ||
+    Boolean(pendingLogo || pendingBanner);
+  const connectedProvider = activeIntegration
+    ? activeIntegration.charAt(0).toUpperCase() + activeIntegration.slice(1)
+    : "None";
 
   if (isLoading) {
-    return <div className="p-8 text-slate-400">Loading league...</div>;
+    return (
+      <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-8 text-sm font-semibold text-slate-400">
+        Loading league settings...
+      </div>
+    );
   }
 
   return (
-    <div>
+    <div className="space-y-6">
       {toast && <Toast msg={toast.msg} type={toast.type} onDismiss={() => setToast(null)} />}
 
-      <h1 className="mb-6 text-3xl font-bold text-white">League Settings</h1>
+      <section className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+        <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_340px] lg:items-center">
+          <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primaryColor }} />
+          <div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League Command Center</p>
+              <CommandStatusBadge label={canManage ? "Commissioner Access" : "Read Only"} tone={canManage ? "complete" : "neutral"} />
+            </div>
+            <h1 className="mt-3 text-3xl font-black text-white sm:text-4xl">League Settings</h1>
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+              Manage league identity, access, and connected history sources from one commissioner workspace.
+            </p>
+          </div>
 
-      {/* Tabs */}
-      <div className="mb-8 flex gap-1 border-b border-slate-800">
-        {(["general", "members", "integrations"] as const).map((t) => (
-          <button
-            key={t}
-            type="button"
-            onClick={() => setTab(t)}
-            className="px-5 pb-3 pt-1 text-sm font-semibold capitalize transition-colors"
-            style={
-              tab === t
-                ? { color: primaryColor, borderBottom: `2px solid ${primaryColor}`, marginBottom: "-1px" }
-                : { color: "#94a3b8", borderBottom: "2px solid transparent", marginBottom: "-1px" }
-            }
-          >
-            {t === "general" ? "General" : t === "members" ? "Members" : "Integrations"}
-          </button>
-        ))}
-      </div>
+          <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
+            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Settings Status</p>
+            <div className="mt-3 grid grid-cols-3 gap-3 text-sm">
+              <div>
+                <p className="text-lg font-black text-white tabular-nums">{teamCount}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Teams</p>
+              </div>
+              <div>
+                <p className="text-lg font-black text-white tabular-nums">{connectedProvider}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">History</p>
+              </div>
+              <div>
+                <p className="text-lg font-black text-white tabular-nums">{hasUnsavedGeneral ? "Open" : "Saved"}</p>
+                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Changes</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
-      {tab === "members" && <LeagueMembers slug={slug} />}
+        <div className="border-t border-slate-800/80 px-3 py-3 sm:px-5">
+          <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="League settings sections">
+            {(["general", "members", "integrations"] as const).map((t) => {
+              const active = tab === t;
+              const label = t === "general" ? "General" : t === "members" ? "Members" : "Integrations";
+              const detail = t === "general" ? "Identity" : t === "members" ? "Access" : "History";
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={active}
+                  onClick={() => setTab(t)}
+                  className={`min-h-11 min-w-0 rounded-xl border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 sm:px-4 ${
+                    active ? "border-blue-400/40 bg-blue-500/12 text-white" : "border-slate-800 bg-slate-950/25 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                  }`}
+                  style={active ? { borderColor: primaryColor + "66", backgroundColor: primaryColor + "16" } : undefined}
+                >
+                  <span className="block text-sm font-black">{label}</span>
+                  <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{detail}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </section>
+
+      {tab === "members" && <LeagueMembers slug={slug} embedded />}
 
       {tab === "integrations" && (
-        <div className="max-w-3xl space-y-4">
-
-          {/* ── Sleeper ── */}
-          <div className="rounded-2xl border bg-slate-900 p-6" style={{ borderColor: primaryColor + "44" }}>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League history</p>
-                <div className="mt-2 flex items-center gap-3">
-                  {appIcons.sleeper
-                    ? <img src={appIcons.sleeper} alt="Sleeper" width={36} height={36} className="shrink-0 rounded-lg" /> // eslint-disable-line @next/next/no-img-element
-                    : <div className="h-9 w-9 shrink-0 rounded-lg bg-[#00DE82] flex items-center justify-center text-black font-black text-lg">S</div>}
-                  <h2 className="text-xl font-bold text-white">Sleeper</h2>
+        <div className="space-y-5">
+          <CommandPanel
+            eyebrow="League History"
+            title="Connected Sources"
+            description="Connect supported fantasy platforms to import completed season history. Unsupported platforms stay visible without pretending they are available."
+            action={<CommandStatusBadge label={activeIntegration ? `${connectedProvider} Connected` : "No Active Integration"} tone={activeIntegration ? "complete" : "neutral"} />}
+          >
+            <div className="space-y-4">
+              <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex gap-3">
+                    {appIcons.sleeper
+                      ? <img src={appIcons.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" /> // eslint-disable-line @next/next/no-img-element
+                      : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-[#00DE82] text-lg font-black text-black">S</div>}
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-lg font-black text-white">Sleeper</h3>
+                        <CommandStatusBadge label={activeIntegration === "sleeper" ? "Connected" : "Available"} tone={activeIntegration === "sleeper" ? "complete" : "ready"} />
+                      </div>
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                        Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
+                      </p>
+                      {sleeperLastSyncedAt && (
+                        <p className="mt-2 text-xs font-semibold text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
+                      )}
+                    </div>
+                  </div>
+                  {activeIntegration === "sleeper" && canManage && (
+                    <CommandButton type="button" variant="secondary" onClick={handleDisconnect} disabled={isDisconnecting} className="sm:min-w-32">
+                      {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                    </CommandButton>
+                  )}
                 </div>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-400">
-                  Connect your current Sleeper league to import the latest completed season&apos;s champion and final standings. Sleeper league data is public and read-only, so no Sleeper password or OAuth login is needed.
-                </p>
-              </div>
-              <div className="flex shrink-0 flex-col items-end gap-2">
-                <span className={`rounded-full px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeIntegration === "sleeper" ? "bg-emerald-950 text-emerald-400" : "bg-slate-800 text-slate-400"}`}>
-                  {activeIntegration === "sleeper" ? "Connected" : "Not connected"}
-                </span>
-                {activeIntegration === "sleeper" && canManage && (
-                  <button type="button" onClick={handleDisconnect} disabled={isDisconnecting} className="text-xs text-red-400 hover:text-red-300 disabled:opacity-50 transition-colors">
-                    {isDisconnecting ? "Disconnecting..." : "Disconnect"}
-                  </button>
+
+                {activeIntegration && activeIntegration !== "sleeper" ? (
+                  <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
+                    Disconnect your active integration before connecting Sleeper.
+                  </p>
+                ) : (
+                  <form onSubmit={handleSleeperSync} className="mt-5 border-t border-slate-800/80 pt-5">
+                    <label htmlFor="sleeper-league-id" className={commandLabelClass}>Sleeper League ID</label>
+                    <div className="flex flex-col gap-3 sm:flex-row">
+                      <input
+                        id="sleeper-league-id"
+                        inputMode="numeric"
+                        pattern="[0-9]*"
+                        placeholder="e.g. 123456789012345678"
+                        value={sleeperLeagueId}
+                        onChange={(event) => setSleeperLeagueId(event.target.value.replace(/\D/g, ""))}
+                        disabled={!canManage || isSyncingSleeper}
+                        className={`${commandInputClass} min-w-0 flex-1`}
+                      />
+                      <CommandButton
+                        type="submit"
+                        variant="primary"
+                        disabled={!canManage || isSyncingSleeper || !sleeperLeagueId.trim()}
+                        className="sm:min-w-40"
+                        style={{ backgroundColor: primaryColor, color: secondaryColor }}
+                      >
+                        {isSyncingSleeper ? "Syncing..." : sleeperLastSyncedAt ? "Sync Again" : "Connect & Sync"}
+                      </CommandButton>
+                    </div>
+                    <p className={commandHelperClass}>Sync is manual and only runs when you press this button.</p>
+                  </form>
+                )}
+
+                {sleeperResult && (
+                  <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/45 p-4 text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-white">{sleeperResult.seasonYear} season</p>
+                      <CommandStatusBadge
+                        label={`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
+                        tone={sleeperResult.unmappedTeams.length > 0 ? "warning" : "complete"}
+                      />
+                    </div>
+                    <div className="mt-3 space-y-2 leading-6">
+                      {sleeperResult.unmappedTeams.length > 0 && (
+                        <p className="text-amber-200"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
+                      )}
+                      {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
+                        <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
+                      )}
+                      {sleeperResult.draftHqTeamNames?.length === 0 && (
+                        <p className="font-semibold text-red-300">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
+                      )}
+                      {sleeperResult.leagueTeamsError && (
+                        <p className="text-xs text-red-300"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
+                      )}
+                      {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
+                        <p className="text-xs text-slate-500">Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
+                      )}
+                    </div>
+                  </div>
                 )}
               </div>
+
+              {([
+                { id: "espn", name: "ESPN", color: "#CC0000", fallback: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
+                { id: "yahoo", name: "Yahoo", color: "#6001D2", fallback: "Y!", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
+              ] as const).map((provider) => (
+                <div key={provider.id} className="rounded-xl border border-slate-800/80 bg-slate-950/25 p-4 opacity-80">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex gap-3">
+                      {appIcons[provider.id]
+                        ? <img src={appIcons[provider.id] ?? ""} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" /> // eslint-disable-line @next/next/no-img-element
+                        : <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-sm font-black text-white" style={{ backgroundColor: provider.color }}>{provider.fallback}</div>}
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-black text-white">{provider.name}</h3>
+                          <CommandStatusBadge label={activeIntegration && activeIntegration !== provider.id ? "Locked" : "Coming Soon"} tone="neutral" />
+                        </div>
+                        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{provider.copy}</p>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
-
-            {activeIntegration && activeIntegration !== "sleeper" ? (
-              <p className="mt-6 text-sm text-slate-500">Disconnect your active integration before connecting Sleeper.</p>
-            ) : (
-              <form onSubmit={handleSleeperSync} className="mt-6">
-                <label htmlFor="sleeper-league-id" className="mb-2 block text-xs font-semibold uppercase tracking-wide text-slate-400">Sleeper League ID</label>
-                <div className="flex flex-col gap-3 sm:flex-row">
-                  <input
-                    id="sleeper-league-id"
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    placeholder="e.g. 123456789012345678"
-                    value={sleeperLeagueId}
-                    onChange={(event) => setSleeperLeagueId(event.target.value.replace(/\D/g, ""))}
-                    disabled={!canManage || isSyncingSleeper}
-                    className="min-w-0 flex-1 disabled:opacity-50"
-                  />
-                  <button
-                    type="submit"
-                    disabled={!canManage || isSyncingSleeper || !sleeperLeagueId.trim()}
-                    className="rounded-xl px-6 py-3 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
-                    style={{ backgroundColor: primaryColor, color: secondaryColor }}
-                  >
-                    {isSyncingSleeper ? "Syncing..." : sleeperLastSyncedAt ? "Sync Again" : "Connect & Sync"}
-                  </button>
-                </div>
-              </form>
-            )}
-
-            {sleeperLastSyncedAt && (
-              <p className="mt-3 text-xs text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
-            )}
-            {sleeperResult && (
-              <div className="mt-5 rounded-xl border border-slate-700 bg-slate-950/50 p-4 text-sm space-y-2">
-                <p className="font-semibold text-white">{sleeperResult.seasonYear} season: {sleeperResult.mappedTeams} of {sleeperResult.totalTeams} teams matched</p>
-                {sleeperResult.unmappedTeams.length > 0 && (
-                  <p className="text-amber-400"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
-                )}
-                {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
-                  <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
-                )}
-                {sleeperResult.draftHqTeamNames?.length === 0 && (
-                  <p className="text-red-400 font-semibold">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
-                )}
-                {sleeperResult.leagueTeamsError && (
-                  <p className="text-red-400 text-xs"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
-                )}
-                {sleeperResult.leagueIdUsed && (
-                  <p className="text-slate-600 text-xs">league_id queried: {sleeperResult.leagueIdUsed}</p>
-                )}
-                {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
-                  <p className="text-slate-500 text-xs">Names are compared after lowercasing and removing spaces/punctuation. Update the DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
-                )}
-              </div>
-            )}
-          </div>
-
-          {/* ── ESPN (coming soon) ── */}
-          <div className={`rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition-opacity ${activeIntegration && activeIntegration !== "espn" ? "opacity-40 pointer-events-none" : "opacity-60"}`}>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">League history</p>
-                <div className="mt-2 flex items-center gap-3">
-                  {appIcons.espn
-                    ? <img src={appIcons.espn} alt="ESPN Fantasy" width={36} height={36} className="shrink-0 rounded-lg" /> // eslint-disable-line @next/next/no-img-element
-                    : <div className="h-9 w-9 shrink-0 rounded-lg bg-[#CC0000] flex items-center justify-center text-white font-black text-[10px]">ESPN</div>}
-                  <h2 className="text-xl font-bold text-white">ESPN</h2>
-                </div>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
-                  Import your ESPN Fantasy league history, standings, and champion. Supports both public and private leagues.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {activeIntegration && activeIntegration !== "espn" ? "Locked" : "Coming Soon"}
-              </span>
-            </div>
-          </div>
-
-          {/* ── Yahoo (coming soon) ── */}
-          <div className={`rounded-2xl border border-slate-800 bg-slate-900/50 p-6 transition-opacity ${activeIntegration && activeIntegration !== "yahoo" ? "opacity-40 pointer-events-none" : "opacity-60"}`}>
-            <div className="flex flex-col gap-5 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <p className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500">League history</p>
-                <div className="mt-2 flex items-center gap-3">
-                  {appIcons.yahoo
-                    ? <img src={appIcons.yahoo} alt="Yahoo Fantasy" width={36} height={36} className="shrink-0 rounded-lg" /> // eslint-disable-line @next/next/no-img-element
-                    : <div className="h-9 w-9 shrink-0 rounded-lg bg-[#6001D2] flex items-center justify-center text-white font-black">Y!</div>}
-                  <h2 className="text-xl font-bold text-white">Yahoo</h2>
-                </div>
-                <p className="mt-2 max-w-xl text-sm leading-relaxed text-slate-500">
-                  Import your Yahoo Fantasy league history, standings, and champion via OAuth. No manual ID needed.
-                </p>
-              </div>
-              <span className="shrink-0 rounded-full bg-slate-800 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                {activeIntegration && activeIntegration !== "yahoo" ? "Locked" : "Coming Soon"}
-              </span>
-            </div>
-          </div>
-
+          </CommandPanel>
         </div>
       )}
 
-      {tab === "general" && <form onSubmit={handleSubmit}>
-        <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
-
-          {/* ── Left ── */}
-          <div className="space-y-6">
-
-            {/* Identity */}
-            <div className="rounded-2xl border bg-slate-900 p-6" style={{ borderColor: primaryColor + "44" }}>
-              <h2 className="mb-5 text-xs font-bold uppercase tracking-wider text-slate-500">League Identity</h2>
-              <div className="space-y-5">
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="settings-league-name">
-                    League Name
-                  </label>
+      {tab === "general" && (
+        <form onSubmit={handleSubmit} className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+          <div className="space-y-5">
+            <CommandPanel
+              eyebrow="Core Configuration"
+              title="League Identity"
+              description="These settings define how the league appears in DraftHQ workspaces, teams, and draft-night surfaces."
+            >
+              <div className="grid gap-5 md:grid-cols-2">
+                <div className="md:col-span-2">
+                  <label className={commandLabelClass} htmlFor="settings-league-name">League Name</label>
                   <input
                     id="settings-league-name"
                     required
                     maxLength={100}
                     disabled={!canManage}
-                    className="w-full disabled:opacity-50"
+                    className={commandInputClass}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
+                    aria-invalid={!name.trim()}
                   />
+                  <p className={commandHelperClass}>Shown in the sidebar, dashboard, invitations, and league-level pages.</p>
                 </div>
 
                 <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="settings-team-count">
-                    Active Teams
-                  </label>
-                  <p className="mb-2 text-xs text-slate-600">Number of active franchise teams. Archived teams don&apos;t count toward this total.</p>
+                  <label className={commandLabelClass} htmlFor="settings-team-count">Active Teams</label>
+                  <p className="mb-2 text-sm leading-6 text-slate-400">Number of active franchise teams. Archived teams do not count toward this total.</p>
                   <div className="flex items-center gap-3">
                     <button
                       type="button"
                       disabled={!canManage || teamCount <= 2}
                       onClick={() => setTeamCount((n) => Math.max(2, n - 1))}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40 transition-colors text-lg font-bold"
+                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Decrease active teams"
                     >
-                      −
+                      -
                     </button>
                     <input
                       id="settings-team-count"
@@ -636,7 +716,7 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                       min={2}
                       max={32}
                       disabled={!canManage}
-                      className="w-16 text-center disabled:opacity-50 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                      className={`${commandInputClass} w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
                       value={teamCount}
                       onChange={(e) => {
                         const v = parseInt(e.target.value, 10);
@@ -647,102 +727,124 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                       type="button"
                       disabled={!canManage || teamCount >= 32}
                       onClick={() => setTeamCount((n) => Math.min(32, n + 1))}
-                      className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-600 bg-slate-800 text-slate-300 hover:bg-slate-700 disabled:opacity-40 transition-colors text-lg font-bold"
+                      className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                      aria-label="Increase active teams"
                     >
                       +
                     </button>
                   </div>
                 </div>
-
-                <ImageUploadField
-                  label="Logo"
-                  displayUrl={displayLogoUrl}
-                  disabled={!canManage}
-                  aspectRatio="square"
-                  sizeHint="4 MB max · Square recommended"
-                  onSelect={(file, preview) => setPendingLogo({ file, preview })}
-                  onClear={() => { setPendingLogo(null); setLogoUrl(""); }}
-                  onError={showToast}
-                />
-
-                <ImageUploadField
-                  label="Banner"
-                  displayUrl={displayBannerUrl}
-                  disabled={!canManage}
-                  aspectRatio="banner"
-                  sizeHint="4 MB max · 16:9 recommended"
-                  onSelect={(file, preview) => setPendingBanner({ file, preview })}
-                  onClear={() => { setPendingBanner(null); setBannerUrl(""); }}
-                  onError={showToast}
-                />
               </div>
-            </div>
+            </CommandPanel>
 
-            {/* Colors */}
-            <div className="rounded-2xl border bg-slate-900 p-6" style={{ borderColor: primaryColor + "44" }}>
-              <h2 className="mb-5 text-xs font-bold uppercase tracking-wider text-slate-500">Colors</h2>
-              <ColorPairPicker
-                primaryColor={primaryColor}
-                secondaryColor={secondaryColor}
-                disabled={!canManage}
-                onChange={(p, s) => { setPrimaryColor(p); setSecondaryColor(s); setAccentColor(p); setBgColor(s); }}
-              />
-            </div>
+            <CommandPanel
+              eyebrow="Brand System"
+              title="League Branding"
+              description="Customize the crest, banner, and broadcast colors that make this league feel distinct."
+            >
+              <div className="space-y-5">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <ImageUploadField
+                    label="Logo"
+                    displayUrl={displayLogoUrl}
+                    disabled={!canManage}
+                    aspectRatio="square"
+                    sizeHint="4 MB max. Square recommended."
+                    onSelect={(file, preview) => setPendingLogo({ file, preview })}
+                    onClear={() => { setPendingLogo(null); setLogoUrl(""); }}
+                    onError={showToast}
+                  />
+
+                  <ImageUploadField
+                    label="Banner"
+                    displayUrl={displayBannerUrl}
+                    disabled={!canManage}
+                    aspectRatio="banner"
+                    sizeHint="4 MB max. 16:9 recommended."
+                    onSelect={(file, preview) => setPendingBanner({ file, preview })}
+                    onClear={() => { setPendingBanner(null); setBannerUrl(""); }}
+                    onError={showToast}
+                  />
+                </div>
+
+                <div className="border-t border-slate-800/80 pt-5">
+                  <ColorPairPicker
+                    primaryColor={primaryColor}
+                    secondaryColor={secondaryColor}
+                    disabled={!canManage}
+                    onChange={(p, s) => { setPrimaryColor(p); setSecondaryColor(s); setAccentColor(p); setBgColor(s); }}
+                  />
+                </div>
+              </div>
+            </CommandPanel>
           </div>
 
-          {/* ── Right: sticky summary ── */}
-          <div className="lg:sticky lg:top-6 lg:self-start">
-            <div className="rounded-2xl border bg-slate-900 p-5" style={{ borderColor: primaryColor + "44" }}>
-              <p className="mb-4 text-xs font-bold uppercase tracking-wider text-slate-500">Summary</p>
-
-              <div className="mb-5 flex items-center gap-3">
-                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-slate-700 bg-slate-800">
-                  {displayLogoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={displayLogoUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
-                    <span className="text-lg font-bold text-slate-600">{name.slice(0, 1).toUpperCase() || "?"}</span>
-                  )}
-                </div>
-                <div className="min-w-0">
-                  <p className="truncate font-semibold text-white">{name || "—"}</p>
-                  <p className="text-xs text-slate-500">{selectedPair?.name ?? "Custom"} · {teamCount} teams</p>
-                </div>
-              </div>
-
-              {displayBannerUrl && (
-                <div className="mb-5 h-14 w-full overflow-hidden rounded-xl border" style={{ borderColor: primaryColor + "44" }}>
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img src={displayBannerUrl} alt="" className="h-full w-full object-cover" />
-                </div>
-              )}
-
-              {/* Color preview */}
-              <div className="mb-5 overflow-hidden rounded-xl border" style={{ borderColor: primaryColor + "44" }}>
-                <div className="flex h-12 items-center justify-center gap-2 px-3" style={{ backgroundColor: secondaryColor }}>
-                  <div className="rounded-md px-3 py-1 text-xs font-bold" style={{ backgroundColor: primaryColor, color: secondaryColor }}>
-                    {selectedPair?.name ?? "Custom"}
+          <aside className="lg:sticky lg:top-6 lg:self-start">
+            <div className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+              <div className="relative p-5" style={{ backgroundColor: secondaryColor }}>
+                <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primaryColor }} />
+                {displayBannerUrl && (
+                  <div className="absolute inset-0 opacity-20">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={displayBannerUrl} alt="" className="h-full w-full object-cover" />
                   </div>
-                  <div className="flex-1 rounded-md border py-1.5" style={{ borderColor: primaryColor, opacity: 0.6 }} />
+                )}
+                <div className="relative flex items-center gap-3">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/60">
+                    {displayLogoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={displayLogoUrl} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-xl font-black" style={{ color: primaryColor }}>{name.slice(0, 1).toUpperCase() || "?"}</span>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-lg font-black text-white">{name || "Unnamed League"}</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.14em]" style={{ color: primaryColor }}>{selectedPair?.name ?? "Custom"} Theme</p>
+                  </div>
                 </div>
               </div>
 
-              {canManage ? (
-                <button
-                  type="submit"
-                  disabled={isSaving}
-                  className="w-full rounded-xl py-3 text-sm font-bold uppercase tracking-wider transition-opacity disabled:opacity-50 hover:opacity-90"
-                  style={{ backgroundColor: primaryColor, color: secondaryColor }}
-                >
-                  {isSaving ? "Saving..." : "Save Settings"}
-                </button>
-              ) : (
-                <p className="text-center text-xs text-slate-600">You don&apos;t have permission to edit this league.</p>
-              )}
+              <div className="space-y-4 p-5">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Teams</p>
+                    <p className="mt-1 text-xl font-black text-white tabular-nums">{teamCount}</p>
+                  </div>
+                  <div className="rounded-xl bg-slate-950/35 p-3 ring-1 ring-white/10">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Save Mode</p>
+                    <p className="mt-1 text-xl font-black text-white">Manual</p>
+                  </div>
+                </div>
+
+                <div className="rounded-xl border border-slate-800 bg-slate-950/35 p-3">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm font-bold text-white">General Settings</p>
+                    <CommandStatusBadge label={hasUnsavedGeneral ? "Unsaved" : "Saved"} tone={hasUnsavedGeneral ? "warning" : "complete"} />
+                  </div>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">
+                    Changes apply only after Save Settings succeeds. Media uploads are included in that save.
+                  </p>
+                </div>
+
+                {canManage ? (
+                  <CommandButton
+                    type="submit"
+                    variant="primary"
+                    disabled={isSaving || !hasUnsavedGeneral}
+                    className="w-full"
+                    style={{ backgroundColor: primaryColor, color: secondaryColor }}
+                  >
+                    {isSaving ? "Saving..." : hasUnsavedGeneral ? "Save Settings" : "Saved"}
+                  </CommandButton>
+                ) : (
+                  <CommandEmptyState title="Read-only settings" description="You do not have permission to edit this league." />
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      </form>}
+          </aside>
+        </form>
+      )}
     </div>
   );
 }
