@@ -22,6 +22,7 @@ type Tone = "neutral" | "ready" | "warning" | "danger" | "complete";
 
 const INPUT_CLS = "w-full rounded-xl border border-slate-700/80 bg-slate-950/55 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:opacity-50";
 const LABEL_CLS = "mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500";
+const HELPER_CLS = "mt-1.5 text-xs leading-relaxed text-slate-500";
 const primaryButtonClass = "inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButtonClass = "inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -230,31 +231,36 @@ function ConfirmDeleteModal({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <h2 className="mb-2 text-base font-bold text-white">Delete &ldquo;{teamName}&rdquo;?</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+        <div className="border-b border-slate-800/80 px-5 py-4">
+          <StatusBadge label="Danger Zone" tone="danger" />
+          <h2 className="mt-3 text-base font-black text-white">Delete &ldquo;{teamName}&rdquo;?</h2>
+        </div>
+        <div className="px-5 py-5">
         {hasHistory ? (
-          <p className="mb-5 text-sm text-slate-400">
+          <p className="mb-5 text-sm leading-6 text-slate-400">
             This team has season history. Deleting it will remove it from past season records. This cannot be undone.
           </p>
         ) : (
-          <p className="mb-5 text-sm text-slate-400">This cannot be undone.</p>
+          <p className="mb-5 text-sm leading-6 text-slate-400">This cannot be undone.</p>
         )}
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-red-700 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors"
+            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_40px_rgba(220,38,38,0.24)] transition-colors hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             Delete
           </button>
+        </div>
         </div>
       </div>
     </div>
@@ -288,11 +294,16 @@ function EditTeamModal({
   const [inviting, setInviting] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [assigningOwner, setAssigningOwner] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const avatarColor = "#" + ((team.name.charCodeAt(0) * 9999991) % 0xffffff).toString(16).padStart(6, "0");
   const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
+  const ownerAssigned = Boolean(ownerUserId);
+  const selectedOwnerName = ownerUserId
+    ? members.find((member) => member.userId === ownerUserId)?.displayName ?? team.ownerDisplayName ?? "Assigned owner"
+    : "Unassigned";
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -317,6 +328,8 @@ function EditTeamModal({
   }
 
   async function handleAssignOwner(userId: string | null) {
+    setAssigningOwner(true);
+    setError("");
     try {
       await assignLeagueTeamOwner(team.leagueId, team.id, userId);
       const member = userId ? members.find((m) => m.userId === userId) : undefined;
@@ -328,6 +341,8 @@ function EditTeamModal({
       setOwnerUserId(userId ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to assign owner.");
+    } finally {
+      setAssigningOwner(false);
     }
   }
 
@@ -359,115 +374,196 @@ function EditTeamModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 overflow-y-auto">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 my-auto space-y-5">
-        <h2 className="text-lg font-bold text-white">Edit Team</h2>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/68 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-team-title"
+    >
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+        <div className="relative border-b border-slate-800/80 px-5 py-4 sm:px-6">
+          <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primary }} />
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Team Command</p>
+              <h2 id="edit-team-title" className="mt-1 text-xl font-black text-white">Edit Team</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                Manage franchise identity and owner assignment for draft night.
+              </p>
+            </div>
+            <StatusBadge label={ownerAssigned ? "Assigned" : "Needs Owner"} tone={ownerAssigned ? "complete" : "warning"} />
+          </div>
+        </div>
 
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 border-dashed border-slate-600 hover:border-slate-400 transition-colors"
-            title="Upload team logo"
-          >
-            {logoPreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xl font-bold text-white" style={{ backgroundColor: avatarColor + "55" }}>
-                {initials}
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+          <section className="rounded-xl border border-slate-800/90 bg-slate-950/28 p-4">
+            <div className="mb-4">
+              <h3 className="text-sm font-black text-white">Team Identity</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Name, abbreviation, and logo used across DraftHQ.</p>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-[112px_1fr]">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-600/90 bg-slate-950/70 text-white transition-colors hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950"
+                  title="Upload team logo"
+                  aria-label="Upload team logo"
+                >
+                  {logoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-2xl font-black text-white" style={{ backgroundColor: avatarColor + "55" }}>
+                      {initials}
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-slate-950/82 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                    {logoPreview ? "Replace" : "Upload"}
+                  </div>
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                <p className={HELPER_CLS}>PNG, JPG, or WEBP. 4MB max.</p>
+                {logoFile && !uploadingLogo && <p className="mt-1 text-xs font-semibold text-blue-200">New logo selected. Save to apply.</p>}
+                {uploadingLogo && <p className="mt-1 text-xs font-semibold" style={{ color: primary }}>Uploading logo...</p>}
+              </div>
+
+              <div className="grid content-start gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label htmlFor="edit-team-name" className={LABEL_CLS}>Team Name <span className="text-red-400">*</span></label>
+                  <input
+                    id="edit-team-name"
+                    required
+                    maxLength={100}
+                    className={INPUT_CLS}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    aria-invalid={!name.trim()}
+                    aria-describedby="edit-team-name-help"
+                  />
+                  <p id="edit-team-name-help" className={HELPER_CLS}>This is the primary franchise name shown in league views.</p>
+                </div>
+                <div>
+                  <label htmlFor="edit-team-short-name" className={LABEL_CLS}>Short Name</label>
+                  <input
+                    id="edit-team-short-name"
+                    maxLength={10}
+                    className={INPUT_CLS}
+                    placeholder="e.g. Eagles"
+                    value={shortName}
+                    onChange={(e) => setShortName(e.target.value)}
+                  />
+                  <p className={HELPER_CLS}>Optional compact label for tight draft displays.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-800/90 bg-slate-950/28 p-4">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-white">Owner Assignment</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Assign a league member, invite an owner, or leave this franchise open.
+                </p>
+              </div>
+              <StatusBadge label={selectedOwnerName} tone={ownerAssigned ? "complete" : "warning"} />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor="edit-team-owner" className={LABEL_CLS}>Assigned Owner</label>
+                <select
+                  id="edit-team-owner"
+                  className={INPUT_CLS}
+                  value={ownerUserId}
+                  disabled={assigningOwner || saving}
+                  onChange={(e) => void handleAssignOwner(e.target.value || null)}
+                  aria-describedby="edit-team-owner-help"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                </select>
+                <p id="edit-team-owner-help" className={HELPER_CLS}>
+                  Select Unassigned to remove the current owner from this team.
+                </p>
+                {assigningOwner && <p className="mt-1 text-xs font-semibold text-blue-200">Updating owner assignment...</p>}
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor="edit-team-owner-name" className={LABEL_CLS}>Owner Display Name</label>
+                <input
+                  id="edit-team-owner-name"
+                  maxLength={100}
+                  className={INPUT_CLS}
+                  placeholder="Name shown during the draft"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  aria-describedby="edit-team-owner-name-help"
+                />
+                <p id="edit-team-owner-name-help" className={HELPER_CLS}>
+                  Optional draft-room display name. This does not change the owner account profile.
+                </p>
+              </div>
+            </div>
+
+            {!ownerUserId && (
+              <div className="mt-4 border-t border-slate-800/80 pt-4">
+                <label htmlFor="edit-team-invite" className={LABEL_CLS}>Invite Owner by Email</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="edit-team-invite"
+                    type="email"
+                    maxLength={320}
+                    className={INPUT_CLS}
+                    placeholder="owner@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleInvite(); } }}
+                  />
+                  <button
+                    type="button"
+                    disabled={inviting || !inviteEmail.trim()}
+                    onClick={() => void handleInvite()}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {inviting ? "Sending..." : "Invite"}
+                  </button>
+                </div>
+                <p className={HELPER_CLS}>Use this when the owner is not yet listed as a league member.</p>
+                {inviteStatus && (
+                  <p className={`mt-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                    inviteStatus.startsWith("Invite sent")
+                      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                      : "border-red-400/30 bg-red-500/10 text-red-200"
+                  }`}>
+                    {inviteStatus}
+                  </p>
+                )}
               </div>
             )}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-              <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-              </svg>
-            </div>
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-          <div>
-            <p className="text-sm font-semibold text-white">Team Logo</p>
-            <p className="text-xs text-slate-500 mt-0.5">Click to upload · PNG, JPG, WEBP · 4MB max</p>
-            {uploadingLogo && <p className="text-xs mt-1" style={{ color: primary }}>Uploading...</p>}
-          </div>
+          </section>
+
+          {error && (
+            <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">
+              {error}
+            </p>
+          )}
         </div>
 
-        {/* Name fields */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={LABEL_CLS}>Team Name <span className="text-red-400">*</span></label>
-            <input required maxLength={100} className={INPUT_CLS} value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <label className={LABEL_CLS}>Short Name</label>
-            <input maxLength={10} className={INPUT_CLS} placeholder="e.g. Eagles" value={shortName} onChange={(e) => setShortName(e.target.value)} />
-          </div>
-        </div>
-
-        {/* Owner */}
-        <div>
-          <label className={LABEL_CLS}>Owner</label>
-          <select
-            className={INPUT_CLS}
-            value={ownerUserId}
-            onChange={(e) => void handleAssignOwner(e.target.value || null)}
-          >
-            <option value="">— Unassigned —</option>
-            {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className={LABEL_CLS}>First Name</label>
-          <input maxLength={100} className={INPUT_CLS} placeholder="Display name in draft" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-        </div>
-
-        {/* Email invite (only when no owner) */}
-        {!ownerUserId && (
-          <div>
-            <label className={LABEL_CLS}>Invite Owner by Email</label>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                maxLength={320}
-                className={INPUT_CLS}
-                placeholder="owner@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleInvite(); } }}
-              />
-              <button
-                type="button"
-                disabled={inviting || !inviteEmail.trim()}
-                onClick={() => void handleInvite()}
-                className="shrink-0 rounded-lg border border-slate-600 px-3 text-xs font-semibold text-slate-300 hover:border-slate-400 hover:text-white disabled:opacity-40 transition-colors"
-              >
-                {inviting ? "..." : "Invite"}
-              </button>
-            </div>
-            {inviteStatus && (
-              <p className={`mt-1 text-xs ${inviteStatus.startsWith("Invite sent") ? "text-green-400" : "text-red-400"}`}>
-                {inviteStatus}
-              </p>
-            )}
-          </div>
-        )}
-
-        {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-
-        <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors">
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-800/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button type="button" onClick={onClose} className={`${secondaryButtonClass} sm:min-w-28`}>
             Cancel
           </button>
           <button
             type="button"
-            disabled={saving || !name.trim()}
+            disabled={saving || assigningOwner || !name.trim()}
             onClick={() => void handleSave()}
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+            className={`${primaryButtonClass} sm:min-w-36`}
             style={{ backgroundColor: primary, color: secondary }}
           >
-            {saving ? (uploadingLogo ? "Uploading..." : "Saving...") : "Save"}
+            {saving ? (uploadingLogo ? "Uploading logo..." : "Saving...") : "Save Changes"}
           </button>
         </div>
       </div>
@@ -475,7 +571,7 @@ function EditTeamModal({
   );
 }
 
-// ── Kebab menu ────────────────────────────────────────────────────────────────
+// Kebab menu ------------------------------------------------------------
 
 function KebabMenu({ items }: {
   items: { label: string; danger?: boolean; disabled?: boolean; title?: string; onClick: () => void }[];
