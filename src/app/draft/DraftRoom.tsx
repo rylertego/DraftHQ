@@ -2325,7 +2325,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               type="text"
               placeholder={stagedPlayer ? `${stagedPlayer.fullName} ${stagedPlayer.position}/${stagedPlayer.nflTeam ?? "FA"}` : "Search players..."}
               value={playerSearch}
-              className="w-28 sm:w-52 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-44 sm:focus:w-72 transition-all"
+              className="w-32 sm:w-64 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-48 sm:focus:w-80 transition-all"
               style={{
                 paddingLeft: "32px",
                 borderColor: stagedPlayer && !playerSearch ? "#14b8a6" : "rgba(255,255,255,0.08)",
