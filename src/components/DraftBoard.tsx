@@ -80,20 +80,20 @@ export default function DraftBoard({
   const rowHeight = `${Math.round(32 + NAME_SIZE_REM[playerNameSize - 1] * 18)}px`;
 
   return (
-    <section className="flex h-full flex-col" onClick={() => setPopupPick(null)}>
+    <section className="flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" onClick={() => setPopupPick(null)}>
       <div className="min-h-0 flex-1 overflow-auto [touch-action:pan-x_pan-y]">
-        <table className="w-full border-collapse" style={{ tableLayout: "fixed" }}>
+        <table className="w-full border-separate border-spacing-0" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: "40px" }} />
             {teams.map((_, i) => <col key={i} />)}
           </colgroup>
           <thead>
             <tr>
-              <th className="sticky left-0 top-0 z-20 border-r border-b border-slate-800 bg-slate-950 px-2 py-2 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
+              <th className="sticky left-0 top-0 z-20 border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center text-[10px] font-black uppercase tracking-wider text-slate-500">
                 RD
               </th>
               {teams.map((name, i) => (
-                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800 bg-slate-950 px-2 py-2 text-center text-[11px] font-bold uppercase tracking-wide ${myTeamName === name ? "text-teal-400" : "text-slate-400"}`}>
+                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center text-[11px] font-black uppercase tracking-[0.12em] ${myTeamName === name ? "text-teal-300" : "text-slate-400"}`}>
                   {name}
                 </th>
               ))}
@@ -112,7 +112,7 @@ export default function DraftBoard({
               return (
                 <tr key={round}>
                   <td
-                    className="sticky left-0 z-10 border-r border-b border-slate-800 px-2 text-xs font-black text-slate-500 text-center align-middle"
+                    className="sticky left-0 z-10 border-r border-b border-slate-800/90 px-2 text-xs font-black text-slate-500 text-center align-middle"
                     style={{ height: rowHeight, backgroundColor: isEvenRow ? "#0d1a2e" : "#020617" }}
                   >
                     {round}
@@ -130,7 +130,7 @@ export default function DraftBoard({
                     return (
                       <td
                         key={slot.overallPickNumber}
-                        className="relative border-r border-b border-slate-800 px-1.5 align-top overflow-hidden"
+                        className={`relative border-r border-b border-slate-800/90 px-1.5 align-top overflow-hidden transition-colors ${isCurrent ? "z-[1]" : ""}`}
                         style={{
                           height: rowHeight,
                           backgroundColor: cell
@@ -140,7 +140,11 @@ export default function DraftBoard({
                             : isCurrent
                             ? "rgba(30,58,138,0.3)"
                             : emptyBg,
-                          boxShadow: isCurrent && !pick ? "inset 0 0 0 2px #14b8a6" : undefined,
+                          boxShadow: isCurrent
+                            ? pick
+                              ? "inset 0 0 0 2px rgba(20,184,166,0.7), 0 0 24px rgba(20,184,166,0.18)"
+                              : "inset 0 0 0 2px #14b8a6, 0 0 24px rgba(20,184,166,0.18)"
+                            : undefined,
                         }}
                       >
                         {pick ? (
@@ -175,7 +179,7 @@ export default function DraftBoard({
                         ) : (
                           <div className="flex h-full items-center justify-center">
                             {isCurrent && (
-                              <span className="text-xs font-black uppercase tracking-widest text-teal-500">
+                              <span className="rounded-full border border-teal-400/25 bg-teal-400/10 px-2 py-1 text-[10px] font-black uppercase tracking-widest text-teal-300">
                                 {draftStatus === "active" ? "Picking" : draftStatus === "setup" ? "Not started" : "Paused"}
                               </span>
                             )}
