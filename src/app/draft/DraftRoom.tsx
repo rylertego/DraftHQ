@@ -1977,131 +1977,83 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
       {/* ── ROW 1: Timer · On Clock · Next Up ── */}
       {compactHeader ? (
-        /* Compact bar — same live-header model, reduced height */
-        <div className="shrink-0 border-b border-white/5 bg-slate-950/94 px-3 py-2 backdrop-blur" style={headerGradient}>
-          <div className="grid gap-2 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
-            <div className="flex min-w-0 items-center gap-3">
-              {teamOnClock && snapshot.draft.status !== "complete" && (
-                teamOnClock.logoUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={teamOnClock.logoUrl} alt="" className="h-12 w-12 shrink-0 rounded-md object-cover ring-1 ring-white/15" />
-                ) : (
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-md border border-white/10 bg-white/5 text-sm font-black text-slate-300">
-                    {teamOnClock.name.slice(0, 2).toUpperCase()}
-                  </div>
-                )
+        /* Compact bar — large readable text, single row */
+        <div className="shrink-0 flex items-center gap-2.5 sm:gap-4 border-b border-white/5 bg-slate-950 px-3 sm:px-4" style={{ height: "56px" }}>
+          {/* Commissioner controls */}
+          {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
+            <div className="flex items-center gap-1.5">
+              {snapshot.draft.status === "active" ? (
+                <button type="button" title="Pause" disabled={isControllingDraft}
+                  className="flex h-8 w-8 items-center justify-center rounded bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-40"
+                  onClick={() => void handleDraftControl(() => pauseDraft(draftId as string))}>
+                  <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><rect x="1.5" y="1" width="3" height="10" rx="0.75"/><rect x="7.5" y="1" width="3" height="10" rx="0.75"/></svg>
+                </button>
+              ) : (
+                <button type="button" title="Resume" disabled={isControllingDraft}
+                  className="flex h-8 w-8 items-center justify-center rounded bg-green-700/60 text-green-300 hover:bg-green-700 disabled:opacity-40"
+                  onClick={() => void handleDraftControl(() => resumeDraft(draftId as string))}>
+                  <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><polygon points="2,1 11,6 2,11"/></svg>
+                </button>
               )}
-              <div className="min-w-0">
-                {teamOnClock && snapshot.draft.status !== "complete" ? (
-                  <>
-                    <div className="mb-1 flex flex-wrap items-center gap-1.5">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[9px] font-black uppercase leading-none tracking-[0.16em] text-slate-400">
-                        {canMakePick ? "Your pick" : "On the clock"}
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[9px] font-black uppercase leading-none tracking-[0.14em] text-slate-400">
-                        R <span className="text-white">{currentRound ?? "1"}</span>
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[9px] font-black uppercase leading-none tracking-[0.14em] text-slate-400">
-                        Overall <span className="text-white">{snapshot.draft.currentPick}</span>
-                      </span>
-                    </div>
-                    <div className="truncate text-xl font-black uppercase leading-none tracking-wide sm:text-3xl" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
-                      {teamOnClock.name}
-                    </div>
-                    {nextUpSlots.length > 0 && (
-                      <div className="mt-1 hidden min-w-0 items-center gap-1.5 overflow-hidden sm:flex">
-                        <span className="shrink-0 text-[9px] font-black uppercase tracking-[0.16em] text-slate-500">Next</span>
-                        {nextUpSlots.slice(0, 4).map((slot, i) => (
-                          <span key={slot.overallPickNumber} className={`min-w-0 shrink rounded border px-1.5 py-0.5 text-[11px] font-black ${i === 0 ? "border-white/15 bg-white/8 text-slate-100" : "border-white/8 bg-black/16 text-slate-500"}`}>
-                            {slot.teamName}
-                          </span>
-                        ))}
-                      </div>
-                    )}
-                  </>
-                ) : (
-                  <span className="text-xl font-black text-green-400">Draft Complete</span>
-                )}
-              </div>
+              <button type="button" title="Reset timer" disabled={isControllingDraft || !["active","paused"].includes(snapshot.draft.status) || snapshot.draft.pickSeconds === 0}
+                className="flex h-8 w-8 items-center justify-center rounded bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white disabled:opacity-30"
+                onClick={() => void handleDraftControl(() => resetPickTimer(draftId as string))}>
+                <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M6 2a4 4 0 1 0 3.46 2h-1.2A2.8 2.8 0 1 1 6 3.2V2.5L8 1 6 0v2z"/></svg>
+              </button>
             </div>
+          )}
 
-            <div className="flex items-center justify-between gap-3 md:justify-end">
-              <span className={`font-mono text-4xl font-black tabular-nums leading-none sm:text-5xl ${timerColor}`}>
-                {snapshot.draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
-              </span>
-              {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
-                <div className="flex items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
-                  {snapshot.draft.status === "active" ? (
-                    <button type="button" title="Pause draft" disabled={isControllingDraft}
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-40"
-                      onClick={() => void handleDraftControl(() => pauseDraft(draftId as string))}>
-                      <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><rect x="1.5" y="1" width="3" height="10" rx="0.75"/><rect x="7.5" y="1" width="3" height="10" rx="0.75"/></svg>
-                    </button>
-                  ) : (
-                    <button type="button" title="Resume draft" disabled={isControllingDraft}
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-400/12 text-emerald-300 transition-colors hover:bg-emerald-400/18 hover:text-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 disabled:opacity-40"
-                      onClick={() => void handleDraftControl(() => resumeDraft(draftId as string))}>
-                      <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><polygon points="2,1 11,6 2,11"/></svg>
-                    </button>
-                  )}
-                  <div className="relative">
-                    <button type="button" title="Set pick clock"
-                      className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60"
-                      onClick={() => {
-                        const cur = snapshot.draft.pickSeconds;
-                        setClockEditMin(Math.floor(cur / 60));
-                        setClockEditSec(cur % 60);
-                        setShowClockEdit((v) => !v);
-                      }}>
-                      <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-3.5 w-3.5"><path d="M8.5 1.5l2 2-6 6H2.5v-2l6-6z"/></svg>
-                    </button>
-                    {showClockEdit && (
-                      <div className="absolute right-0 top-full z-50 mt-2 flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 shadow-2xl">
-                        <select value={clockEditMin} onChange={(e) => setClockEditMin(Number(e.target.value))} className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-sm font-bold text-white focus:outline-none">
-                          {Array.from({ length: 11 }, (_, i) => <option key={i} value={i}>{i}</option>)}
-                        </select>
-                        <span className="font-black text-slate-500">:</span>
-                        <select value={clockEditSec} onChange={(e) => setClockEditSec(Number(e.target.value))} className="rounded border border-slate-700 bg-slate-800 px-1.5 py-1 text-sm font-bold text-white focus:outline-none">
-                          {[0, 15, 30, 45].map((s) => <option key={s} value={s}>{String(s).padStart(2, "0")}</option>)}
-                        </select>
-                        <button type="button" disabled={clockEditMin === 0 && clockEditSec === 0} className="rounded bg-teal-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white transition-colors hover:bg-teal-500 disabled:cursor-not-allowed disabled:opacity-40" onClick={() => {
-                          const secs = clockEditMin * 60 + clockEditSec;
-                          setShowClockEdit(false);
-                          void handleDraftControl(() => configureDraftTimer(draftId as string, secs));
-                        }}>
-                          Set
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                  <button type="button" title="Reset timer" disabled={isControllingDraft || !["active","paused"].includes(snapshot.draft.status) || snapshot.draft.pickSeconds === 0}
-                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-30"
-                    onClick={() => void handleDraftControl(() => resetPickTimer(draftId as string))}>
-                    <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M6 2a4 4 0 1 0 3.46 2h-1.2A2.8 2.8 0 1 1 6 3.2V2.5L8 1 6 0v2z"/></svg>
-                  </button>
-                </div>
-              )}
-            </div>
+          {/* Timer */}
+          <span className={`font-mono text-2xl sm:text-4xl font-black tabular-nums leading-none ${timerColor}`}>
+            {snapshot.draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
+          </span>
+
+          <span className="h-8 w-px bg-white/8" />
+
+          {/* Round */}
+          <div className="flex items-baseline gap-2">
+            <span className="hidden sm:inline text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Round</span>
+            <span className="sm:hidden text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">R</span>
+            <span className="text-3xl sm:text-5xl font-black leading-none text-white">{currentRound ?? "1"}</span>
           </div>
+
+          {/* Pick */}
+          <div className="flex items-baseline gap-2">
+            <span className="hidden sm:inline text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">Pick</span>
+            <span className="sm:hidden text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">P</span>
+            <span className="text-3xl sm:text-5xl font-black leading-none text-white">{currentPickInRound ?? "—"}</span>
+          </div>
+
+          {teamOnClock && snapshot.draft.status !== "complete" && (
+            <>
+              <span className="h-8 w-px bg-white/8" />
+              <div className="flex min-w-0 items-baseline gap-3">
+                <span className="hidden sm:inline shrink-0 text-[11px] font-black uppercase tracking-[0.2em] text-slate-500">On the clock</span>
+                <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
+                  {teamOnClock.name}
+                </span>
+              </div>
+            </>
+          )}
         </div>
       ) : (
-      <div className="shrink-0 border-b border-white/10 bg-slate-950/92 px-3 py-2 shadow-[0_14px_38px_rgba(2,6,23,0.36)] backdrop-blur" style={headerGradient}>
-        <div className="grid gap-2 rounded-lg border border-white/10 bg-slate-900/78 p-2.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] lg:grid-cols-[minmax(0,1.45fr)_minmax(250px,0.62fr)_minmax(190px,0.42fr)] lg:items-stretch">
+      <div className="shrink-0 border-b border-white/10 bg-slate-950/92 px-3 py-3 shadow-[0_16px_44px_rgba(2,6,23,0.42)] backdrop-blur" style={headerGradient}>
+        <div className="grid gap-3 lg:grid-cols-[minmax(0,1.2fr)_minmax(260px,0.72fr)_minmax(260px,0.78fr)] lg:items-stretch">
 
           {/* Timer block */}
-          <div className={`order-2 flex items-center justify-center gap-3 px-2 py-2.5 lg:order-2 lg:border-l lg:border-white/10 lg:px-3 ${
+          <div className={`order-2 flex items-center justify-center gap-3 rounded-lg border px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] lg:order-2 ${
             timerUrgent
-              ? "rounded-md bg-red-950/35 ring-1 ring-red-400/35"
+              ? "border-red-400/40 bg-red-950/35"
               : timerWarn
-              ? "rounded-md bg-amber-950/25 ring-1 ring-amber-400/30"
-              : ""
+              ? "border-amber-400/35 bg-amber-950/25"
+              : "border-white/10 bg-slate-900/78"
           }`}>
             {/* Commissioner clock controls */}
             {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
-              <div className="flex items-center gap-1 rounded-md border border-white/10 bg-black/20 p-1">
+              <div className="flex flex-col gap-1.5">
                 {snapshot.draft.status === "active" ? (
                   <button type="button" title="Pause draft" disabled={isControllingDraft}
-                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-40"
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-40"
                     onClick={() => void handleDraftControl(() => pauseDraft(draftId as string))}>
                     <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5">
                       <rect x="1.5" y="1" width="3" height="10" rx="0.75"/>
@@ -2110,7 +2062,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   </button>
                 ) : (
                   <button type="button" title="Resume draft" disabled={isControllingDraft}
-                    className="flex h-8 w-8 items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-400/12 text-emerald-300 transition-colors hover:bg-emerald-400/18 hover:text-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 disabled:opacity-40"
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-emerald-400/30 bg-emerald-400/12 text-emerald-300 transition-colors hover:bg-emerald-400/18 hover:text-emerald-200 focus:outline-none focus:ring-2 focus:ring-emerald-300/60 disabled:opacity-40"
                     onClick={() => void handleDraftControl(() => resumeDraft(draftId as string))}>
                     <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5">
                       <polygon points="2,1 11,6 2,11"/>
@@ -2120,7 +2072,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 {/* Edit clock button — opens set-clock popup */}
                 <div className="relative">
                   <button type="button" title="Set pick clock"
-                    className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60"
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60"
                     onClick={() => {
                       const cur = snapshot.draft.pickSeconds;
                       setClockEditMin(Math.floor(cur / 60));
@@ -2132,7 +2084,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                     </svg>
                   </button>
                   {showClockEdit && (
-                    <div className="absolute left-1/2 top-full z-50 mt-2 flex -translate-x-1/2 items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 shadow-2xl">
+                    <div className="absolute left-full top-0 z-50 ml-2 flex items-center gap-1.5 rounded-xl border border-white/10 bg-slate-900 px-3 py-2 shadow-2xl">
                       <select
                         value={clockEditMin}
                         onChange={(e) => setClockEditMin(Number(e.target.value))}
@@ -2162,7 +2114,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   )}
                 </div>
                 <button type="button" title="Reset timer" disabled={isControllingDraft || !["active","paused"].includes(snapshot.draft.status) || snapshot.draft.pickSeconds === 0}
-                  className="flex h-8 w-8 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-30"
+                  className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-white/5 text-slate-300 transition-colors hover:bg-white/10 hover:text-white focus:outline-none focus:ring-2 focus:ring-blue-300/60 disabled:opacity-30"
                   onClick={() => void handleDraftControl(() => resetPickTimer(draftId as string))}>
                   <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5">
                     <path d="M6 2a4 4 0 1 0 3.46 2h-1.2A2.8 2.8 0 1 1 6 3.2V2.5L8 1 6 0v2z"/>
@@ -2198,31 +2150,27 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             </div>
           </div>
 
-          {/* Live context */}
-          <div className="order-3 grid grid-cols-3 gap-2 p-0 lg:order-3 lg:grid-cols-1 lg:border-l lg:border-white/10 lg:pl-3">
-            <div className="min-w-0 rounded-md border border-white/8 bg-black/16 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Draft</div>
-              <div className="truncate text-sm font-black capitalize text-white">{snapshot.draft.status}</div>
+          {/* Round / Pick */}
+          <div className="order-3 grid grid-cols-2 gap-2 rounded-lg border border-white/10 bg-slate-900/78 p-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] lg:order-3">
+            <div className="rounded-md border border-white/8 bg-black/18 px-3 py-2 text-center">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Round</div>
+              <div className="text-3xl sm:text-5xl font-black leading-none">{currentRound ?? (snapshot.draft.status === "complete" ? "—" : "1")}</div>
             </div>
-            <div className="min-w-0 rounded-md border border-white/8 bg-black/16 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Access</div>
-              <div className="truncate text-sm font-black text-white">{isCommissioner ? "Commissioner" : canMakePick ? "Your Pick" : "Viewing"}</div>
-            </div>
-            <div className="min-w-0 rounded-md border border-white/8 bg-black/16 px-3 py-2">
-              <div className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Sync</div>
-              <div className={`truncate text-sm font-black ${status === "connected" ? "text-emerald-300" : "text-amber-300"}`}>{status === "connected" ? "Connected" : "Reconnecting"}</div>
+            <div className="rounded-md border border-white/8 bg-black/18 px-3 py-2 text-center">
+              <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Pick</div>
+              <div className="text-3xl sm:text-5xl font-black leading-none">{currentPickInRound ?? "—"}</div>
             </div>
           </div>
 
           {/* Team on clock + Next Up stacked */}
           {teamOnClock && snapshot.draft.status !== "complete" && (
-            <div className="order-1 flex min-w-0 items-center gap-4 px-1 py-1 lg:order-1 lg:pr-3">
+            <div className="order-1 flex min-w-0 items-center gap-3 rounded-lg border border-white/10 bg-slate-900/78 px-3 py-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] sm:px-4 lg:order-1">
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={teamOnClock.logoUrl} alt="" className="h-20 w-20 shrink-0 rounded-lg object-cover ring-1 ring-white/15 sm:h-24 sm:w-24" />
+                <img src={teamOnClock.logoUrl} alt="" className="h-14 w-14 sm:h-16 sm:w-16 shrink-0 rounded-lg object-cover ring-1 ring-white/15" />
               ) : (
-                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-xl font-black text-slate-300 sm:h-24 sm:w-24">
+                <div className="flex h-14 w-14 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-lg border border-white/10 bg-white/5 text-sm sm:text-xl font-black text-slate-300">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -2240,16 +2188,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   </>
                 ) : (
                   <>
-                    <div className="mb-1 flex flex-wrap items-center gap-2">
-                      <span className="rounded-full border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-black uppercase leading-none tracking-[0.18em] text-slate-400">
-                        {canMakePick ? "Your pick" : "On the clock"}
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black uppercase leading-none tracking-[0.16em] text-slate-400">
-                        Round <span className="text-white">{currentRound ?? "1"}</span>
-                      </span>
-                      <span className="rounded-full border border-white/10 bg-black/20 px-2 py-1 text-[10px] font-black uppercase leading-none tracking-[0.16em] text-slate-400">
-                        Overall <span className="text-white">{snapshot.draft.currentPick}</span>
-                      </span>
+                    <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500 leading-none mb-0.5">
+                      {canMakePick ? "Your pick" : "On the clock"}
                     </div>
                     <div className="truncate text-3xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#fff" }}>
                       {teamOnClock.name}
@@ -2257,10 +2197,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   </>
                 )}
                 {nextUpSlots.length > 0 && (
-                  <div className="mt-2 flex min-w-0 items-center gap-2 overflow-hidden">
-                    <span className="shrink-0 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Next</span>
+                  <div className="flex items-center gap-4 mt-1.5 overflow-hidden whitespace-nowrap">
+                    <span className="shrink-0 text-xs font-black uppercase tracking-[0.2em] text-slate-500">Next Up:</span>
                     {nextUpSlots.slice(0, 5).map((slot, i) => (
-                      <span key={slot.overallPickNumber} className={`min-w-0 shrink rounded-md border px-2 py-1 text-xs font-black ${i === 0 ? "border-white/15 bg-white/8 text-slate-100" : "border-white/8 bg-black/16 text-slate-500"}`}>
+                      <span key={slot.overallPickNumber} className={`shrink-0 text-sm font-bold ${i === 0 ? "text-slate-200" : "text-slate-500"}`}>
                         {slot.teamName}
                       </span>
                     ))}
