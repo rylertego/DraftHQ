@@ -12,7 +12,77 @@ export interface SleeperLeaguePreview {
   leagueName: string;
   rounds: number;
   teams: SleeperTeamPreview[];
+  /** Starting lineup parsed from the league's roster_positions */
+  lineup: SleeperLineup | null;
+  /** Scoring format inferred from the league's scoring_settings */
+  scoringType: "standard" | "ppr" | "half_ppr" | "superflex" | null;
   warnings: string[];
+}
+
+/** A league's starting requirements, keyed by DraftHQ roster position id. */
+export interface SleeperLineup {
+  /** e.g. { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 } */
+  starters: Record<string, number>;
+  benchSlots: number;
+  totalSlots: number;
+}
+
+// Sleeper roster_positions tokens → DraftHQ roster position ids.
+// REC_FLEX (W/T) and WRRB_FLEX collapse onto FLEX: DraftHQ has no separate
+// slot for them, and for grading purposes they behave the same way.
+const SLEEPER_SLOT_MAP: Record<string, string> = {
+  QB: "QB",
+  RB: "RB",
+  WR: "WR",
+  TE: "TE",
+  K: "K",
+  DEF: "DST",
+  DST: "DST",
+  FLEX: "FLEX",
+  REC_FLEX: "FLEX",
+  WRRB_FLEX: "FLEX",
+  WRRB_WRT: "FLEX",
+  SUPER_FLEX: "SUPERFLEX",
+  IDP_FLEX: "IDP",
+  DL: "DL",
+  LB: "LB",
+  DB: "DB",
+};
+
+export function parseSleeperLineup(rosterPositions: unknown): SleeperLineup | null {
+  if (!Array.isArray(rosterPositions) || rosterPositions.length === 0) return null;
+  const starters: Record<string, number> = {};
+  let benchSlots = 0;
+  let totalSlots = 0;
+
+  for (const raw of rosterPositions) {
+    if (typeof raw !== "string") continue;
+    const token = raw.trim().toUpperCase();
+    totalSlots++;
+    if (token === "BN") { benchSlots++; continue; }
+    if (token === "IR" || token === "TAXI") continue; // not startable
+    const id = SLEEPER_SLOT_MAP[token];
+    if (!id) continue;
+    starters[id] = (starters[id] ?? 0) + 1;
+  }
+
+  return Object.keys(starters).length > 0 ? { starters, benchSlots, totalSlots } : null;
+}
+
+/** Infer DraftHQ's scoring type from Sleeper scoring_settings.
+ * `rec` is points per reception; `bonus_rec_te` marks TE premium (which
+ * DraftHQ cannot represent yet — surfaced as a warning by the caller). */
+export function inferSleeperScoring(
+  scoringSettings: unknown,
+  lineup: SleeperLineup | null
+): "standard" | "ppr" | "half_ppr" | "superflex" | null {
+  if (lineup?.starters.SUPERFLEX) return "superflex";
+  if (!isRecord(scoringSettings)) return null;
+  const rec = scoringSettings.rec;
+  if (typeof rec !== "number") return null;
+  if (rec >= 0.75) return "ppr";
+  if (rec >= 0.25) return "half_ppr";
+  return "standard";
 }
 
 type UnknownRecord = Record<string, unknown>;
@@ -46,6 +116,24 @@ export function normalizeSleeperLeagueId(value: unknown) {
 
   const leagueId = value.trim();
   return /^\d{5,30}$/.test(leagueId) ? leagueId : null;
+}
+
+/** Apply an imported lineup onto DraftHQ's roster position rows: `min` becomes
+ * the number of required starters at that slot, and any slot the league uses is
+ * enabled. Slots the league doesn't use keep min 0 so they aren't treated as
+ * roster needs. Returns a new array; the caller persists it. */
+export function applyLineupToRosterPositions<
+  T extends { id: string; enabled: boolean; min: number; max: number }
+>(rosterPositions: T[], lineup: SleeperLineup): T[] {
+  return rosterPositions.map((row) => {
+    const required = lineup.starters[row.id] ?? 0;
+    if (required > 0) {
+      return { ...row, enabled: true, min: required, max: Math.max(row.max, required) };
+    }
+    // Positions the league doesn't start: keep bench-only slots usable (RB/WR
+    // depth is still legal) but record no starting requirement.
+    return { ...row, min: 0 };
+  });
 }
 
 export function buildSleeperLeaguePreview(input: {
@@ -158,11 +246,26 @@ export function buildSleeperLeaguePreview(input: {
     );
   }
 
+  const lineup = parseSleeperLineup(rosterPositions);
+  const scoringType = inferSleeperScoring(input.league.scoring_settings, lineup);
+  if (!lineup) {
+    warnings.push("Sleeper did not return a starting lineup — configure roster positions manually.");
+  }
+  if (
+    isRecord(input.league.scoring_settings) &&
+    typeof input.league.scoring_settings.bonus_rec_te === "number" &&
+    input.league.scoring_settings.bonus_rec_te !== 0
+  ) {
+    warnings.push("This league uses tight end premium scoring, which DraftHQ does not model yet.");
+  }
+
   return {
     leagueId,
     draftId: selectedDraft ? getString(selectedDraft, "draft_id") : null,
     leagueName,
     rounds,
+    lineup,
+    scoringType,
     teams: parsedRosters.map((roster, index) => ({
       rosterId: roster.rosterId,
       ownerUserId: roster.ownerUserId,

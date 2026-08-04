@@ -4,7 +4,7 @@ import { useState } from "react";
 import type { Pick, Team } from "@/types/draft";
 import DraftHQLogo from "@/components/DraftHQLogo";
 
-type BoardView = "draft" | "players" | "roster" | "rounds";
+type BoardView = "draft" | "players" | "roster" | "rounds" | "grades";
 
 interface DraftTickerProps {
   draftName: string;

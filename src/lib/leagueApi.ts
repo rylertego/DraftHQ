@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
 import type { SleeperLeaguePreview } from "@/lib/sleeper";
+import { applyImportedLeagueSettings } from "@/lib/draftApi";
 import type {
   League,
   LeagueMember,
@@ -771,7 +772,12 @@ export async function createSleeperLeagueSeason(input: {
     throw error;
   }
 
-  return getSingleSeason(data);
+  const season = getSingleSeason(data);
+  // Carry the imported starting lineup and scoring format onto the new draft.
+  if (season.draft?.id && (input.preview.lineup || input.preview.scoringType)) {
+    await applyImportedLeagueSettings(season.draft.id, input.preview);
+  }
+  return season;
 }
 
 // --- League Teams ---

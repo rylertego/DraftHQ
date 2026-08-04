@@ -2,6 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   buildSleeperLeaguePreview,
   normalizeSleeperLeagueId,
+  parseSleeperLineup,
+  inferSleeperScoring,
+  applyLineupToRosterPositions,
 } from "@/lib/sleeper";
 
 const league = {
@@ -96,5 +99,76 @@ describe("buildSleeperLeaguePreview", () => {
         drafts: [],
       })
     ).toThrow("invalid league");
+  });
+});
+
+describe("parseSleeperLineup", () => {
+  it("counts starters, bench, and total slots", () => {
+    const lineup = parseSleeperLineup([
+      "QB", "RB", "RB", "WR", "WR", "TE", "FLEX", "K", "DEF", "BN", "BN", "BN",
+    ]);
+    expect(lineup).toEqual({
+      starters: { QB: 1, RB: 2, WR: 2, TE: 1, FLEX: 1, K: 1, DST: 1 },
+      benchSlots: 3,
+      totalSlots: 12,
+    });
+  });
+
+  it("maps superflex and collapses rec flex onto FLEX", () => {
+    const lineup = parseSleeperLineup(["QB", "SUPER_FLEX", "REC_FLEX", "WRRB_FLEX", "BN"]);
+    expect(lineup?.starters).toEqual({ QB: 1, SUPERFLEX: 1, FLEX: 2 });
+  });
+
+  it("excludes IR and taxi slots from starters", () => {
+    const lineup = parseSleeperLineup(["QB", "IR", "TAXI", "BN"]);
+    expect(lineup?.starters).toEqual({ QB: 1 });
+    expect(lineup?.benchSlots).toBe(1);
+  });
+
+  it("returns null when there is nothing startable", () => {
+    expect(parseSleeperLineup([])).toBeNull();
+    expect(parseSleeperLineup(["BN", "BN"])).toBeNull();
+    expect(parseSleeperLineup(undefined)).toBeNull();
+  });
+});
+
+describe("inferSleeperScoring", () => {
+  it("reads points per reception", () => {
+    expect(inferSleeperScoring({ rec: 1 }, null)).toBe("ppr");
+    expect(inferSleeperScoring({ rec: 0.5 }, null)).toBe("half_ppr");
+    expect(inferSleeperScoring({ rec: 0 }, null)).toBe("standard");
+  });
+
+  it("prefers superflex when the lineup has a superflex slot", () => {
+    const lineup = parseSleeperLineup(["QB", "SUPER_FLEX", "BN"]);
+    expect(inferSleeperScoring({ rec: 1 }, lineup)).toBe("superflex");
+  });
+
+  it("returns null when scoring settings are unusable", () => {
+    expect(inferSleeperScoring(null, null)).toBeNull();
+    expect(inferSleeperScoring({}, null)).toBeNull();
+  });
+});
+
+describe("applyLineupToRosterPositions", () => {
+  const rows = [
+    { id: "QB", enabled: true, min: 0, max: 9 },
+    { id: "RB", enabled: true, min: 0, max: 9 },
+    { id: "SUPERFLEX", enabled: false, min: 0, max: 9 },
+    { id: "K", enabled: true, min: 0, max: 9 },
+  ];
+
+  it("sets minimums from the lineup and enables used slots", () => {
+    const lineup = parseSleeperLineup(["QB", "RB", "RB", "SUPER_FLEX"])!;
+    const applied = applyLineupToRosterPositions(rows, lineup);
+    expect(applied.find((r) => r.id === "QB")).toMatchObject({ min: 1, enabled: true });
+    expect(applied.find((r) => r.id === "RB")).toMatchObject({ min: 2, enabled: true });
+    expect(applied.find((r) => r.id === "SUPERFLEX")).toMatchObject({ min: 1, enabled: true });
+  });
+
+  it("leaves unused positions with no starting requirement", () => {
+    const lineup = parseSleeperLineup(["QB", "RB"])!;
+    const applied = applyLineupToRosterPositions(rows, lineup);
+    expect(applied.find((r) => r.id === "K")?.min).toBe(0);
   });
 });

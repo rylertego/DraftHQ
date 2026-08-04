@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DraftAwardsCeremony from "@/components/DraftAwardsCeremony";
+import DraftGradesBoard from "@/components/DraftGradesBoard";
+import { gradeDraft, type DraftGradeReport } from "@/lib/draftGrading";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftLobby from "@/components/DraftLobby";
 import DraftChat from "@/components/DraftChat";
 import DraftTicker from "@/components/DraftTicker";
-import { buildRankMap, getRankings } from "@/lib/rankingsApi";
+import { buildMarketMap, buildRankMap, getRankings } from "@/lib/rankingsApi";
 import { buildPositionColorMap, positionCellColors } from "@/lib/positionColors";
 import type { EspnRanking } from "@/lib/rankingsApi";
 import {
@@ -298,8 +300,8 @@ function TvModeOverlay({
   accentColor: string | null;
   leagueName: string | undefined;
   tickerMode: "ticker" | "nav";
-  boardView: "draft" | "players" | "roster" | "rounds";
-  onBoardViewChange: (v: "draft" | "players" | "roster" | "rounds") => void;
+  boardView: "draft" | "players" | "roster" | "rounds" | "grades";
+  onBoardViewChange: (v: "draft" | "players" | "roster" | "rounds" | "grades") => void;
   posFilter: string;
   onPosFilterChange: (pos: string) => void;
   enabledPositions: string[];
@@ -318,6 +320,8 @@ function TvModeOverlay({
   const accent = accentColor ?? "#14b8a6";
   const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
   const lastPick = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+  const tickerBoardView: "draft" | "players" | "roster" | "rounds" =
+    boardView === "grades" ? "draft" : boardView;
   const lastPickTeam = lastPick ? teams.find((t) => t.id === lastPick.teamId) : null;
   const lastPickHeadshot = lastPick
     ? players.find((p) => p.id === lastPick.playerId)?.headshotUrl
@@ -715,7 +719,7 @@ function TvModeOverlay({
           onChatToggle={onChatToggle}
           accentColor={accent}
           mode={tickerMode}
-          boardView={boardView}
+          boardView={tickerBoardView}
           onBoardViewChange={onBoardViewChange}
           posFilter={posFilter}
           onPosFilterChange={onPosFilterChange}
@@ -772,7 +776,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [byeWeeks, setByeWeeks] = useState<Map<string, number>>(new Map());
   const [showChat, setShowChat] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
-  const [boardView, setBoardView] = useState<"draft" | "players" | "roster" | "rounds">("draft");
+  const [boardView, setBoardView] = useState<"draft" | "players" | "roster" | "rounds" | "grades">("draft");
   const [compactHeader, setCompactHeader] = useState(false);
   const [showBoardMenu, setShowBoardMenu] = useState(false);
   const [showCommishMenu, setShowCommishMenu] = useState(false);
@@ -977,6 +981,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
   // True once the user has clicked through the audio-unlock overlay this session.
   const audioUnlockedOnceRef = useRef(false);
+  // Grading walks every pick against the whole board, so it is cached against a
+  // cheap signature rather than recomputed on each render.
+  const gradeCacheRef = useRef<{ key: string; report: DraftGradeReport } | null>(null);
 
   // ── Walk-up resume mode (commissioner setting) ──────────────────────────
   // Mode mirror for the onEnded closure.
@@ -1906,6 +1913,38 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     ...p,
     rank: espnRankMap.get(p.id) ?? p.rank,
   }));
+
+  // Post-draft grading. Only computed once the draft is over and something
+  // actually needs it; cached against pick count + rankings so re-renders
+  // (timer ticks, presence updates) don't re-run the whole evaluation.
+  function getGradeReport(): DraftGradeReport | null {
+    if (!snapshot || snapshot.draft.status !== "complete") return null;
+    const key = `${snapshot.picks.length}:${espnRankings.length}:${snapshot.draft.scoringType}:${snapshot.draft.rounds}`;
+    if (gradeCacheRef.current?.key === key) return gradeCacheRef.current.report;
+
+    const market = buildMarketMap(snapshot.players, espnRankings);
+    // Fall back to each player's static rank so grading still works when ESPN
+    // rankings were never synced.
+    for (const player of snapshot.players) {
+      if (!market.has(player.id) && typeof player.rank === "number") {
+        market.set(player.id, { rank: player.rank, adp: null, projectedPoints: null });
+      }
+    }
+    const report = gradeDraft({
+      picks: snapshot.picks,
+      teams: snapshot.teams,
+      players: snapshot.players,
+      market,
+      rosterPositions: snapshot.draft.rosterPositions,
+      scoringType: snapshot.draft.scoringType,
+      teamCount: snapshot.draft.teamCount,
+      rounds: snapshot.draft.rounds,
+      byeWeeks,
+    });
+    gradeCacheRef.current = { key, report };
+    return report;
+  }
+  const gradeReport = boardView === "grades" || showAwards ? getGradeReport() : null;
   const currentRound = teamOnClock
     ? getRoundForPick(snapshot.draft.currentPick, snapshot.draft.teamCount)
     : null;
@@ -2293,13 +2332,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button type="button"
               className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-white/10 transition-colors"
               onClick={() => { setShowBoardMenu((v) => !v); setShowCommishMenu(false); }}>
-              {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : "Round Summary"}
+              {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : boardView === "grades" ? "Draft Grades" : "Round Summary"}
               <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5 text-slate-500"><path d="M0 0l5 6 5-6z"/></svg>
             </button>
             {showBoardMenu && (
               <div className="absolute top-full left-0 mt-1 w-44 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
-                {(["draft","players","roster","rounds"] as const).map((v) => {
-                  const labels = { draft: "Draft Board", players: "Player Board", roster: "Roster Board", rounds: "Round Summary" };
+                {(snapshot.draft.status === "complete"
+                  ? (["draft","players","roster","rounds","grades"] as const)
+                  : (["draft","players","roster","rounds"] as const)
+                ).map((v) => {
+                  const labels = { draft: "Draft Board", players: "Player Board", roster: "Roster Board", rounds: "Round Summary", grades: "Draft Grades" };
                   return (
                     <button key={v} type="button"
                       className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${boardView === v ? "bg-white/10 font-semibold text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
@@ -2642,6 +2684,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             onUndoPick={handleUndoPick}
           />
         )}
+
+        {boardView === "grades" && gradeReport && (
+          <DraftGradesBoard report={gradeReport} accentColor={primaryColor} />
+        )}
       </div>
 
       {/* ── Mobile pick bar (hidden on desktop) ── */}
@@ -2871,6 +2917,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           accentColor={primaryColor}
           awardsSong={snapshot.draft.awardsSong}
           musicVolume={musicVolume}
+          teamGrades={gradeReport?.teams ?? null}
           leagueLogoUrl={leagueLogoUrl ?? undefined}
           onClose={() => setShowAwards(false)}
         />

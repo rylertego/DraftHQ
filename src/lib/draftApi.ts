@@ -17,7 +17,8 @@ import type {
 import { buildByeWeekLookup } from "@/lib/nflTeams";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
-import type { SleeperLeaguePreview } from "@/lib/sleeper";
+import { applyLineupToRosterPositions, type SleeperLeaguePreview } from "@/lib/sleeper";
+import { DEFAULT_ROSTER_POSITIONS } from "@/lib/rosterPositions";
 
 interface DraftRow {
   id: string;
@@ -378,7 +379,37 @@ export async function createSleeperDraft(input: {
     throw error;
   }
 
-  return mapDraft(getSingleRow<DraftRow>(data, "the imported draft"));
+  const draft = mapDraft(getSingleRow<DraftRow>(data, "the imported draft"));
+  return (await applyImportedLeagueSettings(draft.id, input.preview, draft)) ?? draft;
+}
+
+/** Carry an imported league's starting lineup and scoring format onto the new
+ * draft. Best-effort: the draft is already created and usable without these, so
+ * a failure here must not fail the import — the commissioner can still set them
+ * by hand in draft settings. */
+export async function applyImportedLeagueSettings(
+  draftId: string,
+  preview: SleeperLeaguePreview,
+  known?: Draft
+): Promise<Draft | null> {
+  let current = known ?? null;
+  try {
+    if (preview.lineup) {
+      const base = current?.rosterPositions?.length
+        ? current.rosterPositions
+        : DEFAULT_ROSTER_POSITIONS;
+      current = await updateDraftRosterPositions(
+        draftId,
+        applyLineupToRosterPositions(base, preview.lineup)
+      );
+    }
+    if (preview.scoringType && preview.scoringType !== current?.scoringType) {
+      current = await updateDraftExtras(draftId, { scoringType: preview.scoringType });
+    }
+  } catch {
+    return current;
+  }
+  return current;
 }
 
 export async function getDraftSetup(draftId: string): Promise<DraftSetup> {
