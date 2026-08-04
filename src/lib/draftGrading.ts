@@ -227,15 +227,34 @@ function blend(factors: FactorScore[]): number {
 
 // ── Factor: draft value ─────────────────────────────────────────────────────
 
+/** Positions whose overall ranking says nothing about when they get drafted.
+ * Every league takes a kicker and a defense in the last rounds, but consensus
+ * boards rank them below every rosterable skill player — so measuring them
+ * against overall rank reports a 150-pick "reach" for completely normal
+ * behaviour. Real ADP handles them fine; overall rank does not. */
+const NO_RANK_MARKET = new Set(["K", "DST"]);
+
 function gradeValue(
   overallPick: number,
   market: PlayerMarketData | undefined,
-  teamCount: number
+  teamCount: number,
+  position: string
 ): { factor: FactorScore; basis: "adp" | "rank" | "none"; delta: number | null } {
   const baseline = market?.adp ?? market?.rank ?? null;
   if (baseline === null) {
     return {
       factor: { score: null, weight: 0.4, note: "No market data for this player." },
+      basis: "none",
+      delta: null,
+    };
+  }
+  if (market?.adp == null && NO_RANK_MARKET.has(position)) {
+    return {
+      factor: {
+        score: null,
+        weight: 0.4,
+        note: `Consensus rank is not a meaningful draft market for ${position}; graded on the other factors.`,
+      },
       basis: "none",
       delta: null,
     };
@@ -263,12 +282,35 @@ function gradeValue(
 
 // ── Factor: team need ───────────────────────────────────────────────────────
 
+/** Slots that a team should feel pressure to fill *right now*. Kicker and
+ * defense are end-of-draft obligations, not needs — counting them as open all
+ * draft would punish every mid-round skill pick for "ignoring a need", while
+ * the construction factor simultaneously penalises drafting them early. They
+ * only become pressing in the final rounds. */
+export function pressingUnfilledSlots(
+  roster: { position: string; rank: number }[],
+  lineup: Lineup,
+  round: number,
+  totalRounds: number
+): Record<string, number> {
+  const all = unfilledStarterSlots(roster, lineup);
+  if (round >= totalRounds - 1) return all;
+  const pressing: Record<string, number> = {};
+  for (const [slot, count] of Object.entries(all)) {
+    if (slot === "K" || slot === "DST") continue;
+    pressing[slot] = count;
+  }
+  return pressing;
+}
+
 function gradeNeed(
   position: string,
   rosterBefore: { position: string; rank: number }[],
-  lineup: Lineup
+  lineup: Lineup,
+  round: number,
+  totalRounds: number
 ): FactorScore {
-  const unfilled = unfilledStarterSlots(rosterBefore, lineup);
+  const unfilled = pressingUnfilledSlots(rosterBefore, lineup, round, totalRounds);
   const unfilledTotal = Object.values(unfilled).reduce((a, b) => a + b, 0);
   const fillsSlot = Object.keys(unfilled).some((slot) => positionFillsSlot(position, slot));
 
@@ -324,7 +366,9 @@ function gradeQuality(
   market: PlayerMarketData | undefined,
   round: number,
   totalRounds: number,
-  positionProjections: number[]
+  positionProjections: number[],
+  positionalRank: number | null,
+  positionPoolSize: number
 ): FactorScore {
   if (!market) {
     return { score: null, weight: 0.15, note: "No ranking or projection available." };
@@ -337,8 +381,14 @@ function gradeQuality(
     const better = positionProjections.filter((p) => p < market.projectedPoints!).length;
     const percentile = better / positionProjections.length;
     score = 25 + 65 * percentile;
+  } else if (positionalRank !== null && positionPoolSize > 1) {
+    // Caliber is only meaningful against players at the same position: the
+    // best kicker on the board is a strong pick for a kicker, even though the
+    // overall board ranks every kicker near the bottom.
+    const percentile = 1 - (positionalRank - 1) / positionPoolSize;
+    score = 25 + 65 * percentile;
+    note = "Graded on positional ranking — no projection available.";
   } else {
-    // Without projections, caliber can only be read from consensus rank.
     score = clamp(95 - market.rank * 0.28, 25, 95);
     note = "Graded on ranking only — no projection available.";
   }
@@ -367,7 +417,7 @@ function gradeConstruction(
   const concerns: string[] = [];
   let score = 60;
 
-  const unfilled = unfilledStarterSlots(rosterBefore, lineup);
+  const unfilled = pressingUnfilledSlots(rosterBefore, lineup, round, totalRounds);
   const fillsSlot = Object.keys(unfilled).some((s) => positionFillsSlot(pick.playerPosition, s));
   if (fillsSlot) {
     score += 18;
@@ -501,6 +551,26 @@ export function gradeDraft(input: GradingInput): DraftGradeReport {
   const ordered = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
   const playerById = new Map(players.map((p) => [p.id, p]));
 
+  // Rank within position across the whole pool — the only fair way to judge
+  // caliber across positions that consensus boards rank on different scales.
+  const positionalRank = new Map<string, number>();
+  const positionPoolSize = new Map<string, number>();
+  {
+    const byPosition = new Map<string, { id: string; rank: number }[]>();
+    for (const p of players) {
+      const m = market.get(p.id);
+      if (!m) continue;
+      const list = byPosition.get(p.position) ?? [];
+      list.push({ id: p.id, rank: m.rank });
+      byPosition.set(p.position, list);
+    }
+    for (const [position, list] of byPosition) {
+      list.sort((a, b) => a.rank - b.rank);
+      positionPoolSize.set(position, list.length);
+      list.forEach((entry, i) => positionalRank.set(entry.id, i + 1));
+    }
+  }
+
   // Board state, advanced pick by pick so every judgement uses only what was
   // knowable at the time.
   const drafted = new Set<string>();
@@ -540,13 +610,12 @@ export function gradeDraft(input: GradingInput): DraftGradeReport {
       }
     }
 
-    const unfilledBefore = Object.values(unfilledStarterSlots(rosterBefore, lineup)).reduce(
-      (a, b) => a + b,
-      0
-    );
+    const unfilledBefore = Object.values(
+      pressingUnfilledSlots(rosterBefore, lineup, pick.round, rounds)
+    ).reduce((a, b) => a + b, 0);
 
-    const value = gradeValue(pick.overallPickNumber, m, teamCount);
-    const need = gradeNeed(pick.playerPosition, rosterBefore, lineup);
+    const value = gradeValue(pick.overallPickNumber, m, teamCount, pick.playerPosition);
+    const need = gradeNeed(pick.playerPosition, rosterBefore, lineup, pick.round, rounds);
     const scarcity = gradeScarcity(
       pick.playerPosition,
       playerRank,
@@ -554,7 +623,14 @@ export function gradeDraft(input: GradingInput): DraftGradeReport {
       teamsNeeding,
       teamCount
     );
-    const quality = gradeQuality(m, pick.round, rounds, positionProjections);
+    const quality = gradeQuality(
+      m,
+      pick.round,
+      rounds,
+      positionProjections,
+      positionalRank.get(pick.playerId) ?? null,
+      positionPoolSize.get(pick.playerPosition) ?? 0
+    );
     const construction = gradeConstruction(
       pick,
       rosterBefore,
