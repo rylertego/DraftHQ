@@ -260,7 +260,13 @@ describe("gradeDraft", () => {
   });
 
   it("centres an ordinary draft near a C+/B- rather than an A", () => {
-    // Every player taken exactly at their ADP: unremarkable process.
+    // Every player taken exactly at their ADP: unremarkable process. The
+    // lineup is declared and small enough that four rounds can actually fill
+    // it — otherwise this would be grading an impossible roster.
+    const lineup: RosterPosition[] = [
+      { id: "RB", label: "RB", abbrev: "RB", enabled: true, min: 1, max: 9, color: "#fff" },
+      { id: "WR", label: "WR", abbrev: "WR", enabled: true, min: 1, max: 9, color: "#fff" },
+    ];
     const picks = [
       pick(1, "t1", "a", "RB", 1), pick(2, "t2", "b", "WR", 1),
       pick(3, "t2", "c", "RB", 2), pick(4, "t1", "d", "WR", 2),
@@ -270,10 +276,27 @@ describe("gradeDraft", () => {
     const m = market(
       picks.map((p) => [p.playerId, p.overallPickNumber, p.overallPickNumber] as [string, number, number])
     );
-    const report = gradeDraft(input({ picks, market: m }));
+    const report = gradeDraft(input({ picks, market: m, rosterPositions: lineup }));
     for (const t of report.teams) {
       expect(t.score).toBeGreaterThanOrEqual(70);
       expect(t.score).toBeLessThan(90);
+    }
+  });
+
+  it("grades a roster that cannot fill its lineup well below a complete one", () => {
+    // Four rounds against a full standard lineup can never be complete, and
+    // the grade should reflect that rather than quietly passing.
+    const picks = [
+      pick(1, "t1", "a", "RB", 1), pick(2, "t2", "b", "WR", 1),
+      pick(3, "t2", "c", "RB", 2), pick(4, "t1", "d", "WR", 2),
+    ];
+    const m = market(
+      picks.map((p) => [p.playerId, p.overallPickNumber, p.overallPickNumber] as [string, number, number])
+    );
+    const report = gradeDraft(input({ picks, market: m }));
+    for (const t of report.teams) {
+      expect(t.score).toBeLessThan(75);
+      expect(t.weaknesses.join(" ")).toMatch(/could not fill/i);
     }
   });
 

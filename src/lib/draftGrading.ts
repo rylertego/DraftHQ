@@ -739,23 +739,48 @@ function buildTeamGrade(
   // 20% — final roster construction
   const unfilled = unfilledStarterSlots(finalRoster, lineup);
   const unfilledTotal = Object.values(unfilled).reduce((a, b) => a + b, 0);
-  let construction = 78;
+  // A merely complete roster is a C-grade build, per the brief: "do not give a
+  // strong roster-construction grade merely because every position is
+  // technically filled". Points above that have to be earned with balance,
+  // depth, and clean bye coverage — which is also what makes an A reachable.
+  let construction = 68;
   if (unfilledTotal > 0) {
     construction -= unfilledTotal * 14;
     weaknesses.push(
       `Could not fill ${unfilledTotal} starting ${unfilledTotal === 1 ? "spot" : "spots"} (${Object.keys(unfilled).join(", ")})`
     );
   } else {
+    construction += 10;
     strengths.push("Fielded a complete starting lineup");
   }
 
+  let overInvested = false;
   for (const position of ["QB", "TE", "K", "DST"]) {
     const held = finalRoster.filter((p) => p.position === position).length;
     const cap = usefulDepthCap(position, lineup);
     if (held > cap) {
+      overInvested = true;
       construction -= 9;
       weaknesses.push(`Over-invested at ${position} (${held} rostered)`);
     }
+  }
+  if (!overInvested && unfilledTotal === 0) {
+    construction += 7;
+  }
+
+  // Genuine skill-position depth, not just bodies: enough rosterable RB/WR to
+  // absorb an injury or a bye.
+  const skillStarters =
+    (lineup.starters.RB ?? 0) + (lineup.starters.WR ?? 0) + (lineup.starters.FLEX ?? 0);
+  const usableSkill = finalRoster.filter(
+    (p) => (p.position === "RB" || p.position === "WR") && p.rank < 200
+  ).length;
+  if (usableSkill >= skillStarters + 3) {
+    construction += 9;
+    strengths.push("Deep at running back and receiver");
+  } else if (usableSkill <= skillStarters) {
+    construction -= 8;
+    weaknesses.push("Thin behind the starting running backs and receivers");
   }
 
   if (byeWeeks) {
@@ -771,6 +796,8 @@ function buildTeamGrade(
     if (clashes > 0) {
       construction -= clashes * 6;
       weaknesses.push("Bye-week pileups at one or more positions");
+    } else if (byPositionWeek.size > 0 && unfilledTotal === 0) {
+      construction += 6;
     }
   }
 
@@ -783,9 +810,11 @@ function buildTeamGrade(
   const bigReaches = withMarket.filter((p) => (p.valueDelta ?? 0) <= -18).length;
   const tierHits = picks.filter((p) => (p.factors.scarcity.score ?? 0) >= 72).length;
 
-  let strategy = 60 + clamp(avgValueDelta * 1.6, -22, 22);
+  let strategy = 55 + clamp(avgValueDelta * 1.8, -25, 30);
   strategy -= bigReaches * 7;
-  strategy += Math.min(10, tierHits * 2.5);
+  strategy += Math.min(12, tierHits * 2.5);
+  // Reward a clean draft: consistent value with no serious misses.
+  if (bigReaches === 0 && avgValueDelta > 0) strategy += 6;
   strategy = clamp(strategy, 0, 100);
 
   if (avgValueDelta >= 4) strengths.push("Consistently drafted below market value");
