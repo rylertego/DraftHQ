@@ -37,12 +37,13 @@ function formatPickClock(seconds: number) {
 
 function draftLifecycleLabel(status: LeagueSeason["status"] | undefined, draftStatus?: DraftStatus) {
   if (!status) return "No season";
-  if (status === "drafting" && !draftStatus) return "No draft";
+  // Without a draft there is no draft status to report. Falling through to the
+  // season's own status here is what made an un-created draft read as "active".
+  if (!draftStatus) return "Not created";
   if (draftStatus === "setup") return "Pre-draft";
   if (draftStatus === "active") return "Live";
   if (draftStatus === "paused") return "Paused";
   if (draftStatus === "complete") return "Complete";
-  if (status === "drafting") return "Drafting";
   return status;
 }
 
@@ -50,7 +51,7 @@ function statusTone(label: string): Tone {
   if (label === "Live" || label === "Drafting") return "live";
   if (label === "Paused") return "warning";
   if (label === "Complete") return "complete";
-  if (label === "No draft" || label === "No season") return "warning";
+  if (label === "No draft" || label === "No season" || label === "Not created") return "warning";
   if (label === "Pre-draft") return "ready";
   return "neutral";
 }
@@ -158,8 +159,10 @@ function Countdown({
   const [now, setNow] = useState<number | null>(null);
 
   useEffect(() => {
+    // Ticks every second so the clock actually counts down. `now` starts null
+    // so the server and first client render agree before the timer takes over.
     const initial = window.setTimeout(() => setNow(Date.now()), 0);
-    const timer = window.setInterval(() => setNow(Date.now()), 60_000);
+    const timer = window.setInterval(() => setNow(Date.now()), 1_000);
     return () => {
       window.clearTimeout(initial);
       window.clearInterval(timer);
@@ -206,24 +209,30 @@ function Countdown({
     );
   }
 
-  const totalMinutes = remaining === null ? 0 : Math.floor(remaining / 60_000);
-  const values: Array<[number, string]> = [
-    [Math.floor(totalMinutes / 1_440), "Days"],
-    [Math.floor((totalMinutes % 1_440) / 60), "Hours"],
-    [totalMinutes % 60, "Minutes"],
-  ];
+  const totalSeconds = remaining === null ? 0 : Math.floor(remaining / 1_000);
+  const days = Math.floor(totalSeconds / 86_400);
+  const hours = Math.floor((totalSeconds % 86_400) / 3_600);
+  const minutes = Math.floor((totalSeconds % 3_600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  // Days only earn their place once there are any; inside the last day the
+  // clock reads like a countdown rather than a mostly-zero row.
+  const clock =
+    days > 0
+      ? `${days}d ${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
+      : `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  const imminent = totalSeconds < 3_600;
 
   return (
     <div>
-      <div className="grid grid-cols-3 gap-2">
-        {values.map(([value, label]) => (
-          <div key={label} className="rounded-xl bg-slate-950/45 px-2 py-3 text-center ring-1 ring-white/10">
-            <p className="text-2xl font-black tabular-nums text-white">{now === null ? "--" : value}</p>
-            <p className="mt-1 text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-          </div>
-        ))}
-      </div>
-      <p className="mt-3 text-center text-xs font-medium text-slate-400">{formatDraftDate(scheduledAt)}</p>
+      <p
+        className="font-mono text-3xl font-black tabular-nums leading-none sm:text-4xl"
+        style={{ color: imminent ? "#fbbf24" : accentColor }}
+        aria-live="off"
+      >
+        {now === null ? "--:--:--" : clock}
+      </p>
+      <p className="mt-2 text-xs font-medium text-slate-400">{formatDraftDate(scheduledAt)}</p>
     </div>
   );
 }
@@ -402,7 +411,9 @@ export default function LeagueCommandCenter({
   const recentMembers = [...workspace.members]
     .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
     .slice(0, 5);
-  const recentTeams = activeTeams.slice(0, 6);
+  // The identity panel is the one place the whole league is on screen at once,
+  // so it shows every team rather than a truncated sample.
+  const recentTeams = activeTeams;
 
   const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
