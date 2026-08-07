@@ -6,6 +6,7 @@ import LeagueCommandCenter from "@/components/LeagueCommandCenter";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { createDraftForSeason, resetSeasonDraft } from "@/lib/leagueApi";
+import { updateDraftSchedule } from "@/lib/draftApi";
 import type { LeagueSeason } from "@/types/league";
 
 function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onClose: () => void; onReset: () => void }) {
@@ -96,6 +97,8 @@ function CreateDraftModal({
   const [draftName, setDraftName] = useState(`${currentYear} Draft`);
   const [teamCount, setTeamCount] = useState(maxTeams);
   const [rounds, setRounds] = useState(15);
+  const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledTime, setScheduledTime] = useState("19:00");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
 
@@ -111,6 +114,18 @@ function CreateDraftModal({
         rounds,
       });
       if (!createdSeason.draftId) throw new Error("The season was created without a draft.");
+      if (scheduledDate) {
+        // The date is optional, and the draft already exists by this point — a
+        // failed schedule save must not read as a failed draft creation.
+        const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+        try {
+          await updateDraftSchedule(createdSeason.draftId, iso, timezone);
+        } catch {
+          // Swallowed on purpose: the commissioner lands on draft settings next,
+          // where the same date fields are available.
+        }
+      }
       onCreated(createdSeason.draftId);
       onClose();
     } catch (err) {
@@ -123,7 +138,7 @@ function CreateDraftModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
       <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-5 text-base font-bold text-white">Create Draft â€” {season.name}</h2>
+        <h2 className="mb-5 text-base font-bold text-white">Create Draft — {season.name}</h2>
         <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
           <div>
             <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Draft Name</label>
@@ -145,6 +160,34 @@ function CreateDraftModal({
               <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Rounds</label>
               <input type="number" min={1} max={30} className="w-full" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
             </div>
+          </div>
+          <div>
+            <div className="mb-1.5 flex items-baseline justify-between gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Draft Date</label>
+              <span className="text-xs text-slate-500">Optional</span>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <input
+                type="date"
+                aria-label="Draft date"
+                className="w-full"
+                value={scheduledDate}
+                onChange={(e) => setScheduledDate(e.target.value)}
+              />
+              <input
+                type="time"
+                aria-label="Draft start time"
+                className="w-full disabled:opacity-50"
+                disabled={!scheduledDate}
+                value={scheduledTime}
+                onChange={(e) => setScheduledTime(e.target.value)}
+              />
+            </div>
+            <p className="mt-1 text-xs text-slate-500">
+              {scheduledDate
+                ? "Owners see this as a countdown. You can change it later in draft settings."
+                : "Set it now or later — owners see a countdown as soon as it's set."}
+            </p>
           </div>
           {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
           <div className="flex gap-3 pt-1">
