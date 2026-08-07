@@ -867,6 +867,26 @@ export async function getLeagueTeams(leagueId: string): Promise<LeagueTeam[]> {
   return rows.map((row) => mapLeagueTeamRow(row, profileMap, historyIds));
 }
 
+/**
+ * The 1-based draft slot a league team holds in a season, or null when the
+ * order has not been materialized yet. Owners see this on their dashboard;
+ * league members can already read `league_team_seasons` under existing RLS.
+ */
+export async function getLeagueTeamDraftSlot(
+  leagueSeasonId: string,
+  leagueTeamId: string
+): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("league_team_seasons")
+    .select("draft_position")
+    .eq("league_season_id", leagueSeasonId)
+    .eq("league_team_id", leagueTeamId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as { draft_position: number } | null)?.draft_position ?? null;
+}
+
 export interface CreateLeagueTeamData {
   name: string;
   shortName?: string;
