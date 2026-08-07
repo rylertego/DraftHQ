@@ -43,45 +43,35 @@ const PROVIDER_ICONS = {
   yahoo: "/providers/yahoo.png",
 } as const;
 
-// ── Image compression ─────────────────────────────────────────────────────────
+// ── League asset uploads ──────────────────────────────────────────────────────
+// Matches the league-assets bucket's own limit, so anything that reaches the
+// upload is a size the bucket will accept.
 const MAX_FILE_BYTES = 4 * 1024 * 1024;
 
-function compressImage(file: File, maxPx: number, quality = 0.82): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    const objectUrl = URL.createObjectURL(file);
-    img.onload = () => {
-      URL.revokeObjectURL(objectUrl);
-      const scale = Math.min(1, maxPx / Math.max(img.width, img.height));
-      const canvas = document.createElement("canvas");
-      canvas.width = Math.round(img.width * scale);
-      canvas.height = Math.round(img.height * scale);
-      const ctx = canvas.getContext("2d");
-      if (!ctx) { reject(new Error("Canvas unavailable")); return; }
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-      const isPng = file.type === "image/png";
-      resolve(canvas.toDataURL(isPng ? "image/png" : "image/jpeg", isPng ? undefined : quality));
-    };
-    img.onerror = reject;
-    img.src = objectUrl;
-  });
-}
-
-// TODO(security/C2): league-assets bucket has no RLS migration and its path format
-// ({folder}/{leagueId}-{timestamp}.ext) can't be commissioner-scoped without a stable prefix.
-// Migrate uploads to path {leagueId}/{type}.{ext} and add an is_league_commissioner policy.
-// Tracked in supabase/migrations/20260629000012_harden_draft_storage_policies.sql (bottom note).
+// Path is {leagueId}/{type}.{ext} — the stable UUID prefix the storage policy
+// scopes on. Keep this in step with 20260806000000_league_assets_bucket.sql.
 async function uploadLeagueAsset(file: File, leagueId: string, folder: "logos" | "banners"): Promise<string> {
-  try {
-    const ext = file.name.split(".").pop() ?? "png";
-    const path = `${folder}/${leagueId}-${Date.now()}.${ext}`;
-    const { error } = await supabase.storage.from("league-assets").upload(path, file, { upsert: true });
-    if (!error) return supabase.storage.from("league-assets").getPublicUrl(path).data.publicUrl;
-  } catch {
-    // storage bucket not configured — fall through
-  }
-  const maxPx = folder === "logos" ? 256 : 1200;
-  return compressImage(file, maxPx, 0.82);
+  const type = folder === "logos" ? "logo" : "banner";
+  const ext = (file.name.split(".").pop() || "png").toLowerCase();
+  const path = `${leagueId}/${type}.${ext}`;
+  const bucket = supabase.storage.from("league-assets");
+
+  // Uploading a .webp over a .png writes a new object rather than replacing the
+  // old one, so clear same-type siblings before writing.
+  const { data: existing } = await bucket.list(leagueId);
+  const stale = (existing ?? [])
+    .filter((object) => object.name.startsWith(`${type}.`) && object.name !== `${type}.${ext}`)
+    .map((object) => `${leagueId}/${object.name}`);
+  if (stale.length > 0) await bucket.remove(stale);
+
+  const { error } = await bucket.upload(path, file, { upsert: true, contentType: file.type });
+  // Fail loudly. The silent data-URL fallback this replaces is exactly what hid
+  // a missing bucket — and shipped a 200KB base64 logo on every workspace load.
+  if (error) throw new Error(error.message);
+
+  // The path is stable now, so the public URL is too. Bust the CDN cache or a
+  // replaced logo keeps rendering as the old one.
+  return `${bucket.getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
 }
 
 // ── Toast ─────────────────────────────────────────────────────────────────────
