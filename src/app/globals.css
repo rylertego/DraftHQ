@@ -23,18 +23,19 @@
   --color-text-secondary: #CBD5E1;
   --color-text-muted: #94A3B8;
 
-  --color-product-accent: #14B8A6;
-  --color-product-accent-hover: #0D9488;
-  --color-product-accent-muted: #134E4A;
-  --color-product-accent-border: #2DD4BF;
+  --color-product-accent: #22D3EE;
+  --color-product-accent-hover: #1FC3DD;
+  --color-product-accent-muted: #106278;
+  --color-product-accent-border: #157D94;
   --color-product-accent-foreground: #020617;
-  --color-product-focus-ring: #22D3EE;
+  --color-product-focus-ring: #1CAEC7;
 
   --color-league-accent: var(--color-product-accent);
   --color-league-accent-hover: var(--color-product-accent-hover);
   --color-league-accent-muted: var(--color-product-accent-muted);
   --color-league-accent-border: var(--color-product-accent-border);
   --color-league-accent-foreground: var(--color-product-accent-foreground);
+  --color-league-focus-ring: var(--color-product-focus-ring);
   --color-focus-ring: var(--color-product-focus-ring);
 
   --color-success: #16A34A;
@@ -73,19 +74,42 @@
   --space-12: 48px;
 
   --font-family-display: var(--font-sora), var(--font-geist-sans), system-ui, sans-serif;
-  --font-family-sans: var(--font-geist-sans), system-ui, sans-serif;
   --font-size-display: 40px;
   --line-height-display: 44px;
+  --font-weight-display: 800;
+  --font-family-page-title: var(--font-sora), var(--font-geist-sans), system-ui, sans-serif;
   --font-size-page-title: 30px;
   --line-height-page-title: 36px;
+  --font-weight-page-title: 800;
+  --font-family-section-title: var(--font-sora), var(--font-geist-sans), system-ui, sans-serif;
   --font-size-section-title: 18px;
   --line-height-section-title: 24px;
+  --font-weight-section-title: 700;
+  --font-family-subsection-title: var(--font-sora), var(--font-geist-sans), system-ui, sans-serif;
+  --font-size-subsection-title: 15px;
+  --line-height-subsection-title: 20px;
+  --font-weight-subsection-title: 700;
+  --font-family-body: var(--font-geist-sans), system-ui, sans-serif;
   --font-size-body: 14px;
   --line-height-body: 21px;
+  --font-weight-body: 400;
+  --font-family-strong-body: var(--font-geist-sans), system-ui, sans-serif;
+  --font-size-strong-body: 14px;
+  --line-height-strong-body: 20px;
+  --font-weight-strong-body: 600;
+  --font-family-control: var(--font-geist-sans), system-ui, sans-serif;
   --font-size-control: 13px;
   --line-height-control: 18px;
+  --font-weight-control: 600;
+  --font-family-caption: var(--font-geist-sans), system-ui, sans-serif;
   --font-size-caption: 12px;
   --line-height-caption: 17px;
+  --font-weight-caption: 400;
+  --font-family-eyebrow: var(--font-geist-sans), system-ui, sans-serif;
+  --font-size-eyebrow: 11px;
+  --line-height-eyebrow: 14px;
+  --font-weight-eyebrow: 700;
+  --font-family-sans: var(--font-family-body);
 
   --radius-surface: 4px;
   --radius-control: 4px;
@@ -108,8 +132,8 @@
   --surface-elevated: var(--color-surface-2);
   --border: var(--color-border-subtle);
   --border-strong: var(--color-border-strong);
-  --primary: var(--color-product-accent);
-  --primary-dark: var(--color-product-accent-hover);
+  --primary: #14B8A6;
+  --primary-dark: #0D9488;
   --foreground: var(--color-text-primary);
   --muted: var(--color-text-muted);
   --league-accent: var(--color-league-accent);
@@ -117,7 +141,7 @@
   --league-accent-muted: var(--color-league-accent-muted);
   --league-accent-border: var(--color-league-accent-border);
   --league-accent-foreground: var(--color-league-accent-foreground);
-  --league-focus-ring: var(--color-focus-ring);
+  --league-focus-ring: var(--color-league-focus-ring);
 }
 
 @theme inline {
