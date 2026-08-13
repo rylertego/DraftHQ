@@ -6,15 +6,18 @@ import {
   useContext,
   useId,
   useState,
+  type AriaAttributes,
   type ChangeEvent,
   type InputHTMLAttributes,
   type ReactNode,
   type SelectHTMLAttributes,
   type TextareaHTMLAttributes,
 } from "react";
+import { mergeAriaInvalid } from "./primitiveInternals";
+import type { ActionScope } from "./types";
 
-type Protected<T> = Omit<T, "className" | "color" | "size" | "style">;
-type FieldState = "idle" | "saving" | "saved" | "error";
+type Protected<T> = Omit<T, "className" | "color" | "height" | "size" | "style" | "width">;
+type ActiveFieldState = "saving" | "saved" | "error";
 
 interface FieldContextValue {
   controlId: string;
@@ -30,28 +33,37 @@ function joinIds(...ids: Array<string | undefined>) {
   return value || undefined;
 }
 
-function useControlA11y(id?: string, describedBy?: string, invalid?: boolean, required?: boolean) {
+function useControlA11y(
+  id?: string,
+  describedBy?: string,
+  invalid?: AriaAttributes["aria-invalid"],
+  required?: boolean,
+) {
   const generatedId = useId();
   const field = useContext(FieldContext);
 
   return {
     id: id ?? field?.controlId ?? generatedId,
     "aria-describedby": joinIds(describedBy, field?.describedBy),
-    "aria-invalid": invalid || field?.invalid ? true : undefined,
+    "aria-invalid": mergeAriaInvalid(invalid, field?.invalid ?? false),
     required: required ?? field?.required,
   };
 }
 
-export interface FieldProps {
+interface FieldBaseProps {
   children: ReactNode;
   label: ReactNode;
   description?: ReactNode;
   error?: ReactNode;
   required?: boolean;
   controlId?: string;
-  state?: FieldState;
-  stateMessage?: ReactNode;
 }
+
+type FieldFeedback =
+  | { state?: "idle"; stateMessage?: never }
+  | { state: ActiveFieldState; stateMessage: ReactNode };
+
+export type FieldProps = FieldBaseProps & FieldFeedback;
 
 export function Field({
   children,
@@ -67,7 +79,7 @@ export function Field({
   const id = controlId ?? generatedId;
   const descriptionId = description ? `${id}-description` : undefined;
   const errorId = error ? `${id}-error` : undefined;
-  const statusId = state !== "idle" && stateMessage ? `${id}-status` : undefined;
+  const statusId = state !== "idle" ? `${id}-status` : undefined;
   const invalid = Boolean(error) || state === "error";
 
   return (
@@ -96,12 +108,13 @@ export function Field({
           {error}
         </span>
       ) : null}
-      {state !== "idle" && stateMessage ? (
+      {state !== "idle" ? (
         <span
           className="ui-field__status"
           data-state={state}
           id={statusId}
           role={state === "error" ? "alert" : "status"}
+          aria-live={state === "error" ? "assertive" : "polite"}
         >
           {stateMessage}
         </span>
@@ -116,7 +129,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(function Input(
   { id, "aria-describedby": describedBy, "aria-invalid": invalid, required, ...props },
   ref,
 ) {
-  const a11y = useControlA11y(id, describedBy, Boolean(invalid), required);
+  const a11y = useControlA11y(id, describedBy, invalid, required);
   return <input {...props} {...a11y} ref={ref} className="ui-form-control ui-input" />;
 });
 
@@ -126,7 +139,7 @@ export const Select = forwardRef<HTMLSelectElement, SelectProps>(function Select
   { id, "aria-describedby": describedBy, "aria-invalid": invalid, required, children, ...props },
   ref,
 ) {
-  const a11y = useControlA11y(id, describedBy, Boolean(invalid), required);
+  const a11y = useControlA11y(id, describedBy, invalid, required);
   return (
     <select {...props} {...a11y} ref={ref} className="ui-form-control ui-select">
       {children}
@@ -142,7 +155,7 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
   { id, "aria-describedby": describedBy, "aria-invalid": invalid, required, ...props },
   ref,
 ) {
-  const a11y = useControlA11y(id, describedBy, Boolean(invalid), required);
+  const a11y = useControlA11y(id, describedBy, invalid, required);
   return <textarea {...props} {...a11y} ref={ref} className="ui-form-control ui-textarea" />;
 });
 
@@ -151,9 +164,10 @@ interface ChoiceProps
   label: ReactNode;
   description?: ReactNode;
   error?: ReactNode;
+  scope?: ActionScope;
 }
 
-function Choice({ type, role, label, description, error, id, ...props }: ChoiceProps & {
+function Choice({ type, role, label, description, error, scope = "product", id, ...props }: ChoiceProps & {
   type: "checkbox" | "radio";
   role?: "switch";
 }) {
@@ -163,7 +177,7 @@ function Choice({ type, role, label, description, error, id, ...props }: ChoiceP
   const errorId = error ? `${controlId}-error` : undefined;
 
   return (
-    <div className="ui-choice-field" data-invalid={Boolean(error) || undefined}>
+    <div className="ui-choice-field" data-invalid={Boolean(error) || undefined} data-scope={scope}>
       <label className="ui-choice" htmlFor={controlId}>
         <input
           {...props}
@@ -234,7 +248,7 @@ export function Stepper({
   required,
   ...props
 }: StepperProps) {
-  const a11y = useControlA11y(id, describedBy, Boolean(invalid), required);
+  const a11y = useControlA11y(id, describedBy, invalid, required);
   const numericStep = typeof step === "number" ? step : Number(step) || 1;
 
   function update(next: number) {

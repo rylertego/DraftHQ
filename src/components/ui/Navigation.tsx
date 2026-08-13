@@ -10,8 +10,27 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent,
+  type ReactElement,
   type ReactNode,
+  type RefObject,
+  type SVGProps,
 } from "react";
+import {
+  useClientMounted,
+  useLatestRef,
+  useOverlayToken,
+  useStableCallback,
+} from "./overlayHooks";
+import { resolveRovingTabValue, sharedOverlayStack } from "./primitiveInternals";
+
+const focusableSelector = [
+  "a[href]",
+  "button:not([disabled])",
+  "input:not([disabled])",
+  "select:not([disabled])",
+  "textarea:not([disabled])",
+  "[tabindex]:not([tabindex='-1'])",
+].join(",");
 
 export interface TabItem {
   id: string;
@@ -31,6 +50,7 @@ export interface TabsProps {
 export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
   const generatedId = useId();
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const activeValue = resolveRovingTabValue(tabs, value);
 
   function moveFocus(currentIndex: number, direction: 1 | -1) {
     for (let offset = 1; offset <= tabs.length; offset += 1) {
@@ -64,19 +84,18 @@ export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
   return (
     <div className="ui-tabs" role="tablist" aria-label={label}>
       {tabs.map((tab, index) => {
-        const selected = tab.id === value;
-        const tabId = `${generatedId}-${tab.id}-tab`;
+        const selected = tab.id === activeValue;
         return (
           <button
             key={tab.id}
             ref={(element) => { tabRefs.current[index] = element; }}
-            id={tabId}
+            id={`${generatedId}-${tab.id}-tab`}
             type="button"
             role="tab"
             className="ui-tabs__tab"
             data-selected={selected || undefined}
             aria-selected={selected}
-            aria-controls={tab.panelId ?? `${generatedId}-${tab.id}-panel`}
+            aria-controls={tab.panelId}
             tabIndex={selected ? 0 : -1}
             disabled={tab.disabled}
             onClick={() => onValueChange(tab.id)}
@@ -92,6 +111,57 @@ export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
 }
 
 type Placement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
+type TriggerIcon = ReactElement<SVGProps<SVGSVGElement>>;
+type TriggerVisual =
+  | { triggerText: string; triggerIcon?: TriggerIcon }
+  | { triggerText?: never; triggerIcon: TriggerIcon };
+
+type PrimitiveTriggerProps = {
+  triggerText?: string;
+  triggerIcon?: TriggerIcon;
+  label: string;
+  className: "ui-overlay-trigger" | "ui-tooltip-trigger";
+  expanded?: boolean;
+  controls?: string;
+  popup?: "menu" | "dialog";
+  describedBy?: string;
+  anchorRef: RefObject<HTMLButtonElement | null>;
+  onClick?: () => void;
+  onMouseEnter?: () => void;
+  onMouseLeave?: () => void;
+  onFocus?: () => void;
+  onBlur?: () => void;
+};
+
+function PrimitiveTrigger({
+  label,
+  triggerText,
+  triggerIcon,
+  className,
+  expanded,
+  controls,
+  popup,
+  describedBy,
+  anchorRef,
+  ...events
+}: PrimitiveTriggerProps) {
+  return (
+    <button
+      ref={anchorRef}
+      type="button"
+      className={className}
+      aria-label={label}
+      aria-haspopup={popup}
+      aria-expanded={expanded}
+      aria-controls={controls}
+      aria-describedby={describedBy}
+      {...events}
+    >
+      {triggerIcon ? <span className="ui-overlay-trigger__icon" aria-hidden="true">{triggerIcon}</span> : null}
+      {triggerText ? <span>{triggerText}</span> : null}
+    </button>
+  );
+}
 
 function useOverlayPosition(open: boolean, placement: Placement, gap = 6) {
   const anchorRef = useRef<HTMLButtonElement>(null);
@@ -104,20 +174,29 @@ function useOverlayPosition(open: boolean, placement: Placement, gap = 6) {
     if (!anchor || !overlay) return;
 
     const margin = 8;
+    const viewport = window.visualViewport;
+    const viewportTop = viewport?.offsetTop ?? 0;
+    const viewportLeft = viewport?.offsetLeft ?? 0;
+    const viewportHeight = viewport?.height ?? window.innerHeight;
+    const viewportWidth = viewport?.width ?? window.innerWidth;
+    const viewportBottom = viewportTop + viewportHeight;
+    const viewportRight = viewportLeft + viewportWidth;
     const anchorRect = anchor.getBoundingClientRect();
     const overlayRect = overlay.getBoundingClientRect();
     const prefersTop = placement.startsWith("top");
     const alignsEnd = placement.endsWith("end");
-    const roomBelow = window.innerHeight - anchorRect.bottom;
-    const roomAbove = anchorRect.top;
-    const useTop = prefersTop ? roomAbove >= overlayRect.height + gap || roomAbove > roomBelow : roomBelow < overlayRect.height + gap && roomAbove > roomBelow;
+    const roomBelow = viewportBottom - anchorRect.bottom;
+    const roomAbove = anchorRect.top - viewportTop;
+    const useTop = prefersTop
+      ? roomAbove >= overlayRect.height + gap || roomAbove > roomBelow
+      : roomBelow < overlayRect.height + gap && roomAbove > roomBelow;
     const rawTop = useTop ? anchorRect.top - overlayRect.height - gap : anchorRect.bottom + gap;
     const rawLeft = alignsEnd ? anchorRect.right - overlayRect.width : anchorRect.left;
 
     setPosition({
       position: "fixed",
-      top: Math.max(margin, Math.min(rawTop, window.innerHeight - overlayRect.height - margin)),
-      left: Math.max(margin, Math.min(rawLeft, window.innerWidth - overlayRect.width - margin)),
+      top: Math.max(viewportTop + margin, Math.min(rawTop, viewportBottom - overlayRect.height - margin)),
+      left: Math.max(viewportLeft + margin, Math.min(rawLeft, viewportRight - overlayRect.width - margin)),
       visibility: "visible",
     });
   }, [gap, placement]);
@@ -125,11 +204,20 @@ function useOverlayPosition(open: boolean, placement: Placement, gap = 6) {
   useLayoutEffect(() => {
     if (!open) return;
     update();
+    const viewport = window.visualViewport;
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(update);
+    if (anchorRef.current) observer?.observe(anchorRef.current);
+    if (overlayRef.current) observer?.observe(overlayRef.current);
     window.addEventListener("resize", update);
     window.addEventListener("scroll", update, true);
+    viewport?.addEventListener("resize", update);
+    viewport?.addEventListener("scroll", update);
     return () => {
+      observer?.disconnect();
       window.removeEventListener("resize", update);
       window.removeEventListener("scroll", update, true);
+      viewport?.removeEventListener("resize", update);
+      viewport?.removeEventListener("scroll", update);
     };
   }, [open, update]);
 
@@ -139,25 +227,30 @@ function useOverlayPosition(open: boolean, placement: Placement, gap = 6) {
 function useDismissableOverlay(
   open: boolean,
   onOpenChange: (open: boolean) => void,
-  anchorRef: React.RefObject<HTMLElement | null>,
-  overlayRef: React.RefObject<HTMLElement | null>,
+  anchorRef: RefObject<HTMLElement | null>,
+  overlayRef: RefObject<HTMLElement | null>,
+  restoreOnEscape = true,
 ) {
+  const token = useOverlayToken(open);
+  const onOpenChangeRef = useLatestRef(onOpenChange);
+
   useEffect(() => {
     if (!open) return;
 
     function handlePointerDown(event: PointerEvent) {
+      if (!sharedOverlayStack.isTop(token)) return;
       const target = event.target as Node;
       if (!anchorRef.current?.contains(target) && !overlayRef.current?.contains(target)) {
-        onOpenChange(false);
+        onOpenChangeRef.current(false);
       }
     }
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        onOpenChange(false);
-        anchorRef.current?.focus();
-      }
+      if (event.key !== "Escape" || !sharedOverlayStack.isTop(token)) return;
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      onOpenChangeRef.current(false);
+      if (restoreOnEscape) anchorRef.current?.focus();
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -166,16 +259,17 @@ function useDismissableOverlay(
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [anchorRef, onOpenChange, open, overlayRef]);
+  }, [anchorRef, onOpenChangeRef, open, overlayRef, restoreOnEscape, token]);
 }
 
 function useControllableOpen(open: boolean | undefined, onOpenChange: ((open: boolean) => void) | undefined) {
   const [internalOpen, setInternalOpen] = useState(false);
+  const onOpenChangeRef = useLatestRef(onOpenChange);
   const isOpen = open ?? internalOpen;
-  const setOpen = useCallback((next: boolean) => {
+  const setOpen = useStableCallback((next: boolean) => {
     if (open === undefined) setInternalOpen(next);
-    onOpenChange?.(next);
-  }, [onOpenChange, open]);
+    onOpenChangeRef.current?.(next);
+  });
   return [isOpen, setOpen] as const;
 }
 
@@ -187,8 +281,7 @@ export interface MenuItem {
   danger?: boolean;
 }
 
-export interface MenuProps {
-  trigger: ReactNode;
+interface MenuBaseProps {
   label: string;
   items: readonly MenuItem[];
   placement?: Placement;
@@ -196,17 +289,28 @@ export interface MenuProps {
   onOpenChange?: (open: boolean) => void;
 }
 
-export function Menu({ trigger, label, items, placement = "bottom-end", open, onOpenChange }: MenuProps) {
+export type MenuProps = MenuBaseProps & TriggerVisual;
+
+export function Menu({
+  triggerText,
+  triggerIcon,
+  label,
+  items,
+  placement = "bottom-end",
+  open,
+  onOpenChange,
+}: MenuProps) {
+  const mounted = useClientMounted();
   const [isOpen, setOpen] = useControllableOpen(open, onOpenChange);
-  const { anchorRef, overlayRef, position } = useOverlayPosition(isOpen, placement);
+  const { anchorRef, overlayRef, position } = useOverlayPosition(isOpen && mounted, placement);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   useDismissableOverlay(isOpen, setOpen, anchorRef, overlayRef);
 
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || !mounted) return;
     const frame = window.requestAnimationFrame(() => itemRefs.current.find((item) => item && !item.disabled)?.focus());
     return () => window.cancelAnimationFrame(frame);
-  }, [isOpen]);
+  }, [isOpen, mounted]);
 
   function handleMenuKeyDown(event: KeyboardEvent<HTMLDivElement>) {
     const enabled = itemRefs.current.filter((item): item is HTMLButtonElement => Boolean(item && !item.disabled));
@@ -229,18 +333,17 @@ export function Menu({ trigger, label, items, placement = "bottom-end", open, on
 
   return (
     <>
-      <button
-        ref={anchorRef}
-        type="button"
+      <PrimitiveTrigger
+        anchorRef={anchorRef}
         className="ui-overlay-trigger"
-        aria-label={label}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
+        label={label}
+        triggerText={triggerText}
+        triggerIcon={triggerIcon}
+        popup="menu"
+        expanded={isOpen}
         onClick={() => setOpen(!isOpen)}
-      >
-        {trigger}
-      </button>
-      {isOpen && typeof document !== "undefined"
+      />
+      {mounted && isOpen
         ? createPortal(
             <div
               ref={overlayRef}
@@ -277,8 +380,7 @@ export function Menu({ trigger, label, items, placement = "bottom-end", open, on
   );
 }
 
-export interface PopoverProps {
-  trigger: ReactNode;
+interface PopoverBaseProps {
   triggerLabel: string;
   children: ReactNode;
   label?: string;
@@ -287,8 +389,11 @@ export interface PopoverProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+export type PopoverProps = PopoverBaseProps & TriggerVisual;
+
 export function Popover({
-  trigger,
+  triggerText,
+  triggerIcon,
   triggerLabel,
   children,
   label,
@@ -296,27 +401,50 @@ export function Popover({
   open,
   onOpenChange,
 }: PopoverProps) {
+  const mounted = useClientMounted();
   const [isOpen, setOpen] = useControllableOpen(open, onOpenChange);
-  const { anchorRef, overlayRef, position } = useOverlayPosition(isOpen, placement);
+  const { anchorRef, overlayRef, position } = useOverlayPosition(isOpen && mounted, placement);
   const id = useId();
+  const interactive = Boolean(label);
   useDismissableOverlay(isOpen, setOpen, anchorRef, overlayRef);
+
+  useEffect(() => {
+    if (!isOpen || !mounted || !interactive) return;
+    const anchor = anchorRef.current;
+    const frame = window.requestAnimationFrame(() => {
+      const target = overlayRef.current?.querySelector<HTMLElement>(focusableSelector) ?? overlayRef.current;
+      target?.focus();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+      anchor?.focus();
+    };
+  }, [anchorRef, interactive, isOpen, mounted, overlayRef]);
 
   return (
     <>
-      <button
-        ref={anchorRef}
-        type="button"
+      <PrimitiveTrigger
+        anchorRef={anchorRef}
         className="ui-overlay-trigger"
-        aria-label={triggerLabel}
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? id : undefined}
+        label={triggerLabel}
+        triggerText={triggerText}
+        triggerIcon={triggerIcon}
+        popup={interactive ? "dialog" : undefined}
+        expanded={isOpen}
+        controls={isOpen ? id : undefined}
         onClick={() => setOpen(!isOpen)}
-      >
-        {trigger}
-      </button>
-      {isOpen && typeof document !== "undefined"
+      />
+      {mounted && isOpen
         ? createPortal(
-            <div ref={overlayRef} id={id} role={label ? "dialog" : undefined} aria-label={label} className="ui-popover" style={position} tabIndex={-1}>
+            <div
+              ref={overlayRef}
+              id={id}
+              role={interactive ? "dialog" : undefined}
+              aria-label={label}
+              className="ui-popover"
+              style={position}
+              tabIndex={-1}
+            >
               {children}
             </div>,
             document.body,
@@ -326,41 +454,49 @@ export function Popover({
   );
 }
 
-export interface TooltipProps {
-  children: ReactNode;
+interface TooltipBaseProps {
+  triggerLabel: string;
   content: ReactNode;
   placement?: Placement;
 }
 
-export function Tooltip({ children, content, placement = "top-start" }: TooltipProps) {
+export type TooltipProps = TooltipBaseProps & TriggerVisual;
+
+export function Tooltip({ triggerText, triggerIcon, triggerLabel, content, placement = "top-start" }: TooltipProps) {
+  const mounted = useClientMounted();
   const [open, setOpen] = useState(false);
-  const { anchorRef, overlayRef, position } = useOverlayPosition(open, placement, 4);
+  const { anchorRef, overlayRef, position } = useOverlayPosition(open && mounted, placement, 4);
   const id = useId();
+  const token = useOverlayToken(open);
 
   useEffect(() => {
     if (!open) return;
     function close(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape") setOpen(false);
+      if (event.key === "Escape" && sharedOverlayStack.isTop(token)) {
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        setOpen(false);
+      }
     }
     document.addEventListener("keydown", close);
     return () => document.removeEventListener("keydown", close);
-  }, [open]);
+  }, [open, token]);
 
   return (
     <>
-      <button
-        ref={anchorRef}
-        type="button"
+      <PrimitiveTrigger
+        anchorRef={anchorRef}
         className="ui-tooltip-trigger"
-        aria-describedby={open ? id : undefined}
+        label={triggerLabel}
+        triggerText={triggerText}
+        triggerIcon={triggerIcon}
+        describedBy={open ? id : undefined}
         onMouseEnter={() => setOpen(true)}
         onMouseLeave={() => setOpen(false)}
         onFocus={() => setOpen(true)}
         onBlur={() => setOpen(false)}
-      >
-        {children}
-      </button>
-      {open && typeof document !== "undefined"
+      />
+      {mounted && open
         ? createPortal(
             <div ref={overlayRef} id={id} role="tooltip" className="ui-tooltip" style={position}>
               {content}

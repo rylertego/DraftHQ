@@ -1,8 +1,10 @@
 "use client";
 
 import { createPortal } from "react-dom";
-import { useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
+import { useCallback, useEffect, useId, useRef, type ReactNode, type RefObject } from "react";
 import { Button } from "./Action";
+import { useClientMounted, useLatestRef } from "./overlayHooks";
+import { sharedBodyScrollLock, sharedOverlayStack } from "./primitiveInternals";
 import type { ActionScope } from "./types";
 
 const focusableSelector = [
@@ -41,23 +43,29 @@ export function Dialog({
   closeOnOutsideClick = false,
   initialFocusRef,
 }: DialogProps) {
+  const mounted = useClientMounted();
   const titleId = useId();
   const descriptionId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
   const restoreFocusRef = useRef<HTMLElement | null>(null);
+  const tokenRef = useRef<symbol>(Symbol("ui-dialog"));
+  const onCloseRef = useLatestRef(onClose);
+  const closeOnEscapeRef = useLatestRef(closeOnEscape);
+  const initialFocusRefRef = useLatestRef(initialFocusRef);
 
   useEffect(() => {
-    if (!open) return;
+    if (!open || !mounted) return;
 
-    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    const previousOverflow = document.body.style.overflow;
-    const previousPaddingRight = document.body.style.paddingRight;
+    const token = tokenRef.current;
+    const releaseOverlay = sharedOverlayStack.add(token);
+    const body = document.body;
     const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
-    document.body.style.overflow = "hidden";
-    if (scrollbarWidth > 0) document.body.style.paddingRight = `${scrollbarWidth}px`;
+    const computedPaddingRight = Number.parseFloat(window.getComputedStyle(body).paddingRight) || 0;
+    const releaseScrollLock = sharedBodyScrollLock.acquire(token, body, scrollbarWidth, computedPaddingRight);
+    restoreFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
 
     const frame = window.requestAnimationFrame(() => {
-      const target = initialFocusRef?.current
+      const target = initialFocusRefRef.current?.current
         ?? dialogRef.current?.querySelector<HTMLElement>("[data-dialog-initial]")
         ?? dialogRef.current?.querySelector<HTMLElement>(focusableSelector)
         ?? dialogRef.current;
@@ -65,9 +73,11 @@ export function Dialog({
     });
 
     function handleKeyDown(event: globalThis.KeyboardEvent) {
-      if (event.key === "Escape" && closeOnEscape) {
+      if (!sharedOverlayStack.isTop(token)) return;
+      if (event.key === "Escape" && closeOnEscapeRef.current) {
         event.preventDefault();
-        onClose();
+        event.stopImmediatePropagation();
+        onCloseRef.current();
         return;
       }
 
@@ -91,21 +101,28 @@ export function Dialog({
 
     document.addEventListener("keydown", handleKeyDown, true);
     return () => {
+      const shouldRestoreFocus = sharedOverlayStack.isTop(token);
       window.cancelAnimationFrame(frame);
       document.removeEventListener("keydown", handleKeyDown, true);
-      document.body.style.overflow = previousOverflow;
-      document.body.style.paddingRight = previousPaddingRight;
-      restoreFocusRef.current?.focus();
+      releaseOverlay();
+      releaseScrollLock();
+      if (shouldRestoreFocus) restoreFocusRef.current?.focus();
     };
-  }, [closeOnEscape, initialFocusRef, onClose, open]);
+  }, [closeOnEscapeRef, initialFocusRefRef, mounted, onCloseRef, open]);
 
-  if (!open || typeof document === "undefined") return null;
+  if (!mounted || !open) return null;
 
   return createPortal(
     <div
       className="ui-dialog-backdrop"
       onPointerDown={(event) => {
-        if (closeOnOutsideClick && event.target === event.currentTarget) onClose();
+        if (
+          closeOnOutsideClick
+          && sharedOverlayStack.isTop(tokenRef.current)
+          && event.target === event.currentTarget
+        ) {
+          onCloseRef.current();
+        }
       }}
     >
       <div
@@ -123,7 +140,7 @@ export function Dialog({
             <h2 className="ui-dialog__title" id={titleId}>{title}</h2>
             {description ? <p className="ui-dialog__description" id={descriptionId}>{description}</p> : null}
           </div>
-          <button type="button" className="ui-dialog__close" aria-label={closeLabel} onClick={onClose}>{"\u00d7"}</button>
+          <button type="button" className="ui-dialog__close" aria-label={closeLabel} onClick={() => onCloseRef.current()}>{"\u00d7"}</button>
         </header>
         <div className="ui-dialog__body">{children}</div>
         {footer ? <footer className="ui-dialog__footer">{footer}</footer> : null}
@@ -158,9 +175,10 @@ export function ConfirmDialog({
   confirmScope = "product",
   confirming = false,
 }: ConfirmDialogProps) {
-  function handleClose() {
-    if (!confirming) onClose();
-  }
+  const onCloseRef = useLatestRef(onClose);
+  const handleClose = useCallback(() => {
+    if (!confirming) onCloseRef.current();
+  }, [confirming, onCloseRef]);
 
   return (
     <Dialog

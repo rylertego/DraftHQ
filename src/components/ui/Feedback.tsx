@@ -2,6 +2,8 @@
 
 import { createPortal } from "react-dom";
 import { useEffect, type ReactNode } from "react";
+import { useClientMounted, useLatestRef } from "./overlayHooks";
+import { resolveToastDuration } from "./primitiveInternals";
 
 export type StatusTone = "neutral" | "success" | "warning" | "danger" | "info";
 
@@ -77,16 +79,30 @@ export interface ToastProps extends MessageProps {
   open: boolean;
   onDismiss: () => void;
   duration?: number;
+  persistent?: boolean;
 }
 
-export function Toast({ open, onDismiss, duration, title, children, status = "info", action }: ToastProps) {
-  useEffect(() => {
-    if (!open || duration === undefined) return;
-    const timeout = window.setTimeout(onDismiss, duration);
-    return () => window.clearTimeout(timeout);
-  }, [duration, onDismiss, open]);
+export function Toast({
+  open,
+  onDismiss,
+  duration,
+  persistent = false,
+  title,
+  children,
+  status = "info",
+  action,
+}: ToastProps) {
+  const mounted = useClientMounted();
+  const onDismissRef = useLatestRef(onDismiss);
+  const timeoutDuration = resolveToastDuration(duration, persistent);
 
-  if (!open || typeof document === "undefined") return null;
+  useEffect(() => {
+    if (!open || timeoutDuration === null) return;
+    const timeout = window.setTimeout(() => onDismissRef.current(), timeoutDuration);
+    return () => window.clearTimeout(timeout);
+  }, [onDismissRef, open, timeoutDuration]);
+
+  if (!mounted || !open) return null;
 
   return createPortal(
     <div className="ui-toast" data-status={status} role={status === "danger" ? "alert" : "status"} aria-live={status === "danger" ? "assertive" : "polite"}>
@@ -95,7 +111,7 @@ export function Toast({ open, onDismiss, duration, title, children, status = "in
         <div className="ui-alert__description">{children}</div>
       </div>
       {action ? <div className="ui-alert__action">{action}</div> : null}
-      <button type="button" className="ui-toast__dismiss" aria-label="Dismiss notification" onClick={onDismiss}>{"\u00d7"}</button>
+      <button type="button" className="ui-toast__dismiss" aria-label="Dismiss notification" onClick={() => onDismissRef.current()}>{"\u00d7"}</button>
     </div>,
     document.body,
   );

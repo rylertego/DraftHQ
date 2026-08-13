@@ -1,4 +1,6 @@
-import type { ReactNode } from "react";
+"use client";
+
+import { useState, type ReactNode } from "react";
 
 export type IdentitySize = "small" | "medium" | "large" | "display";
 
@@ -23,6 +25,33 @@ interface IdentityMarkProps {
   kind: "avatar" | "team" | "league";
 }
 
+function IdentityFallback({ name }: { name: string }) {
+  return (
+    <span className="ui-identity-mark__fallback" role="img" aria-label={name}>
+      <span aria-hidden="true">{initials(name)}</span>
+    </span>
+  );
+}
+
+function IdentityImage({ name, src, pixels }: { name: string; src: string; pixels: number }) {
+  const [failed, setFailed] = useState(false);
+
+  if (failed) return <IdentityFallback name={name} />;
+
+  return (
+    // Identity assets may come from league-configured storage URLs.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src={src}
+      alt={name}
+      width={pixels}
+      height={pixels}
+      className="ui-identity-mark__image"
+      onError={() => setFailed(true)}
+    />
+  );
+}
+
 function IdentityMark({ name, src, size = "medium", framed = false, kind }: IdentityMarkProps) {
   const pixels = sizePixels[size];
   return (
@@ -31,21 +60,11 @@ function IdentityMark({ name, src, size = "medium", framed = false, kind }: Iden
       data-kind={kind}
       data-size={size}
       data-framed={framed || undefined}
-      role={src ? undefined : "img"}
-      aria-label={src ? undefined : name}
     >
       {src ? (
-        // Identity assets may come from league-configured storage URLs.
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={src}
-          alt={name}
-          width={pixels}
-          height={pixels}
-          className="ui-identity-mark__image"
-        />
+        <IdentityImage key={src} name={name} src={src} pixels={pixels} />
       ) : (
-        <span className="ui-identity-mark__fallback" aria-hidden="true">{initials(name)}</span>
+        <IdentityFallback name={name} />
       )}
     </span>
   );
