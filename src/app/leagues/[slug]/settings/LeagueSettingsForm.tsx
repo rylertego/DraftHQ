@@ -487,17 +487,17 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setTab(t)}
-                  className={`relative py-4 text-sm font-black transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 ${
+                  className={`group relative py-4 text-sm font-black transition-colors focus-visible:outline-none ${
                     active ? "text-white" : "text-slate-500 hover:text-slate-200"
                   }`}
                 >
                   {label}
-                  {active && (
-                    <span
-                      className="absolute inset-x-0 bottom-0 h-0.5 rounded-full"
-                      style={{ backgroundColor: primaryColor }}
-                    />
-                  )}
+                  <span
+                    className={`absolute inset-x-0 bottom-0 h-0.5 rounded-full transition-opacity ${
+                      active ? "opacity-100" : "opacity-0 group-hover:opacity-40 group-focus-visible:opacity-100"
+                    }`}
+                    style={{ backgroundColor: primaryColor }}
+                  />
                 </button>
               );
             })}
