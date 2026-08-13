@@ -658,7 +658,7 @@ function TeamRosterRow({
   return (
     <article
       className={`grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:items-center ${
-        canManage ? "md:grid-cols-[minmax(0,1fr)_240px_auto]" : "md:grid-cols-[minmax(0,1fr)_240px]"
+        canManage ? "md:grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr_auto]" : "md:grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr]"
       }`}
       style={{ borderLeft: `3px solid ${ownerAssigned ? primary + "99" : "rgba(251,191,36,0.75)"}` }}
     >
@@ -698,6 +698,8 @@ function TeamRosterRow({
           </p>
         </div>
       </div>
+
+      <div className="hidden md:block" aria-hidden="true" />
 
       {canManage && (
         <div className="flex items-center gap-2 md:justify-end">
@@ -947,11 +949,12 @@ export default function LeagueTeams({ slug }: { slug: string }) {
             <div className="overflow-hidden rounded-xl border border-slate-800/80">
               <div
                 className={`hidden border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid ${
-                  canManage ? "grid-cols-[minmax(0,1fr)_240px_auto]" : "grid-cols-[minmax(0,1fr)_240px]"
+                  canManage ? "grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr_auto]" : "grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr]"
                 }`}
               >
                 <span>Team</span>
                 <span className="text-center">Owner</span>
+                <span aria-hidden="true" />
                 {canManage && <span className="text-right">Actions</span>}
               </div>
               {activeTeams.map((team) => (
