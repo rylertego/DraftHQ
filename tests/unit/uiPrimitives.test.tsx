@@ -26,13 +26,17 @@ const invalidFieldNodeProps: FieldProps = { children: "control", label: "Name", 
 const invalidInputProps: InputProps = { width: 200, height: 40 };
 // @ts-expect-error Overlay triggers are bounded text/icon content, not arbitrary interactive nodes.
 const invalidMenuProps: MenuProps = { label: "Actions", trigger: <button>Nested</button>, items: [] };
-// @ts-expect-error Trigger icons are component types instantiated by the primitive, not arbitrary elements.
+// @ts-expect-error Trigger icons are closed semantic names, not arbitrary elements.
 const invalidMenuIconProps: MenuProps = { label: "Actions", triggerIcon: <button>Nested</button>, items: [] };
+const InvalidTriggerIcon = () => <button>Nested</button>;
+// @ts-expect-error Trigger icons are closed semantic names, not caller-provided components.
+const invalidMenuIconComponentProps: MenuProps = { label: "Actions", triggerIcon: InvalidTriggerIcon, items: [] };
 void invalidFieldProps;
 void invalidFieldNodeProps;
 void invalidInputProps;
 void invalidMenuProps;
 void invalidMenuIconProps;
+void invalidMenuIconComponentProps;
 
 describe("shared UI primitive contracts", () => {
   it("associates field help and errors with its control", () => {
@@ -112,10 +116,13 @@ describe("shared UI primitive contracts", () => {
 
   it("renders one bounded trigger control without implicit nesting", () => {
     const html = renderToStaticMarkup(
-      <Menu label="Team actions" triggerText="Actions" items={[]} />,
+      <Menu label="Team actions" triggerText="Actions" triggerIcon="more-horizontal" items={[]} />,
     );
 
     expect(html.match(/<button/g)).toHaveLength(1);
+    expect(html.match(/<svg/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="Team actions"');
+    expect(html).toContain('aria-hidden="true"');
     expect(html).toContain("Actions");
   });
 

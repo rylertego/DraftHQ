@@ -8,12 +8,10 @@ import {
   useLayoutEffect,
   useRef,
   useState,
-  type ComponentType,
   type CSSProperties,
   type KeyboardEvent,
   type ReactNode,
   type RefObject,
-  type SVGProps,
 } from "react";
 import {
   useClientMounted,
@@ -111,14 +109,14 @@ export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
 }
 
 type Placement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
-type TriggerIcon = ComponentType<SVGProps<SVGSVGElement>>;
+type TriggerIconName = "chevron-down" | "info" | "more-horizontal";
 type TriggerVisual =
-  | { triggerText: string; triggerIcon?: TriggerIcon }
-  | { triggerText?: never; triggerIcon: TriggerIcon };
+  | { triggerText: string; triggerIcon?: TriggerIconName }
+  | { triggerText?: never; triggerIcon: TriggerIconName };
 
 type PrimitiveTriggerProps = {
   triggerText?: string;
-  triggerIcon?: TriggerIcon;
+  triggerIcon?: TriggerIconName;
   label: string;
   className: "ui-overlay-trigger" | "ui-tooltip-trigger";
   expanded?: boolean;
@@ -133,6 +131,41 @@ type PrimitiveTriggerProps = {
   onBlur?: () => void;
 };
 
+function SemanticTriggerIcon({ name }: { name: TriggerIconName }) {
+  const commonProps = {
+    "aria-hidden": true,
+    fill: "none",
+    focusable: "false" as const,
+    stroke: "currentColor",
+    strokeLinecap: "round" as const,
+    strokeLinejoin: "round" as const,
+    strokeWidth: 2,
+    viewBox: "0 0 24 24",
+  };
+
+  if (name === "chevron-down") {
+    return <svg {...commonProps}><path d="m6 9 6 6 6-6" /></svg>;
+  }
+
+  if (name === "info") {
+    return (
+      <svg {...commonProps}>
+        <circle cx="12" cy="12" r="10" />
+        <path d="M12 16v-4" />
+        <path d="M12 8h.01" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg {...commonProps}>
+      <circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" />
+      <circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" />
+    </svg>
+  );
+}
+
 function PrimitiveTrigger({
   label,
   triggerText,
@@ -145,8 +178,6 @@ function PrimitiveTrigger({
   anchorRef,
   ...events
 }: PrimitiveTriggerProps) {
-  const Icon = triggerIcon;
-
   return (
     <button
       ref={anchorRef}
@@ -159,7 +190,11 @@ function PrimitiveTrigger({
       aria-describedby={describedBy}
       {...events}
     >
-      {Icon ? <span className="ui-overlay-trigger__icon" aria-hidden="true"><Icon focusable="false" /></span> : null}
+      {triggerIcon ? (
+        <span className="ui-overlay-trigger__icon" aria-hidden="true">
+          <SemanticTriggerIcon name={triggerIcon} />
+        </span>
+      ) : null}
       {triggerText ? <span>{triggerText}</span> : null}
     </button>
   );
