@@ -3,9 +3,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const ESPN_URL =
   "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leaguedefaults/3?view=kona_player_info";
 
-// ESPN position IDs → fantasy position abbreviation
+// ESPN position IDs → fantasy position abbreviation.
+// ESPN's ids are 3 = WR and 4 = TE. Listing them out of order here previously
+// disguised a swap (`4: "WR", 3: "TE"`), which labelled every wide receiver a
+// tight end and vice versa across the whole rankings table. Keep them ordered.
 const ESPN_POS: Record<number, string> = {
-  1: "QB", 2: "RB", 4: "WR", 3: "TE", 5: "K", 16: "DST",
+  1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST",
 };
 
 // ESPN pro team IDs → NFL abbreviation
