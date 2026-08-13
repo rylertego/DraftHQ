@@ -26,7 +26,7 @@ function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
     },
     {
       href: `${base}/teams`,
-      label: "Teams",
+      label: canManage ? "Teams" : "League",
       icon: (
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
@@ -36,6 +36,20 @@ function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
         </svg>
       ),
     },
+    ...(!canManage
+      ? [
+          {
+            href: `${base}/my-team`,
+            label: "My Team",
+            icon: (
+              <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+                <path d="M10 2.5l5.5 2v4.2c0 3.6-2.2 6.8-5.5 8.8-3.3-2-5.5-5.2-5.5-8.8V4.5l5.5-2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                <path d="M7.5 10.2l1.7 1.7 3.4-3.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     ...(canManage
       ? [
           {
@@ -105,7 +119,7 @@ function BottomMobileNav({ slug, canManage }: { slug: string; canManage: boolean
     },
     {
       href: `${base}/teams`,
-      label: "Teams",
+      label: canManage ? "Teams" : "League",
       icon: (
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
@@ -115,6 +129,20 @@ function BottomMobileNav({ slug, canManage }: { slug: string; canManage: boolean
         </svg>
       ),
     },
+    ...(!canManage
+      ? [
+          {
+            href: `${base}/my-team`,
+            label: "My Team",
+            icon: (
+              <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+                <path d="M10 2.5l5.5 2v4.2c0 3.6-2.2 6.8-5.5 8.8-3.3-2-5.5-5.2-5.5-8.8V4.5l5.5-2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+                <path d="M7.5 10.2l1.7 1.7 3.4-3.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
+            ),
+          },
+        ]
+      : []),
     ...(canManage
       ? [
           {

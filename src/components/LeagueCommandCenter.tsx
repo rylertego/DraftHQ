@@ -150,14 +150,12 @@ function Countdown({
   scheduledAt,
   status,
   accentColor,
-  action,
-  unscheduledTitle = "Schedule the draft date",
+  unscheduledTitle = "Draft Date Not Set",
   unscheduledDetail = "Owners need a clear start time before draft night. Set the date before inviting everyone into the room.",
 }: {
   scheduledAt: string | null;
   status: DraftStatus;
   accentColor: string;
-  action?: React.ReactNode;
   /** Owners can't schedule anything, so they get told what to expect instead. */
   unscheduledTitle?: string;
   unscheduledDetail?: string;
@@ -177,10 +175,9 @@ function Countdown({
 
   if (!scheduledAt) {
     return (
-      <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-4">
+      <div className="py-1">
         <p className="text-sm font-black text-amber-100">{unscheduledTitle}</p>
-        <p className="mt-1 text-sm leading-relaxed text-slate-400">{unscheduledDetail}</p>
-        {action && <div className="mt-4">{action}</div>}
+        {unscheduledDetail && <p className="mt-1 text-sm leading-relaxed text-slate-400">{unscheduledDetail}</p>}
       </div>
     );
   }
@@ -335,7 +332,6 @@ export default function LeagueCommandCenter({
   const draftCreated = Boolean(draft);
   const draftScheduled = Boolean(draft?.scheduledAt);
   const configureHref = draft ? `/teams?draftId=${draft.id}&tab=settings&leagueSlug=${slug}` : null;
-  const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
   const draftLabel = draftLifecycleLabel(currentSeason?.status, draft?.status ?? null);
   const draftTone = statusTone(draftLabel);
   const isOwnerView = !workspace.canManage;
@@ -413,10 +409,8 @@ export default function LeagueCommandCenter({
     .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
     .slice(0, 3);
 
-  const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
   const teamSetupHref = `/leagues/${slug}/teams`;
-  const myTeamHref = `/leagues/${slug}/my-team`;
   const ownerView = buildOwnerDashboardView({
     draftExists: draftCreated,
     draftStatus: draft?.status ?? null,
@@ -426,47 +420,6 @@ export default function LeagueCommandCenter({
     draftSlot: myDraftSlot,
     teamCount: expectedTeams,
   });
-  const ownerCtaHref = ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref;
-
-  // Owners get their own team, their slot, and a way into the room — never a
-  // readiness percentage or a checklist of work only the commissioner can do.
-  const myTeamPanel = (
-    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Your Team</p>
-
-      <div className="mt-3 flex items-center gap-3">
-        <TeamMark
-          src={workspace.myTeam?.logoUrl}
-          name={ownerView.teamLabel}
-          className="h-14 w-14"
-          accentColor={primary}
-        />
-        <div className="min-w-0">
-          <p className="truncate text-lg font-black text-white">{ownerView.teamLabel}</p>
-          <p className={`mt-0.5 text-xs font-bold uppercase tracking-[0.14em] ${ownerView.teamAssigned ? "text-emerald-300" : "text-amber-300"}`}>
-            {ownerView.teamState}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
-        <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
-      </div>
-
-      {ownerView.note && <p className="mt-3 text-sm leading-6 text-slate-400">{ownerView.note}</p>}
-
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
-        <Link href={ownerCtaHref} className={primaryButtonClass}>{ownerView.primaryCta.label}</Link>
-        {workspace.myTeam && (
-          <Link href={myTeamHref} className={secondaryButtonClass}>Edit My Team</Link>
-        )}
-      </div>
-    </aside>
-  );
-
-  const heroPanel = isOwnerView ? myTeamPanel : null;
-
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5">
       <section
@@ -492,7 +445,7 @@ export default function LeagueCommandCenter({
             Reset draft
           </button>
         )}
-        <div className={`relative grid gap-5 p-5 lg:p-6 ${isOwnerView ? "lg:grid-cols-[minmax(0,1fr)_360px]" : ""}`}>
+        <div className="relative grid gap-5 p-5 lg:p-6">
           <div className="min-w-0">
             <div className="mb-5 flex items-center gap-3 lg:hidden">
               <TeamMark src={workspace.league.logoUrl} name={workspace.league.name} className="h-14 w-14" accentColor={primary} />
@@ -536,8 +489,6 @@ export default function LeagueCommandCenter({
               {isOwnerView ? ownerView.headline : setupSummary}
             </p>
 
-            <div className="mt-5 lg:hidden">{heroPanel}</div>
-
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {isOwnerView ? (
                 <>
@@ -557,10 +508,17 @@ export default function LeagueCommandCenter({
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
-                  <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                  <div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
+                    <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+                  </div>
+                  {workspace.canManage && draft && !draft.scheduledAt && (
+                    <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
+                      Schedule Draft
+                    </Link>
+                  )}
                 </div>
                 {draft?.scheduledAt && (
                   <StatusBadge label={draftLabel} tone={draftTone} />
@@ -571,17 +529,12 @@ export default function LeagueCommandCenter({
                   scheduledAt={draft?.scheduledAt ?? null}
                   status={draft?.status ?? null}
                   accentColor={primary}
-                  unscheduledTitle={isOwnerView ? (draftCreated ? "Draft date not set yet" : "No draft yet") : undefined}
+                  unscheduledTitle={draftCreated ? "Draft Date Not Set" : "No draft yet"}
                   unscheduledDetail={isOwnerView
                     ? (draftCreated
                         ? "Your commissioner hasn't locked the start time. The countdown starts here the moment they do."
                         : "This season's draft hasn't been opened yet. Check back - the countdown lands here first.")
                     : undefined}
-                  action={workspace.canManage && draft ? (
-                    <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200">
-                      Schedule Draft
-                    </Link>
-                  ) : undefined}
                 />
                 <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
                   <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
@@ -592,7 +545,6 @@ export default function LeagueCommandCenter({
             </div>
           </div>
 
-          <div className="hidden lg:block">{heroPanel}</div>
         </div>
 
         {teamsError && (
