@@ -657,7 +657,9 @@ function TeamRosterRow({
 
   return (
     <article
-      className="grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:grid-cols-[minmax(0,1fr)_220px_240px_auto] md:items-center"
+      className={`grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:items-center ${
+        canManage ? "md:grid-cols-[minmax(0,1fr)_240px_auto]" : "md:grid-cols-[minmax(0,1fr)_240px]"
+      }`}
       style={{ borderLeft: `3px solid ${ownerAssigned ? primary + "99" : "rgba(251,191,36,0.75)"}` }}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -695,13 +697,6 @@ function TeamRosterRow({
             {team.ownerDisplayName ?? "Unassigned"}
           </p>
         </div>
-      </div>
-
-      <div className="md:text-center">
-        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Setup</p>
-        <p className={`mt-1 text-sm font-bold ${ownerAssigned ? "text-emerald-200" : "text-amber-200"}`}>
-          {ownerAssigned ? "Ready for draft slot" : "Owner assignment open"}
-        </p>
       </div>
 
       {canManage && (
@@ -950,11 +945,14 @@ export default function LeagueTeams({ slug }: { slug: string }) {
             action={rosterActions}
           >
             <div className="overflow-hidden rounded-xl border border-slate-800/80">
-              <div className="hidden grid-cols-[minmax(0,1fr)_220px_240px_auto] border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid">
+              <div
+                className={`hidden border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid ${
+                  canManage ? "grid-cols-[minmax(0,1fr)_240px_auto]" : "grid-cols-[minmax(0,1fr)_240px]"
+                }`}
+              >
                 <span>Team</span>
                 <span className="text-center">Owner</span>
-                <span className="text-center">Setup</span>
-                <span className="text-right">Actions</span>
+                {canManage && <span className="text-right">Actions</span>}
               </div>
               {activeTeams.map((team) => (
                 <TeamRow
