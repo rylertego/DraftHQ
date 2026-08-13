@@ -522,9 +522,6 @@ export default function LeagueCommandCenter({
                     </Link>
                   )}
                 </div>
-                {draft?.scheduledAt && (
-                  <StatusBadge label={draftLabel} tone={draftTone} />
-                )}
               </div>
               <div className={draft?.scheduledAt ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
                 {draft?.scheduledAt && (
