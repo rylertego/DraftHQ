@@ -714,41 +714,35 @@ export default function LeagueCommandCenter({
           )}
         </SectionPanel>
 
-        <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Season` : "Last Season"} eyebrow="League history">
-          {champion && lastCompletedSeason ? (
-            <div className="grid min-h-[34rem] grid-rows-2">
-              <div className="flex flex-col items-center justify-center text-center">
-                <p className="mb-4 text-lg font-black text-white">
-                  {previousLeagueYear ? `${previousLeagueYear} Champion` : "Champion"}
-                </p>
+        <div className="grid gap-5">
+          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Champion` : "Champion"} eyebrow="League history">
+            {champion && lastCompletedSeason ? (
+              <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
                 <p className="mt-1 text-sm text-slate-500">
                   {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
                 </p>
               </div>
+            ) : (
+              <EmptyState title="No champion yet" detail="The champion spotlight will unlock after a completed season is connected." />
+            )}
+          </SectionPanel>
 
-              <div className="flex flex-col items-center justify-center border-t border-slate-800 text-center">
-                <p className="mb-4 text-lg font-black text-white">
-                  {previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}
+          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"} eyebrow="League history">
+            {lastPlace && champion && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
+              <div className="flex min-h-64 flex-col items-center justify-center text-center">
+                <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
+                <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
                 </p>
-                {lastPlace && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
-                  <>
-                    <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
-                    <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-sm text-slate-500">No last-place team available.</p>
-                )}
               </div>
-            </div>
-          ) : (
-            <EmptyState title="No champion yet" detail="The champion spotlight will unlock after a completed season is connected." />
-          )}
-        </SectionPanel>
+            ) : (
+              <EmptyState title="No loser yet" detail="The last-place spotlight will unlock after standings are connected." />
+            )}
+          </SectionPanel>
+        </div>
       </div>
 
       <div className={`grid gap-5 ${isOwnerView ? "xl:grid-cols-[minmax(280px,0.45fr)]" : "xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]"}`}>
