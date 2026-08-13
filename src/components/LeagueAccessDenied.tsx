@@ -8,7 +8,7 @@ import type { LeagueAccessFailure } from "@/lib/leagueAccess";
 // exactly what the policy is protecting.
 
 const PRIMARY =
-  "inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
+  "inline-flex min-h-11 items-center justify-center rounded-xl bg-teal-500 px-5 py-3 text-sm font-black text-slate-950 shadow-[0_14px_40px_rgba(20,184,166,0.28)] transition-colors hover:bg-teal-400 focus:outline-none focus:ring-2 focus:ring-teal-300 focus:ring-offset-2 focus:ring-offset-slate-950";
 const SECONDARY =
   "inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
 
