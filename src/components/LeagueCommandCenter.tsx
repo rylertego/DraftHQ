@@ -375,7 +375,6 @@ export default function LeagueCommandCenter({
   const openItems = readinessItems.filter((item) => item.done === false).length;
   const completedItems = readinessItems.filter((item) => item.done === true).length;
   const readinessPercent = Math.round((completedItems / readinessItems.length) * 100);
-  const nextOpenItem = readinessItems.find((item) => item.done === false);
   const setupReady = openItems === 0 && !teamsLoading && !teamsError;
   const setupLabel = setupReady && draft?.status === "complete"
     ? "Draft Complete"
@@ -399,33 +398,6 @@ export default function LeagueCommandCenter({
             : !ownersReady
               ? "Draft setup is underway. Assign every team to an owner before draft night."
               : `Draft night is scheduled for ${scheduledDraftDate}.`;
-  const nextActionTitle = teamsError
-    ? "Resolve team snapshot"
-    : nextOpenItem?.label === "Draft created"
-      ? "Create draft"
-      : nextOpenItem?.label === "Draft date set"
-        ? "Schedule draft"
-        : nextOpenItem?.label === "Teams added"
-          ? "Review teams"
-          : nextOpenItem?.label === "Owners assigned"
-            ? "Assign owners"
-            : nextOpenItem?.label === "Draft room ready"
-              ? "Finish team setup"
-              : draft?.status === "complete"
-                ? "Review draft"
-                : draft
-                  ? "Enter draft room"
-                  : currentSeason
-                    ? "Create draft"
-                    : "Create season";
-  const nextActionDetail = teamsError
-    ? "The readiness panel cannot confirm teams until the team snapshot loads."
-    : nextOpenItem?.label === "Draft date set"
-      ? "Owners need the start time before they can confidently plan for draft night."
-      : nextOpenItem?.label === "Owners assigned"
-        ? `${expectedTeams - assignedOwners} owner seat${expectedTeams - assignedOwners === 1 ? "" : "s"} still need attention.`
-        : nextOpenItem?.detail ?? (setupReady ? "Everything required for the current draft setup is in a ready state." : "Complete the open setup items before draft night.");
-
   const lastCompletedSeason = workspace.seasons.find(
     (season) => season.status === "complete" && season.standings.length > 0
   );
@@ -455,56 +427,6 @@ export default function LeagueCommandCenter({
     teamCount: expectedTeams,
   });
   const ownerCtaHref = ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref;
-
-  const primaryAction = !currentSeason && workspace.canManage ? (
-    <Link href={`/leagues/${slug}/seasons/new`} className={primaryButtonClass}>Create Season</Link>
-  ) : currentSeason && !draft && workspace.canManage ? (
-    <button type="button" onClick={onConfigureDraft} className={primaryButtonClass}>Create Draft</button>
-  ) : workspace.canManage && draft && !draftScheduled ? (
-    <Link href={configureHref ?? teamSetupHref} className={primaryButtonClass}>Schedule Draft</Link>
-  ) : workspace.canManage && (!teamsReady || !ownersReady) ? (
-    <Link href={teamSetupHref} className={primaryButtonClass}>{teamsReady ? "Assign Owners" : "Review Teams"}</Link>
-  ) : roomHref ? (
-    <Link href={roomHref} className={primaryButtonClass}>{draft?.status === "complete" ? "Review Draft" : "Enter Draft Room"}</Link>
-  ) : null;
-  const secondaryAction = workspace.canManage && draft ? (
-    <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>Configure Draft</Link>
-  ) : workspace.canManage ? (
-    <Link href={teamSetupHref} className={secondaryButtonClass}>Manage Teams</Link>
-  ) : null;
-
-  const nextActionPanel = (
-    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Commissioner Action</p>
-      <p className="mt-2 text-xl font-black text-white">{nextActionTitle}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-400">{nextActionDetail}</p>
-
-      <div className="mt-4 flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{ width: `${readinessPercent}%`, backgroundColor: primary }}
-          />
-        </div>
-        <span className="text-xs font-black tabular-nums text-slate-300">{readinessPercent}%</span>
-      </div>
-
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
-        {primaryAction}
-        {secondaryAction}
-      </div>
-
-      {workspace.canManage && draft && (
-        <button
-          type="button"
-          onClick={onResetDraft}
-          className="mt-4 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
-        >
-          Reset draft
-        </button>
-      )}
-    </aside>
-  );
 
   // Owners get their own team, their slot, and a way into the room — never a
   // readiness percentage or a checklist of work only the commissioner can do.
@@ -543,7 +465,7 @@ export default function LeagueCommandCenter({
     </aside>
   );
 
-  const heroPanel = isOwnerView ? myTeamPanel : nextActionPanel;
+  const heroPanel = isOwnerView ? myTeamPanel : null;
 
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5">
@@ -561,7 +483,16 @@ export default function LeagueCommandCenter({
           className="pointer-events-none absolute inset-x-0 top-0 h-px"
           style={{ backgroundColor: primary }}
         />
-        <div className="relative grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
+        {workspace.canManage && draft && (
+          <button
+            type="button"
+            onClick={onResetDraft}
+            className="absolute right-5 top-5 z-10 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950 lg:right-6 lg:top-6"
+          >
+            Reset draft
+          </button>
+        )}
+        <div className={`relative grid gap-5 p-5 lg:p-6 ${isOwnerView ? "lg:grid-cols-[minmax(0,1fr)_360px]" : ""}`}>
           <div className="min-w-0">
             <div className="mb-5 flex items-center gap-3 lg:hidden">
               <TeamMark src={workspace.league.logoUrl} name={workspace.league.name} className="h-14 w-14" accentColor={primary} />
@@ -581,9 +512,26 @@ export default function LeagueCommandCenter({
                 tone={isOwnerView ? ownerView.statusTone : setupTone}
               />
             </div>
-            <h1 id="league-dashboard-title" className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
-              {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
-            </h1>
+            <div className="mt-3 flex flex-col gap-3 pr-24 sm:flex-row sm:items-center">
+              <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+                {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
+              </h1>
+              {workspace.canManage && (
+                draft ? (
+                  <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
+                    Configure Draft
+                  </Link>
+                ) : currentSeason ? (
+                  <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
+                    Create Draft
+                  </button>
+                ) : (
+                  <Link href={`/leagues/${slug}/seasons/new`} className={secondaryButtonClass}>
+                    Create Season
+                  </Link>
+                )
+              )}
+            </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
               {isOwnerView ? ownerView.headline : setupSummary}
             </p>
