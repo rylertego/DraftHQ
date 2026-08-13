@@ -84,6 +84,7 @@ export interface LeagueTeam {
   name: string;
   shortName: string | null;
   logoUrl: string | null;
+  ownerPhotoUrl: string | null;
   ownerUserId: string | null;
   ownerDisplayName: string | null;
   ownerAvatarUrl: string | null;

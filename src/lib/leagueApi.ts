@@ -789,6 +789,7 @@ interface LeagueTeamRow {
   name: string;
   short_name: string | null;
   logo_url: string | null;
+  owner_photo_url: string | null;
   owner_user_id: string | null;
   owner_name: string | null;
   archived_at: string | null;
@@ -800,7 +801,7 @@ interface LeagueTeamRow {
 }
 
 const LEAGUE_TEAM_COLUMNS =
-  "id,league_id,name,short_name,logo_url,owner_user_id,owner_name,archived_at,last_season_pick,last_season_record,last_season_playoffs,walk_up_songs,created_at";
+  "id,league_id,name,short_name,logo_url,owner_photo_url,owner_user_id,owner_name,archived_at,last_season_pick,last_season_record,last_season_playoffs,walk_up_songs,created_at";
 
 function mapLeagueTeamRow(
   row: LeagueTeamRow,
@@ -814,6 +815,7 @@ function mapLeagueTeamRow(
     name: row.name,
     shortName: row.short_name,
     logoUrl: row.logo_url,
+    ownerPhotoUrl: row.owner_photo_url,
     ownerUserId: row.owner_user_id,
     ownerDisplayName: profile?.displayName ?? null,
     ownerAvatarUrl: profile?.avatarUrl ?? null,
@@ -948,6 +950,7 @@ export interface UpdateLeagueTeamDetailsData {
   shortName?: string | null;
   ownerName?: string | null;
   logoUrl?: string | null;
+  ownerPhotoUrl?: string | null;
   walkUpSongs?: WalkUpSong[];
 }
 
@@ -957,6 +960,7 @@ export async function updateLeagueTeamDetails(leagueId: string, teamId: string, 
   if (data.shortName !== undefined) patch.short_name = data.shortName?.trim() || null;
   if (data.ownerName !== undefined) patch.owner_name = data.ownerName?.trim() || null;
   if (data.logoUrl !== undefined) patch.logo_url = data.logoUrl;
+  if (data.ownerPhotoUrl !== undefined) patch.owner_photo_url = data.ownerPhotoUrl;
   if (data.walkUpSongs !== undefined) patch.walk_up_songs = data.walkUpSongs;
 
   const { error } = await supabase
@@ -975,6 +979,7 @@ export interface UpdateMyLeagueTeamDetailsData {
   shortName: string | null;
   ownerName: string | null;
   logoUrl: string | null;
+  ownerPhotoUrl: string | null;
   walkUpSongs: WalkUpSong[];
 }
 
@@ -990,6 +995,7 @@ export async function updateMyLeagueTeamDetails(
     p_short_name: data.shortName?.trim() || null,
     p_owner_name: data.ownerName?.trim() || null,
     p_logo_url: data.logoUrl,
+    p_owner_photo_url: data.ownerPhotoUrl,
     p_walk_up_songs: data.walkUpSongs,
   });
 
@@ -1025,6 +1031,20 @@ export async function uploadLeagueTeamLogo(leagueId: string, teamId: string, fil
 export async function uploadMyLeagueTeamLogoAsset(leagueId: string, teamId: string, file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
   const path = `${leagueId}/${teamId}/logo.${ext}`;
+
+  const { error: uploadError } = await supabase.storage
+    .from("league-team-logos")
+    .upload(path, file, { upsert: true, contentType: file.type });
+
+  if (uploadError) throw uploadError;
+
+  const { data } = supabase.storage.from("league-team-logos").getPublicUrl(path);
+  return `${data.publicUrl}?t=${Date.now()}`;
+}
+
+export async function uploadMyLeagueTeamOwnerPhotoAsset(leagueId: string, teamId: string, file: File): Promise<string> {
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
+  const path = `${leagueId}/${teamId}/owner.${ext}`;
 
   const { error: uploadError } = await supabase.storage
     .from("league-team-logos")

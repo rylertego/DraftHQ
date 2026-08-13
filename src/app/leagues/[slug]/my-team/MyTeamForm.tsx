@@ -9,6 +9,7 @@ import {
   getLeagueTeams,
   updateMyLeagueTeamDetails,
   uploadMyLeagueTeamLogoAsset,
+  uploadMyLeagueTeamOwnerPhotoAsset,
 } from "@/lib/leagueApi";
 import type { LeagueTeam } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
@@ -32,8 +33,11 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [walkUpSongs, setWalkUpSongs] = useState<WalkUpSong[]>([]);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [ownerPhotoPreview, setOwnerPhotoPreview] = useState<string | null>(null);
+  const [ownerPhotoFile, setOwnerPhotoFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadingOwnerPhoto, setUploadingOwnerPhoto] = useState(false);
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
@@ -58,6 +62,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         setOwnerName(found.ownerName ?? "");
         setWalkUpSongs(Array.isArray(found.walkUpSongs) ? found.walkUpSongs : []);
         setLogoPreview(found.logoUrl);
+        setOwnerPhotoPreview(found.ownerPhotoUrl);
       })
       .catch((err) => {
         if (active) setError(err instanceof Error ? err.message : "Unable to load your team.");
@@ -73,6 +78,14 @@ export default function MyTeamForm({ slug }: { slug: string }) {
     if (!file) return;
     setLogoFile(file);
     setLogoPreview(URL.createObjectURL(file));
+    setSuccess(false);
+  }
+
+  function handleOwnerPhotoChange(e: ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setOwnerPhotoFile(file);
+    setOwnerPhotoPreview(URL.createObjectURL(file));
     setSuccess(false);
   }
 
@@ -95,10 +108,16 @@ export default function MyTeamForm({ slug }: { slug: string }) {
 
     try {
       let logoUrl = team.logoUrl;
+      let ownerPhotoUrl = team.ownerPhotoUrl;
       if (logoFile) {
         setUploadingLogo(true);
         logoUrl = await uploadMyLeagueTeamLogoAsset(league.id, team.id, logoFile);
         setUploadingLogo(false);
+      }
+      if (ownerPhotoFile) {
+        setUploadingOwnerPhoto(true);
+        ownerPhotoUrl = await uploadMyLeagueTeamOwnerPhotoAsset(league.id, team.id, ownerPhotoFile);
+        setUploadingOwnerPhoto(false);
       }
 
       const updated = await updateMyLeagueTeamDetails(league.id, team.id, {
@@ -106,6 +125,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         shortName: shortName.trim() || null,
         ownerName: ownerName.trim() || null,
         logoUrl,
+        ownerPhotoUrl,
         walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
       });
 
@@ -115,10 +135,13 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       setOwnerName(updated.ownerName ?? "");
       setWalkUpSongs(updated.walkUpSongs);
       setLogoPreview(updated.logoUrl);
+      setOwnerPhotoPreview(updated.ownerPhotoUrl);
       setLogoFile(null);
+      setOwnerPhotoFile(null);
       setSuccess(true);
     } catch (err) {
       setUploadingLogo(false);
+      setUploadingOwnerPhoto(false);
       setError(err instanceof Error ? err.message : "Unable to save your team.");
     } finally {
       setSaving(false);
@@ -260,6 +283,42 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                   }}
                 />
               </label>
+
+              <div className="mt-5 border-t border-slate-800 pt-5">
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
+                  <label className="group block w-fit cursor-pointer">
+                    <input type="file" accept="image/*" className="sr-only" onChange={handleOwnerPhotoChange} />
+                    <span
+                      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 transition-colors group-hover:border-slate-500 group-focus-within:ring-2"
+                      style={{ ["--tw-ring-color" as string]: primary }}
+                    >
+                      {ownerPhotoPreview ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={ownerPhotoPreview} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <svg viewBox="0 0 24 24" fill="currentColor" className="h-9 w-9 text-slate-600 transition-colors group-hover:text-slate-400" aria-hidden="true">
+                          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z" />
+                        </svg>
+                      )}
+                      <span className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-2 py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                        Replace
+                      </span>
+                    </span>
+                  </label>
+
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-white">Owner Photo</p>
+                    <p className="mt-1 text-sm leading-6 text-slate-400">
+                      Add your profile image for draft-night presentation screens. Your team logo stays managed from the franchise card.
+                    </p>
+                    {uploadingOwnerPhoto && (
+                      <p className="mt-1 text-xs font-bold" style={{ color: primary }}>
+                        Uploading owner photo...
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
             </div>
 
             <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
@@ -340,7 +399,13 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                 className="min-h-12 w-full rounded-xl text-sm font-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
                 style={{ backgroundColor: primary, color: secondary }}
               >
-                {saving ? (uploadingLogo ? "Uploading Logo..." : "Saving Team...") : "Save Team Profile"}
+                {saving
+                  ? uploadingLogo
+                    ? "Uploading Logo..."
+                    : uploadingOwnerPhoto
+                      ? "Uploading Owner Photo..."
+                      : "Saving Team..."
+                  : "Save Team Profile"}
               </button>
             </div>
           </div>
