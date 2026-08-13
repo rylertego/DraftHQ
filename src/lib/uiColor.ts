@@ -127,27 +127,42 @@ function deriveCanvasVisibleToken(
   base: Rgb,
   canvasMix: number,
   minimumContrast: number,
+  excludedColors: readonly string[] = [],
 ): string {
   const baseHex = toHex(base);
+  const excluded = new Set([baseHex, ...excludedColors]);
+  const isUsable = (candidateHex: string) => (
+    !excluded.has(candidateHex)
+    && contrastRatio(candidateHex, DARK_INK_HEX) >= minimumContrast
+  );
   const preferredHex = toHex(mixRgb(base, DARK_INK, canvasMix));
-  if (
-    preferredHex !== baseHex
-    && contrastRatio(preferredHex, DARK_INK_HEX) >= minimumContrast
-  ) {
+  if (isUsable(preferredHex)) {
     return preferredHex;
   }
 
   for (let step = 1; step <= 100; step += 1) {
     const candidateHex = toHex(mixRgb(base, WHITE, step / 100));
-    if (
-      candidateHex !== baseHex
-      && contrastRatio(candidateHex, DARK_INK_HEX) >= minimumContrast
-    ) {
+    if (isUsable(candidateHex)) {
       return candidateHex;
     }
   }
 
-  return WHITE_HEX;
+  for (let step = 0; step <= 100; step += 1) {
+    const candidateHex = toHex(mixRgb(WHITE, DARK_INK, step / 100));
+    if (isUsable(candidateHex)) {
+      return candidateHex;
+    }
+  }
+
+  throw new Error("Unable to derive a distinct canvas-visible color");
+}
+
+function deriveCanvasBorder(base: Rgb): string {
+  return deriveCanvasVisibleToken(base, 0.42, MINIMUM_NON_TEXT_CONTRAST);
+}
+
+function deriveCanvasFocus(base: Rgb, border: string): string {
+  return deriveCanvasVisibleToken(base, 0.18, MINIMUM_TEXT_CONTRAST, [border]);
 }
 
 export function contrastRatio(first: string, second: string): number {
@@ -165,13 +180,14 @@ export function deriveAccentTokens(
   const fallbackRgb = parseHexColor(fallback) ?? requireHexColor(DEFAULT_PRODUCT_ACCENT);
   const inputRgb = parseHexColor(input) ?? fallbackRgb;
   const { base, foreground } = chooseAccessibleBase(inputRgb);
+  const border = deriveCanvasBorder(base);
 
   return {
     base: toHex(base),
     foreground,
     hover: deriveReadableHover(base, foreground),
     muted: toHex(mixRgb(base, foregroundRgb(foreground), 0.55)),
-    border: deriveCanvasVisibleToken(base, 0.42, MINIMUM_NON_TEXT_CONTRAST),
-    focus: deriveCanvasVisibleToken(base, 0.18, MINIMUM_TEXT_CONTRAST),
+    border,
+    focus: deriveCanvasFocus(base, border),
   };
 }

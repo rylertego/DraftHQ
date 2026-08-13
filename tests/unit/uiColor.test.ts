@@ -58,6 +58,17 @@ describe("deriveAccentTokens", () => {
       expect(contrastRatio(tokens.border, DARK_CANVAS)).toBeGreaterThanOrEqual(3);
     },
   );
+
+  it.each(["#006efc", "#006efd", "#006efe"])(
+    "separates border and focus near the canvas-contrast boundary for %s",
+    (input) => {
+      const tokens = deriveAccentTokens(input, "#22d3ee");
+
+      expect(tokens.border).not.toBe(tokens.focus);
+      expect(contrastRatio(tokens.border, DARK_CANVAS)).toBeGreaterThanOrEqual(3);
+      expect(contrastRatio(tokens.focus, DARK_CANVAS)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 });
 
 describe("contrastRatio", () => {
