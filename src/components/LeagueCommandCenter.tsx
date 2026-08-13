@@ -99,11 +99,13 @@ function MetricTile({
   value,
   detail,
   tone = "neutral",
+  compact = false,
 }: {
   label: string;
   value: string;
   detail?: string;
   tone?: Tone;
+  compact?: boolean;
 }) {
   const toneClass: Record<Tone, string> = {
     neutral: "text-white",
@@ -115,10 +117,10 @@ function MetricTile({
   };
 
   return (
-    <div className="rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
+    <div className={`rounded-xl bg-slate-950/35 px-4 ring-1 ring-white/10 ${compact ? "py-2" : "py-3"}`}>
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-black tabular-nums ${toneClass[tone]}`}>{value}</p>
-      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
+      <p className={`mt-1 font-black tabular-nums ${compact ? "text-lg" : "text-xl"} ${toneClass[tone]}`}>{value}</p>
+      {detail && <p className={`${compact ? "mt-0.5" : "mt-1"} truncate text-xs text-slate-500`}>{detail}</p>}
     </div>
   );
 }
@@ -456,8 +458,8 @@ export default function LeagueCommandCenter({
                 {isOwnerView ? "Draft Night" : "League Command Center"}
               </p>
               <StatusBadge
-                label={isOwnerView ? ownerView.statusLabel : setupLabel}
-                tone={isOwnerView ? ownerView.statusTone : setupTone}
+                label={isOwnerView ? draftLabel : setupLabel}
+                tone={isOwnerView ? draftTone : setupTone}
               />
             </div>
             <div className="mt-3 flex flex-col gap-3 pr-24 sm:flex-row sm:items-center">
@@ -507,7 +509,7 @@ export default function LeagueCommandCenter({
               )}
             </div>
 
-            <div className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
+            <div className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <div>
@@ -524,7 +526,7 @@ export default function LeagueCommandCenter({
                   <StatusBadge label={draftLabel} tone={draftTone} />
                 )}
               </div>
-              <div className={draft?.scheduledAt ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
+              <div className={draft?.scheduledAt ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
                 {draft?.scheduledAt && (
                   <Countdown
                     scheduledAt={draft.scheduledAt}
@@ -533,9 +535,9 @@ export default function LeagueCommandCenter({
                   />
                 )}
                 <div className={draft?.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
-                  <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
-                  <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
-                  <MetricTile label="Expiry" value={draft?.timerBehavior === "auto_draft" ? "Auto" : draft?.timerBehavior === "skip" ? "Skip" : draft ? "Hold" : "--"} detail="Clock behavior" />
+                  <MetricTile compact label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
+                  <MetricTile compact label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
+                  <MetricTile compact label="Expiry" value={draft?.timerBehavior === "auto_draft" ? "Auto" : draft?.timerBehavior === "skip" ? "Skip" : draft ? "Hold" : "--"} detail="Clock behavior" />
                 </div>
               </div>
             </div>
