@@ -509,7 +509,7 @@ export default function LeagueCommandCenter({
               )}
             </div>
 
-            <div className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
+            <div className="mt-5 max-w-5xl rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
               <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <div>
