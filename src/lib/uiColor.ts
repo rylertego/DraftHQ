@@ -1,6 +1,6 @@
 export interface AccentTokens {
   base: string;
-  foreground: string;
+  foreground: "#020617" | "#ffffff";
   hover: string;
   muted: string;
   border: string;
@@ -13,10 +13,15 @@ interface Rgb {
   b: number;
 }
 
-const BLACK: Rgb = { r: 0, g: 0, b: 0 };
+const DARK_INK: Rgb = { r: 2, g: 6, b: 23 };
 const WHITE: Rgb = { r: 255, g: 255, b: 255 };
+const DARK_INK_HEX = "#020617" as const;
+const WHITE_HEX = "#ffffff" as const;
 const DEFAULT_PRODUCT_ACCENT = "#22d3ee";
 const MINIMUM_TEXT_CONTRAST = 4.5;
+const MINIMUM_NON_TEXT_CONTRAST = 3;
+
+type AccentForeground = AccentTokens["foreground"];
 
 function parseHexColor(value: string | null | undefined): Rgb | null {
   if (typeof value !== "string") return null;
@@ -69,23 +74,80 @@ function mixRgb(first: Rgb, second: Rgb, weight: number): Rgb {
   };
 }
 
-function chooseAccessibleBase(base: Rgb): { base: Rgb; foreground: Rgb } {
-  const blackContrast = contrastRatio(toHex(base), "#000000");
-  const whiteContrast = contrastRatio(toHex(base), "#ffffff");
-  const foreground = blackContrast >= whiteContrast ? BLACK : WHITE;
+function foregroundRgb(foreground: AccentForeground): Rgb {
+  return foreground === DARK_INK_HEX ? DARK_INK : WHITE;
+}
 
-  if (Math.max(blackContrast, whiteContrast) >= MINIMUM_TEXT_CONTRAST) {
+function oppositeEndpoint(foreground: AccentForeground): Rgb {
+  return foreground === DARK_INK_HEX ? WHITE : DARK_INK;
+}
+
+function chooseAccessibleBase(base: Rgb): { base: Rgb; foreground: AccentForeground } {
+  const baseHex = toHex(base);
+  const darkContrast = contrastRatio(baseHex, DARK_INK_HEX);
+  const whiteContrast = contrastRatio(baseHex, WHITE_HEX);
+  const foreground = darkContrast >= whiteContrast ? DARK_INK_HEX : WHITE_HEX;
+  const chosenContrast = Math.max(darkContrast, whiteContrast);
+
+  if (chosenContrast >= MINIMUM_TEXT_CONTRAST) {
     return { base, foreground };
   }
 
+  const endpoint = oppositeEndpoint(foreground);
   for (let step = 1; step <= 100; step += 1) {
-    const adjusted = mixRgb(base, foreground, step / 100);
-    if (contrastRatio(toHex(adjusted), toHex(foreground)) >= MINIMUM_TEXT_CONTRAST) {
-      return { base: adjusted, foreground };
+    const candidateHex = toHex(mixRgb(base, endpoint, step / 100));
+    if (contrastRatio(candidateHex, foreground) >= MINIMUM_TEXT_CONTRAST) {
+      return { base: requireHexColor(candidateHex), foreground };
     }
   }
 
-  return { base: foreground, foreground };
+  return { base: endpoint, foreground };
+}
+
+function deriveReadableHover(base: Rgb, foreground: AccentForeground): string {
+  const baseHex = toHex(base);
+  const targets = [foregroundRgb(foreground), oppositeEndpoint(foreground)];
+
+  for (const target of targets) {
+    for (let step = 8; step <= 100; step += 1) {
+      const candidateHex = toHex(mixRgb(base, target, step / 100));
+      if (
+        candidateHex !== baseHex
+        && contrastRatio(candidateHex, foreground) >= MINIMUM_TEXT_CONTRAST
+      ) {
+        return candidateHex;
+      }
+    }
+  }
+
+  return baseHex;
+}
+
+function deriveCanvasVisibleToken(
+  base: Rgb,
+  canvasMix: number,
+  minimumContrast: number,
+): string {
+  const baseHex = toHex(base);
+  const preferredHex = toHex(mixRgb(base, DARK_INK, canvasMix));
+  if (
+    preferredHex !== baseHex
+    && contrastRatio(preferredHex, DARK_INK_HEX) >= minimumContrast
+  ) {
+    return preferredHex;
+  }
+
+  for (let step = 1; step <= 100; step += 1) {
+    const candidateHex = toHex(mixRgb(base, WHITE, step / 100));
+    if (
+      candidateHex !== baseHex
+      && contrastRatio(candidateHex, DARK_INK_HEX) >= minimumContrast
+    ) {
+      return candidateHex;
+    }
+  }
+
+  return WHITE_HEX;
 }
 
 export function contrastRatio(first: string, second: string): number {
@@ -103,15 +165,13 @@ export function deriveAccentTokens(
   const fallbackRgb = parseHexColor(fallback) ?? requireHexColor(DEFAULT_PRODUCT_ACCENT);
   const inputRgb = parseHexColor(input) ?? fallbackRgb;
   const { base, foreground } = chooseAccessibleBase(inputRgb);
-  const foregroundHex = toHex(foreground);
-  const towardForeground = foreground === WHITE ? BLACK : WHITE;
 
   return {
     base: toHex(base),
-    foreground: foregroundHex,
-    hover: toHex(mixRgb(base, towardForeground, 0.12)),
-    muted: toHex(mixRgb(base, foreground, 0.55)),
-    border: toHex(mixRgb(base, foreground, 0.3)),
-    focus: toHex(mixRgb(base, towardForeground, 0.32)),
+    foreground,
+    hover: deriveReadableHover(base, foreground),
+    muted: toHex(mixRgb(base, foregroundRgb(foreground), 0.55)),
+    border: deriveCanvasVisibleToken(base, 0.42, MINIMUM_NON_TEXT_CONTRAST),
+    focus: deriveCanvasVisibleToken(base, 0.18, MINIMUM_TEXT_CONTRAST),
   };
 }
