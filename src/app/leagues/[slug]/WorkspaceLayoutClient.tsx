@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 import LeagueAccessDenied from "@/components/LeagueAccessDenied";
 import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
 import { LeagueWorkspaceContext } from "@/context/LeagueWorkspaceContext";
-import { useLeagueTheme } from "@/context/LeagueThemeContext";
+import { DEFAULT_ACCENT, DEFAULT_BG, useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useEffect } from "react";
 
 function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
@@ -167,8 +167,14 @@ export default function WorkspaceLayoutClient({
     if (league) {
       setAccentColor(league.primaryColor ?? "#14B8A6");
       setBgColor(league.secondaryColor ?? "#0D1F1E");
+      return;
     }
-  }, [league, setAccentColor, setBgColor]);
+
+    if (ctx.failure && !ctx.workspace) {
+      setAccentColor(DEFAULT_ACCENT);
+      setBgColor(DEFAULT_BG);
+    }
+  }, [ctx.failure, ctx.workspace, league, setAccentColor, setBgColor]);
 
   const initials = (league?.name ?? "").slice(0, 2).toUpperCase() || "LG";
 
