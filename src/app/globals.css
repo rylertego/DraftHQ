@@ -12,15 +12,112 @@
 
 /* ── Brand tokens ──────────────────────────────────────────────────────── */
 :root {
-  --background:       #020617;
-  --surface:          #0F172A;
-  --surface-elevated: #1E293B;
-  --border:           #1E293B;
-  --border-strong:    #334155;
-  --primary:          #14B8A6;
-  --primary-dark:     #0D9488;
-  --foreground:       #F8FAFC;
-  --muted:            #94A3B8;
+  --color-canvas: #020617;
+  --color-shell: #0F172A;
+  --color-surface-1: #0F172A;
+  --color-surface-2: #1E293B;
+  --color-surface-3: #334155;
+  --color-border-subtle: #1E293B;
+  --color-border-strong: #334155;
+  --color-text-primary: #F8FAFC;
+  --color-text-secondary: #CBD5E1;
+  --color-text-muted: #94A3B8;
+
+  --color-product-accent: #14B8A6;
+  --color-product-accent-hover: #0D9488;
+  --color-product-accent-muted: #134E4A;
+  --color-product-accent-border: #2DD4BF;
+  --color-product-accent-foreground: #020617;
+  --color-product-focus-ring: #22D3EE;
+
+  --color-league-accent: var(--color-product-accent);
+  --color-league-accent-hover: var(--color-product-accent-hover);
+  --color-league-accent-muted: var(--color-product-accent-muted);
+  --color-league-accent-border: var(--color-product-accent-border);
+  --color-league-accent-foreground: var(--color-product-accent-foreground);
+  --color-focus-ring: var(--color-product-focus-ring);
+
+  --color-success: #16A34A;
+  --color-success-hover: #15803D;
+  --color-success-muted: #14532D;
+  --color-success-border: #4ADE80;
+  --color-success-foreground: #FFFFFF;
+  --color-success-focus-ring: #4ADE80;
+  --color-warning: #D97706;
+  --color-warning-hover: #B45309;
+  --color-warning-muted: #78350F;
+  --color-warning-border: #FBBF24;
+  --color-warning-foreground: #FFFFFF;
+  --color-warning-focus-ring: #FBBF24;
+  --color-danger: #DC2626;
+  --color-danger-hover: #B91C1C;
+  --color-danger-muted: #7F1D1D;
+  --color-danger-border: #F87171;
+  --color-danger-foreground: #FFFFFF;
+  --color-danger-focus-ring: #F87171;
+  --color-info: #0284C7;
+  --color-info-hover: #0369A1;
+  --color-info-muted: #0C4A6E;
+  --color-info-border: #38BDF8;
+  --color-info-foreground: #FFFFFF;
+  --color-info-focus-ring: #38BDF8;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  --font-family-display: var(--font-sora), var(--font-geist-sans), system-ui, sans-serif;
+  --font-family-sans: var(--font-geist-sans), system-ui, sans-serif;
+  --font-size-display: 40px;
+  --line-height-display: 44px;
+  --font-size-page-title: 30px;
+  --line-height-page-title: 36px;
+  --font-size-section-title: 18px;
+  --line-height-section-title: 24px;
+  --font-size-body: 14px;
+  --line-height-body: 21px;
+  --font-size-control: 13px;
+  --line-height-control: 18px;
+  --font-size-caption: 12px;
+  --line-height-caption: 17px;
+
+  --radius-surface: 4px;
+  --radius-control: 4px;
+  --radius-panel: 6px;
+  --radius-overlay: 8px;
+  --control-height-sm: 32px;
+  --control-height-md: 40px;
+  --control-height-touch: 44px;
+  --elevation-overlay: 0 12px 32px rgb(2 6 23 / 0.36);
+  --motion-fast: 150ms;
+  --motion-standard: 200ms;
+  --motion-slow: 300ms;
+  --motion-ease: ease;
+  --density-control-gap: var(--space-2);
+  --density-row-min: 52px;
+
+  /* Legacy aliases preserve every current route-facing computed value. */
+  --background: var(--color-canvas);
+  --surface: var(--color-surface-1);
+  --surface-elevated: var(--color-surface-2);
+  --border: var(--color-border-subtle);
+  --border-strong: var(--color-border-strong);
+  --primary: var(--color-product-accent);
+  --primary-dark: var(--color-product-accent-hover);
+  --foreground: var(--color-text-primary);
+  --muted: var(--color-text-muted);
+  --league-accent: var(--color-league-accent);
+  --league-accent-hover: var(--color-league-accent-hover);
+  --league-accent-muted: var(--color-league-accent-muted);
+  --league-accent-border: var(--color-league-accent-border);
+  --league-accent-foreground: var(--color-league-accent-foreground);
+  --league-focus-ring: var(--color-focus-ring);
 }
 
 @theme inline {
