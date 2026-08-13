@@ -792,11 +792,23 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         </div>
       </header>
 
-      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        {/* Sticky: draft settings is a long page and the way back out should
-            never require scrolling to the top to find. Negative margins let the
-            backdrop span the container's own padding. */}
-        <div className="sticky top-0 z-30 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 bg-slate-950/85 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
+      {/* Sticky toolbar. Draft settings is a long page and the way back out
+          should never require scrolling to the top to find.
+
+          This must be a direct child of the page root, not of the max-w-7xl
+          content wrapper. A sticky element only stays pinned within its own
+          parent's box, and that wrapper is ~450px tall on a ~2600px page, so
+          the button unpinned almost immediately. The root spans the full
+          scroll, so the backdrop goes full-bleed here and the inner div
+          restores the content width.
+
+          top-[113px] stacks it under the global AccountNav header, which is
+          itself `sticky top-0 z-40`. At top-0 this bar pins correctly but sits
+          completely hidden behind that 113px header. The offset is a real
+          coupling to AccountNav's height — if that header is retokenised, this
+          becomes a shared layout variable. */}
+      <div className="sticky top-[113px] z-30 border-b border-slate-800/60 bg-slate-950/85 backdrop-blur">
+        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href={backHref}
             className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-800/90 bg-slate-900/60 px-3 text-sm font-bold text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
@@ -812,6 +824,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             </CommandButton>
           )}
         </div>
+      </div>
+
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
 
         <section className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
           <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_360px] lg:items-center">

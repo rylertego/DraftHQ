@@ -481,10 +481,24 @@ export default function LeagueCommandCenter({
                   </Link>
                 )
               )}
-              {draftScheduled && roomHref && (
-                <Link href={roomHref} className={primaryButtonClass}>
-                  Enter Draft Room
+              {isOwnerView ? (
+                // Owners always get a way forward. A draft merely existing is
+                // enough — the lobby handles pre-draft — and with no draft at
+                // all this points at the team list rather than leaving the hero
+                // with no action, which is the defect this whole view exists to
+                // fix. Requiring draftScheduled here stranded them again.
+                <Link
+                  href={ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref}
+                  className={primaryButtonClass}
+                >
+                  {ownerView.primaryCta.label}
                 </Link>
+              ) : (
+                draftScheduled && roomHref && (
+                  <Link href={roomHref} className={primaryButtonClass}>
+                    Enter Draft Room
+                  </Link>
+                )
               )}
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
