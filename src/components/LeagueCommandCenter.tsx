@@ -150,15 +150,10 @@ function Countdown({
   scheduledAt,
   status,
   accentColor,
-  unscheduledTitle = "Draft Date Not Set",
-  unscheduledDetail = "Owners need a clear start time before draft night. Set the date before inviting everyone into the room.",
 }: {
   scheduledAt: string | null;
   status: DraftStatus;
   accentColor: string;
-  /** Owners can't schedule anything, so they get told what to expect instead. */
-  unscheduledTitle?: string;
-  unscheduledDetail?: string;
 }) {
   const [now, setNow] = useState<number | null>(null);
 
@@ -173,14 +168,7 @@ function Countdown({
     };
   }, []);
 
-  if (!scheduledAt) {
-    return (
-      <div className="py-1">
-        <p className="text-sm font-black text-amber-100">{unscheduledTitle}</p>
-        {unscheduledDetail && <p className="mt-1 text-sm leading-relaxed text-slate-400">{unscheduledDetail}</p>}
-      </div>
-    );
-  }
+  if (!scheduledAt) return null;
 
   if (status === "complete") {
     return (
@@ -445,6 +433,16 @@ export default function LeagueCommandCenter({
             Reset draft
           </button>
         )}
+        {isOwnerView && workspace.myTeam && (
+          <div className="absolute right-5 top-5 z-10 lg:right-6 lg:top-6">
+            <TeamMark
+              src={workspace.myTeam.logoUrl}
+              name={ownerView.teamLabel}
+              className="h-16 w-16"
+              accentColor={primary}
+            />
+          </div>
+        )}
         <div className="relative grid gap-5 p-5 lg:p-6">
           <div className="min-w-0">
             <div className="mb-5 flex items-center gap-3 lg:hidden">
@@ -524,19 +522,15 @@ export default function LeagueCommandCenter({
                   <StatusBadge label={draftLabel} tone={draftTone} />
                 )}
               </div>
-              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-end">
-                <Countdown
-                  scheduledAt={draft?.scheduledAt ?? null}
-                  status={draft?.status ?? null}
-                  accentColor={primary}
-                  unscheduledTitle={draftCreated ? "Draft Date Not Set" : "No draft yet"}
-                  unscheduledDetail={isOwnerView
-                    ? (draftCreated
-                        ? "Your commissioner hasn't locked the start time. The countdown starts here the moment they do."
-                        : "This season's draft hasn't been opened yet. Check back - the countdown lands here first.")
-                    : undefined}
-                />
-                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+              <div className={draft?.scheduledAt ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-end" : "grid gap-3 sm:grid-cols-3"}>
+                {draft?.scheduledAt && (
+                  <Countdown
+                    scheduledAt={draft.scheduledAt}
+                    status={draft.status}
+                    accentColor={primary}
+                  />
+                )}
+                <div className={draft?.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
                   <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
                   <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
                   <MetricTile label="Expiry" value={draft?.timerBehavior === "auto_draft" ? "Auto" : draft?.timerBehavior === "skip" ? "Skip" : draft ? "Hold" : "--"} detail="Clock behavior" />
