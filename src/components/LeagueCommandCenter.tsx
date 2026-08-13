@@ -497,7 +497,7 @@ export default function LeagueCommandCenter({
                   <>
                     <MetricTile label="Draft Status" value={draftLabel} detail={draft.name} tone={draftTone} />
                     <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
-                    <MetricTile label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per pick" />
+                    <MetricTile label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per Pick" />
                     <MetricTile label="League" value={String(workspace.members.length)} detail="Members" />
                   </>
                 ) : (
@@ -537,9 +537,8 @@ export default function LeagueCommandCenter({
                     />
                   )}
                   <div className={draft.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
-                    <MetricTile compact label="Rounds" value={String(draft.rounds)} detail="Draft length" />
-                    <MetricTile compact label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per pick" />
-                    <MetricTile compact label="Expiry" value={draft.timerBehavior === "auto_draft" ? "Auto" : draft.timerBehavior === "skip" ? "Skip" : "Hold"} detail="Clock behavior" />
+                    <MetricTile compact label="Rounds" value={String(draft.rounds)} detail="Draft Length" />
+                    <MetricTile compact label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per Pick" />
                   </div>
                 </div>
               </div>
