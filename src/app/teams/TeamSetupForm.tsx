@@ -793,7 +793,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       </header>
 
       <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+        {/* Sticky: draft settings is a long page and the way back out should
+            never require scrolling to the top to find. Negative margins let the
+            backdrop span the container's own padding. */}
+        <div className="sticky top-0 z-30 -mx-4 mb-4 flex flex-wrap items-center justify-between gap-3 border-b border-slate-800/60 bg-slate-950/85 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8">
           <Link
             href={backHref}
             className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-800/90 bg-slate-900/60 px-3 text-sm font-bold text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
