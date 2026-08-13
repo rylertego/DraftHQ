@@ -435,10 +435,7 @@ export default function LeagueCommandCenter({
   const topStandings = lastCompletedSeason?.standings.slice(0, 5) ?? [];
   const recentMembers = [...workspace.members]
     .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
-    .slice(0, 5);
-  // The identity panel is the one place the whole league is on screen at once,
-  // so it shows every team rather than a truncated sample.
-  const recentTeams = activeTeams;
+    .slice(0, 3);
 
   const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
@@ -618,21 +615,8 @@ export default function LeagueCommandCenter({
         )}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <div className={`grid gap-5 ${isOwnerView ? "" : "lg:grid-cols-2"}`}>
-          {!isOwnerView && (
-            <SectionPanel
-              title="Draft Readiness"
-              eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
-              action={<StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />}
-            >
-              <div className="space-y-1">
-                {readinessItems.map((item) => (
-                  <ReadinessItem key={item.label} {...item} />
-                ))}
-              </div>
-            </SectionPanel>
-          )}
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(280px,0.75fr)]">
+        <div className="grid gap-5">
 
           <SectionPanel title="Draft Countdown" eyebrow="Next event">
             <div className="space-y-4">
@@ -661,75 +645,7 @@ export default function LeagueCommandCenter({
           </SectionPanel>
         </div>
 
-        <SectionPanel
-          title="League Identity"
-          eyebrow="Franchise snapshot"
-          action={<span className="text-xs font-semibold text-slate-500">{workspace.members.length} members</span>}
-        >
-          {recentTeams.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {recentTeams.map((team) => (
-                  <TeamMark key={team.id} src={team.logoUrl} name={team.name} accentColor={primary} />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MetricTile label="Active Teams" value={teamsLoading ? "--" : String(activeTeams.length)} detail={`${expectedTeams} expected`} />
-                <MetricTile label="Assigned" value={teamsLoading ? "--" : String(assignedOwners)} detail="Owner seats" />
-              </div>
-              {workspace.canManage && (
-                <Link
-                  href={`/leagues/${slug}/teams`}
-                  className="inline-flex rounded-xl border border-slate-700 bg-slate-950/45 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
-                >
-                  Review teams
-                </Link>
-              )}
-            </div>
-          ) : (
-            <EmptyState
-              title="No teams loaded yet"
-              detail="Franchise cards will appear here once teams are added to this league."
-              action={workspace.canManage ? (
-                <Link href={`/leagues/${slug}/teams`} className="text-sm font-bold" style={{ color: primary }}>
-                  Add teams
-                </Link>
-              ) : undefined}
-            />
-          )}
-        </SectionPanel>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)_minmax(280px,0.7fr)]">
-        <SectionPanel title="League Activity" eyebrow="Recent updates">
-          {recentMembers.length === 0 ? (
-            <EmptyState title="No activity yet" detail="Member activity will appear as owners join and league history is imported." />
-          ) : (
-            <div className="space-y-3">
-              {recentMembers.map((member) => (
-                <div key={member.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2.5">
-                  {member.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={member.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-black text-slate-400">
-                      {(member.nickname || member.displayName).slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-100">
-                      {member.nickname || member.displayName}
-                      <span className="font-normal text-slate-500"> joined the league</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDate(member.joinedAt)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionPanel>
-
-        <SectionPanel title="Last Season Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
+        <SectionPanel title="League Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
           {lastCompletedSeason ? (
             <div className="overflow-hidden rounded-xl border border-slate-800">
               {topStandings.map((standing) => (
@@ -760,7 +676,7 @@ export default function LeagueCommandCenter({
           )}
         </SectionPanel>
 
-        <SectionPanel title="Champion" eyebrow="League history">
+        <SectionPanel title="Last Year's Champion" eyebrow="League history">
           {champion && lastCompletedSeason ? (
             <div className="flex flex-col items-center text-center">
               <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-28 w-28" accentColor={primary} />
@@ -774,6 +690,50 @@ export default function LeagueCommandCenter({
             </div>
           ) : (
             <EmptyState title="No champion yet" detail="The champion spotlight will unlock after a completed season is connected." />
+          )}
+        </SectionPanel>
+      </div>
+
+      <div className={`grid gap-5 ${isOwnerView ? "xl:grid-cols-[minmax(280px,0.45fr)]" : "xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]"}`}>
+        {!isOwnerView && (
+          <SectionPanel
+            title="Draft Readiness"
+            eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
+            action={<StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />}
+          >
+            <div className="space-y-1">
+              {readinessItems.map((item) => (
+                <ReadinessItem key={item.label} {...item} />
+              ))}
+            </div>
+          </SectionPanel>
+        )}
+
+        <SectionPanel title="League Activity" eyebrow="Recent updates" className={isOwnerView ? "xl:max-w-md" : ""}>
+          {recentMembers.length === 0 ? (
+            <EmptyState title="No activity yet" detail="Member activity will appear as owners join and league history is imported." />
+          ) : (
+            <div className="space-y-2">
+              {recentMembers.map((member) => (
+                <div key={member.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2">
+                  {member.avatarUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={member.avatarUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
+                  ) : (
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-black text-slate-400">
+                      {(member.nickname || member.displayName).slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-semibold text-slate-100">
+                      {member.nickname || member.displayName}
+                      <span className="font-normal text-slate-500"> joined</span>
+                    </p>
+                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDate(member.joinedAt)}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
           )}
         </SectionPanel>
       </div>
