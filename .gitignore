@@ -30,6 +30,7 @@
 # local agent artifacts
 .claude/settings.local.json
 .codex-screenshots/
+.worktrees/
 
 # debug
 npm-debug.log*
