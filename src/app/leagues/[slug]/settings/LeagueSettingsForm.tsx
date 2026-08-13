@@ -464,40 +464,22 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       {toast && <Toast msg={toast.msg} type={toast.type} onDismiss={() => setToast(null)} />}
 
       <section className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-        <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_260px] lg:items-center">
+        <div className="relative px-6 py-6">
           <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primaryColor }} />
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League Command Center</p>
-              <CommandStatusBadge label={canManage ? "Commissioner Access" : "Read Only"} tone={canManage ? "complete" : "neutral"} />
-            </div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League Command Center</p>
             <h1 className="mt-3 text-3xl font-black text-white sm:text-4xl">League Settings</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
               Manage league identity, access, and connected history sources from one commissioner workspace.
             </p>
           </div>
-
-          <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Settings Status</p>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-lg font-black text-white tabular-nums">{teamCount}</p>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Teams</p>
-              </div>
-              <div>
-                <p className="text-lg font-black text-white tabular-nums">{connectedProvider}</p>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">History</p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div className="border-t border-slate-800/80 px-3 py-3 sm:px-5">
-          <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="League settings sections">
+        <div className="border-t border-slate-800/80 px-6">
+          <div className="flex gap-6" role="tablist" aria-label="League settings sections">
             {(["general", "members", "integrations"] as const).map((t) => {
               const active = tab === t;
               const label = t === "general" ? "General" : t === "members" ? "Members" : "Integrations";
-              const detail = t === "general" ? "Identity" : t === "members" ? "Access" : "History";
               return (
                 <button
                   key={t}
@@ -505,13 +487,17 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setTab(t)}
-                  className={`min-h-11 min-w-0 rounded-xl border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 sm:px-4 ${
-                    active ? "border-blue-400/40 bg-blue-500/12 text-white" : "border-slate-800 bg-slate-950/25 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                  className={`relative py-4 text-sm font-black transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 ${
+                    active ? "text-white" : "text-slate-500 hover:text-slate-200"
                   }`}
-                  style={active ? { borderColor: primaryColor + "66", backgroundColor: primaryColor + "16" } : undefined}
                 >
-                  <span className="block text-sm font-black">{label}</span>
-                  <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{detail}</span>
+                  {label}
+                  {active && (
+                    <span
+                      className="absolute inset-x-0 bottom-0 h-0.5 rounded-full"
+                      style={{ backgroundColor: primaryColor }}
+                    />
+                  )}
                 </button>
               );
             })}
