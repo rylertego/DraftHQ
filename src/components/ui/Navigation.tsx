@@ -8,9 +8,9 @@ import {
   useLayoutEffect,
   useRef,
   useState,
+  type ComponentType,
   type CSSProperties,
   type KeyboardEvent,
-  type ReactElement,
   type ReactNode,
   type RefObject,
   type SVGProps,
@@ -111,7 +111,7 @@ export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
 }
 
 type Placement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
-type TriggerIcon = ReactElement<SVGProps<SVGSVGElement>>;
+type TriggerIcon = ComponentType<SVGProps<SVGSVGElement>>;
 type TriggerVisual =
   | { triggerText: string; triggerIcon?: TriggerIcon }
   | { triggerText?: never; triggerIcon: TriggerIcon };
@@ -145,6 +145,8 @@ function PrimitiveTrigger({
   anchorRef,
   ...events
 }: PrimitiveTriggerProps) {
+  const Icon = triggerIcon;
+
   return (
     <button
       ref={anchorRef}
@@ -157,7 +159,7 @@ function PrimitiveTrigger({
       aria-describedby={describedBy}
       {...events}
     >
-      {triggerIcon ? <span className="ui-overlay-trigger__icon" aria-hidden="true">{triggerIcon}</span> : null}
+      {Icon ? <span className="ui-overlay-trigger__icon" aria-hidden="true"><Icon focusable="false" /></span> : null}
       {triggerText ? <span>{triggerText}</span> : null}
     </button>
   );

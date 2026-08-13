@@ -61,9 +61,17 @@ interface FieldBaseProps {
 
 type FieldFeedback =
   | { state?: "idle"; stateMessage?: never }
-  | { state: ActiveFieldState; stateMessage: ReactNode };
+  | { state: ActiveFieldState; stateMessage: string };
 
 export type FieldProps = FieldBaseProps & FieldFeedback;
+
+function validateStateMessage(state: FieldProps["state"], stateMessage: string | undefined) {
+  if (state === undefined || state === "idle") return undefined;
+  if (!stateMessage?.trim()) {
+    throw new Error("Field stateMessage must contain non-empty text");
+  }
+  return stateMessage;
+}
 
 export function Field({
   children,
@@ -75,6 +83,7 @@ export function Field({
   state = "idle",
   stateMessage,
 }: FieldProps) {
+  const validatedStateMessage = validateStateMessage(state, stateMessage);
   const generatedId = useId();
   const id = controlId ?? generatedId;
   const descriptionId = description ? `${id}-description` : undefined;
@@ -116,7 +125,7 @@ export function Field({
           role={state === "error" ? "alert" : "status"}
           aria-live={state === "error" ? "assertive" : "polite"}
         >
-          {stateMessage}
+          {validatedStateMessage}
         </span>
       ) : null}
     </div>

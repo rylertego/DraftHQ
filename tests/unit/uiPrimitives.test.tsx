@@ -20,13 +20,19 @@ import {
 
 // @ts-expect-error A non-idle Field state must always include explicit text.
 const invalidFieldProps: FieldProps = { children: "control", label: "Name", state: "saving" };
+// @ts-expect-error Active Field status messages must be textual, not arbitrary renderable content.
+const invalidFieldNodeProps: FieldProps = { children: "control", label: "Name", state: "saved", stateMessage: <span>Saved</span> };
 // @ts-expect-error Protected form controls do not expose raw native dimensions.
 const invalidInputProps: InputProps = { width: 200, height: 40 };
 // @ts-expect-error Overlay triggers are bounded text/icon content, not arbitrary interactive nodes.
 const invalidMenuProps: MenuProps = { label: "Actions", trigger: <button>Nested</button>, items: [] };
+// @ts-expect-error Trigger icons are component types instantiated by the primitive, not arbitrary elements.
+const invalidMenuIconProps: MenuProps = { label: "Actions", triggerIcon: <button>Nested</button>, items: [] };
 void invalidFieldProps;
+void invalidFieldNodeProps;
 void invalidInputProps;
 void invalidMenuProps;
+void invalidMenuIconProps;
 
 describe("shared UI primitive contracts", () => {
   it("associates field help and errors with its control", () => {
@@ -94,6 +100,14 @@ describe("shared UI primitive contracts", () => {
     expect(html).toContain('aria-invalid="grammar"');
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain("Saving league name");
+  });
+
+  it("rejects blank active Field status text", () => {
+    expect(() => renderToStaticMarkup(
+      <Field label="League name" state="saving" stateMessage="   ">
+        <Input />
+      </Field>,
+    )).toThrow("Field stateMessage must contain non-empty text");
   });
 
   it("renders one bounded trigger control without implicit nesting", () => {
