@@ -1,10 +1,11 @@
 import type {
   ButtonHTMLAttributes,
+  ComponentPropsWithoutRef,
   FormHTMLAttributes,
   HTMLAttributes,
   ReactNode,
 } from "react";
-import type { LinkProps } from "next/link";
+import type Link from "next/link";
 
 export type ContentWidth = "readable" | "workspace" | "full";
 export type PageExpression = "operations" | "draft-night";
@@ -13,15 +14,19 @@ export type ActionScope = "product" | "league";
 
 export interface BaseUiProps {
   children: ReactNode;
-  className?: string;
 }
 
-export interface PageShellProps extends Omit<HTMLAttributes<HTMLDivElement>, "children">, BaseUiProps {
+type ProtectedHtmlAttributes<T, Omitted extends keyof HTMLAttributes<T> = never> = Omit<
+  HTMLAttributes<T>,
+  "children" | "className" | "color" | "style" | Omitted
+>;
+
+export interface PageShellProps extends ProtectedHtmlAttributes<HTMLDivElement>, BaseUiProps {
   width?: ContentWidth;
   expression?: PageExpression;
 }
 
-export interface PageHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "title"> {
+export interface PageHeaderProps extends ProtectedHtmlAttributes<HTMLElement, "title"> {
   title: ReactNode;
   eyebrow?: ReactNode;
   description?: ReactNode;
@@ -31,37 +36,39 @@ export interface PageHeaderProps extends Omit<HTMLAttributes<HTMLElement>, "titl
   divider?: boolean;
 }
 
-export interface SectionProps extends Omit<HTMLAttributes<HTMLElement>, "children" | "title">, BaseUiProps {
+export interface SectionProps extends ProtectedHtmlAttributes<HTMLElement, "title">, BaseUiProps {
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   divider?: boolean;
 }
 
-export interface PanelProps extends Omit<HTMLAttributes<HTMLElement>, "children" | "title">, BaseUiProps {
+export interface PanelProps extends ProtectedHtmlAttributes<HTMLElement, "title">, BaseUiProps {
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
   footer?: ReactNode;
 }
 
-export interface DataSurfaceProps extends Omit<HTMLAttributes<HTMLDivElement>, "children">, BaseUiProps {
-  label?: string;
+export interface DataSurfaceProps
+  extends ProtectedHtmlAttributes<HTMLDivElement, "aria-label" | "role">,
+    BaseUiProps {
+  label: string;
 }
 
 export interface FormLayoutProps
-  extends Omit<FormHTMLAttributes<HTMLFormElement>, "children" | "className">,
+  extends Omit<FormHTMLAttributes<HTMLFormElement>, "children" | "className" | "color" | "style">,
     BaseUiProps {
   actions?: ReactNode;
 }
 
-export interface SettingsShellProps extends Omit<HTMLAttributes<HTMLDivElement>, "children">, BaseUiProps {
+export interface SettingsShellProps extends ProtectedHtmlAttributes<HTMLDivElement>, BaseUiProps {
   header?: ReactNode;
   tabs?: ReactNode;
   toolbar?: ReactNode;
 }
 
-export interface WorkspaceToolbarProps extends Omit<HTMLAttributes<HTMLDivElement>, "children">, BaseUiProps {
+export interface WorkspaceToolbarProps extends ProtectedHtmlAttributes<HTMLDivElement, "role">, BaseUiProps {
   label?: string;
 }
 
@@ -70,21 +77,19 @@ export interface ActionProps {
   scope?: ActionScope;
   loading?: boolean;
   fullWidth?: boolean;
-  className?: string;
 }
 
 export interface ButtonProps
-  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className">,
+  extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "children" | "className" | "color" | "style">,
     ActionProps {
   children: ReactNode;
 }
 
 export interface LinkButtonProps
-  extends Omit<LinkProps, "children" | "className">,
+  extends Omit<ComponentPropsWithoutRef<typeof Link>, "children" | "className" | "color" | "style">,
     ActionProps {
   children: ReactNode;
   disabled?: boolean;
-  onClick?: ButtonHTMLAttributes<HTMLAnchorElement>["onClick"];
 }
 
 export interface IconButtonProps extends Omit<ButtonProps, "children" | "aria-label"> {

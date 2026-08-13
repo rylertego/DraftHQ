@@ -74,7 +74,6 @@ export function PageShell({
   width = "workspace",
   expression = "operations",
   children,
-  className,
   ...props
 }: PageShellProps) {
   const expressionClass = expression === "draft-night" ? "max-w-none" : contentWidths[width];
@@ -82,7 +81,7 @@ export function PageShell({
   return (
     <div
       {...props}
-      className={joinClassNames("mx-auto w-full px-[var(--space-4)] py-[var(--space-6)] sm:px-[var(--space-6)]", expressionClass, className)}
+      className={joinClassNames("mx-auto w-full px-[var(--space-4)] py-[var(--space-6)] sm:px-[var(--space-6)]", expressionClass)}
     >
       {children}
     </div>
@@ -97,7 +96,6 @@ export function PageHeader({
   status,
   actions,
   divider = false,
-  className,
   ...props
 }: PageHeaderProps) {
   return (
@@ -106,7 +104,6 @@ export function PageHeader({
       className={joinClassNames(
         "flex flex-col gap-[var(--space-4)] pb-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between",
         divider && "border-b border-[color:var(--color-border-subtle)]",
-        className,
       )}
     >
       <div className="min-w-0">
@@ -148,7 +145,6 @@ export function Section({
   actions,
   divider = false,
   children,
-  className,
   ...props
 }: SectionProps) {
   const hasHeading = Boolean(title || description || actions);
@@ -156,7 +152,7 @@ export function Section({
   return (
     <section
       {...props}
-      className={joinClassNames(divider && "border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]", className)}
+      className={joinClassNames(divider && "border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]")}
     >
       <SectionHeading title={title} description={description} actions={actions} />
       <div className={joinClassNames(hasHeading && "mt-[var(--space-4)]")}>{children}</div>
@@ -170,7 +166,6 @@ export function Panel({
   actions,
   footer,
   children,
-  className,
   ...props
 }: PanelProps) {
   const hasHeader = Boolean(title || description || actions);
@@ -181,7 +176,6 @@ export function Panel({
       className={joinClassNames(
         "overflow-hidden border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)]",
         "rounded-[var(--radius-panel)]",
-        className,
       )}
     >
       {hasHeader ? (
@@ -195,17 +189,15 @@ export function Panel({
   );
 }
 
-export function DataSurface({ children, label, className, ...props }: DataSurfaceProps) {
-  const ariaLabel = label ?? props["aria-label"];
-
+export function DataSurface({ children, label, ...props }: DataSurfaceProps) {
   return (
     <div
       {...props}
-      aria-label={ariaLabel}
+      role="region"
+      aria-label={label}
       className={joinClassNames(
         "overflow-x-auto border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)]",
         "rounded-[var(--radius-surface)]",
-        className,
       )}
     >
       {children}
@@ -213,9 +205,9 @@ export function DataSurface({ children, label, className, ...props }: DataSurfac
   );
 }
 
-export function FormLayout({ children, actions, className, ...props }: FormLayoutProps) {
+export function FormLayout({ children, actions, ...props }: FormLayoutProps) {
   return (
-    <form {...props} className={joinClassNames("flex w-full max-w-[720px] flex-col gap-[var(--space-4)]", className)}>
+    <form {...props} className="flex w-full max-w-[720px] flex-col gap-[var(--space-4)]">
       {children}
       {actions ? <div className="flex flex-wrap items-center gap-[var(--density-control-gap)] pt-[var(--space-2)]">{actions}</div> : null}
     </form>
@@ -227,11 +219,10 @@ export function SettingsShell({
   tabs,
   toolbar,
   children,
-  className,
   ...props
 }: SettingsShellProps) {
   return (
-    <div {...props} className={joinClassNames("flex min-w-0 flex-col gap-[var(--space-6)]", className)}>
+    <div {...props} className="flex min-w-0 flex-col gap-[var(--space-6)]">
       {header}
       {tabs ? <div className="border-b border-[color:var(--color-border-subtle)]">{tabs}</div> : null}
       {toolbar}
@@ -240,7 +231,7 @@ export function SettingsShell({
   );
 }
 
-export function WorkspaceToolbar({ children, label = "Workspace controls", className, ...props }: WorkspaceToolbarProps) {
+export function WorkspaceToolbar({ children, label = "Workspace controls", ...props }: WorkspaceToolbarProps) {
   return (
     <div
       {...props}
@@ -248,7 +239,6 @@ export function WorkspaceToolbar({ children, label = "Workspace controls", class
       aria-label={label}
       className={joinClassNames(
         "flex flex-wrap items-center justify-between gap-[var(--density-control-gap)] border-y border-[color:var(--color-border-subtle)] py-[var(--space-2)]",
-        className,
       )}
     >
       {children}

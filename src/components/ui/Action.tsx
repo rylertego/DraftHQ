@@ -10,7 +10,6 @@ function actionClasses({
   variant = "primary",
   scope = "product",
   fullWidth = false,
-  className,
 }: ActionProps) {
   const base = [
     "inline-flex h-[var(--control-height-touch)] items-center justify-center gap-[var(--space-2)] px-[var(--space-3)]",
@@ -32,10 +31,10 @@ function actionClasses({
           ? "text-[color:var(--color-text-secondary)] hover:bg-[var(--color-surface-2)] hover:text-[color:var(--color-text-primary)]"
           : "bg-[var(--color-danger)] text-[var(--color-danger-foreground)] hover:bg-[var(--color-danger-hover)] focus-visible:ring-[var(--color-danger-focus-ring)]";
 
-  return joinClassNames(base.join(" "), variantClass, fullWidth && "w-full", className);
+  return joinClassNames(base.join(" "), variantClass, fullWidth && "w-full");
 }
 
-export function Button({
+function ActionButton({
   variant = "primary",
   scope = "product",
   loading = false,
@@ -43,21 +42,28 @@ export function Button({
   disabled,
   type = "button",
   children,
-  className,
+  iconOnly = false,
   ...props
-}: ButtonProps) {
+}: ButtonProps & { iconOnly?: boolean }) {
   return (
     <button
       {...props}
       type={type}
       disabled={disabled || loading}
       aria-busy={loading || undefined}
-      className={actionClasses({ variant, scope, fullWidth, className })}
+      className={joinClassNames(
+        actionClasses({ variant, scope, fullWidth }),
+        iconOnly && "w-[var(--control-height-touch)] shrink-0 px-0 sm:w-[var(--control-height-md)]",
+      )}
     >
       {loading ? <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : null}
       {children}
     </button>
   );
+}
+
+export function Button(props: ButtonProps) {
+  return <ActionButton {...props} />;
 }
 
 export function LinkButton({
@@ -67,7 +73,6 @@ export function LinkButton({
   fullWidth = false,
   disabled = false,
   children,
-  className,
   onClick,
   ...props
 }: LinkButtonProps) {
@@ -87,7 +92,7 @@ export function LinkButton({
       aria-disabled={disabled || loading || undefined}
       tabIndex={disabled || loading ? -1 : undefined}
       onClick={handleClick}
-      className={actionClasses({ variant, scope, fullWidth, className })}
+      className={actionClasses({ variant, scope, fullWidth })}
     >
       {loading ? <span aria-hidden="true" className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-current border-t-transparent" /> : null}
       {children}
@@ -95,16 +100,16 @@ export function LinkButton({
   );
 }
 
-export function IconButton({ label, children, className, title, ...props }: IconButtonProps) {
+export function IconButton({ label, children, title, ...props }: IconButtonProps) {
   return (
-    <Button
+    <ActionButton
       {...props}
       aria-label={label}
       title={title ?? label}
-      className={joinClassNames("w-[var(--control-height-touch)] shrink-0 px-0 sm:w-[var(--control-height-md)]", className)}
+      iconOnly
     >
       {children}
-    </Button>
+    </ActionButton>
   );
 }
 
