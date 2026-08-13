@@ -227,12 +227,23 @@ function blend(factors: FactorScore[]): number {
 
 // ── Factor: draft value ─────────────────────────────────────────────────────
 
-/** Positions whose overall ranking says nothing about when they get drafted.
+/** Positions with no meaningful draft market at all.
+ *
  * Every league takes a kicker and a defense in the last rounds, but consensus
  * boards rank them below every rosterable skill player — so measuring them
  * against overall rank reports a 150-pick "reach" for completely normal
- * behaviour. Real ADP handles them fine; overall rank does not. */
-const NO_RANK_MARKET = new Set(["K", "DST"]);
+ * behaviour.
+ *
+ * This used to say "Real ADP handles them fine". It does not. ESPN's ADP is
+ * drawn from a draft population that takes them far earlier than any 15-round
+ * league does — the best kicker on the 2026 board carries an ADP of 84 while
+ * every real team drafts one around pick 131. Graded against that, a routine
+ * round-14 kicker reads as a 47-pick steal and grades A, ahead of taking
+ * Ja'Marr Chase first overall. Neither basis is a market; skip value entirely. */
+const NO_MARKET_POSITIONS = new Set(["K", "DST"]);
+
+/** How hard to pull a zero-leverage pick back toward neutral. */
+const LOW_LEVERAGE_COMPRESSION = 0.3;
 
 function gradeValue(
   overallPick: number,
@@ -248,12 +259,12 @@ function gradeValue(
       delta: null,
     };
   }
-  if (market?.adp == null && NO_RANK_MARKET.has(position)) {
+  if (NO_MARKET_POSITIONS.has(position)) {
     return {
       factor: {
         score: null,
         weight: 0.4,
-        note: `Consensus rank is not a meaningful draft market for ${position}; graded on the other factors.`,
+        note: `Neither ADP nor consensus rank is a meaningful draft market for ${position}; graded on the other factors.`,
       },
       basis: "none",
       delta: null,
@@ -648,7 +659,24 @@ export function gradeDraft(input: GradingInput): DraftGradeReport {
       quality,
       construction: construction.factor,
     };
-    const raw = blend(Object.values(factors));
+    let raw = blend(Object.values(factors));
+
+    // A kicker or defense taken in the last two rounds is a near-zero-leverage
+    // decision: every team makes it, and "best kicker still on the board" is
+    // not a skill. Every remaining factor is degenerate for them — quality is
+    // measured within position so the top kicker scores ~96 by construction,
+    // and the slot always reads as an unfilled need by then. Left alone these
+    // picks sweep the top of the board. Compress toward neutral so they grade
+    // as what they are: fine, and unremarkable.
+    //
+    // Deliberately does not apply to K/DST taken early — those keep their full
+    // construction penalty rather than being rescued by compression.
+    const isLateObligation =
+      NO_MARKET_POSITIONS.has(pick.playerPosition) && pick.round >= rounds - 1;
+    if (isLateObligation) {
+      raw = 50 + (raw - 50) * LOW_LEVERAGE_COMPRESSION;
+    }
+
     const score = Math.round(calibrate(raw));
 
     const partial = {

@@ -222,6 +222,58 @@ describe("gradeDraft", () => {
     expect(rankOnly.marketBasis).toBe("rank");
   });
 
+  it("treats ADP as no market at all for kickers and defenses", () => {
+    // ESPN's kicker ADP comes from a draft population that takes them far
+    // earlier than any real 15-round league. Grading against it turned a
+    // routine last-round kicker into a 47-pick "steal".
+    const k = gradeDraft(input({
+      picks: [pick(8, "t1", "k1", "K", 4)],
+      players: [...players, player("k1", "K")],
+      market: new Map([["k1", { rank: 251, adp: 84, projectedPoints: null }]]),
+    })).picksByOverall.get(8)!;
+    expect(k.marketBasis).toBe("none");
+    expect(k.valueDelta).toBeNull();
+    expect(k.factors.value.score).toBeNull();
+  });
+
+  it("keeps a routine last-round kicker off the top of the board", () => {
+    const picks = [
+      pick(1, "t1", "a", "RB", 1),   // genuine first-round talent
+      pick(8, "t2", "k1", "K", 4),   // end-of-draft obligation
+    ];
+    const report = gradeDraft(input({
+      picks,
+      players: [...players, player("k1", "K")],
+      market: new Map([
+        ["a", { rank: 1, adp: 1, projectedPoints: null }],
+        ["k1", { rank: 251, adp: 84, projectedPoints: null }],
+      ]),
+    }));
+    const rb = report.picksByOverall.get(1)!;
+    const kicker = report.picksByOverall.get(8)!;
+    expect(kicker.score).toBeLessThan(rb.score);
+    // Compressed toward neutral rather than punished — it is a fine pick.
+    expect(kicker.score).toBeGreaterThan(65);
+    expect(kicker.score).toBeLessThan(88);
+  });
+
+  it("still penalises a kicker taken early rather than compressing it", () => {
+    const early = gradeDraft(input({
+      picks: [pick(1, "t1", "k1", "K", 1)],
+      players: [...players, player("k1", "K")],
+      market: new Map([["k1", { rank: 251, adp: 84, projectedPoints: null }]]),
+      rounds: 8,
+    })).picksByOverall.get(1)!;
+    const late = gradeDraft(input({
+      picks: [pick(1, "t1", "k1", "K", 8)],
+      players: [...players, player("k1", "K")],
+      market: new Map([["k1", { rank: 251, adp: 84, projectedPoints: null }]]),
+      rounds: 8,
+    })).picksByOverall.get(1)!;
+    expect(early.score).toBeLessThan(late.score);
+    expect(early.concerns.join(" ")).toMatch(/earlier than necessary/i);
+  });
+
   it("does not zero a pick when market data is missing", () => {
     const report = gradeDraft(input({ picks: [pick(1, "t1", "a", "RB", 1)], market: market([]) }));
     const graded = report.picksByOverall.get(1)!;
