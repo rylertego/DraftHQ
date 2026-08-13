@@ -21,14 +21,6 @@ function formatDraftDate(value: string) {
   });
 }
 
-function formatShortDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function formatPickClock(seconds: number) {
   if (seconds === 0) return "Off";
   const minutes = Math.floor(seconds / 60);
@@ -393,9 +385,6 @@ export default function LeagueCommandCenter({
     ? leagueStandings.reduce((worst, standing) => standing.finalRank > worst.finalRank ? standing : worst, leagueStandings[0])
     : null;
   const previousLeagueYear = currentSeason?.year ? currentSeason.year - 1 : lastCompletedSeason?.year;
-  const recentMembers = [...workspace.members]
-    .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
-    .slice(0, 3);
 
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
   const teamSetupHref = `/leagues/${slug}/teams`;
@@ -645,8 +634,8 @@ export default function LeagueCommandCenter({
         </div>
       </div>
 
-      <div className={`grid gap-5 ${isOwnerView ? "xl:grid-cols-[minmax(280px,0.45fr)]" : "xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]"}`}>
-        {!isOwnerView && (
+      {!isOwnerView && (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)]">
           <SectionPanel
             title="Draft Readiness"
             eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
@@ -658,36 +647,8 @@ export default function LeagueCommandCenter({
               ))}
             </div>
           </SectionPanel>
-        )}
-
-        <SectionPanel title="League Activity" eyebrow="Recent updates" className={isOwnerView ? "xl:max-w-md" : ""}>
-          {recentMembers.length === 0 ? (
-            <EmptyState title="No activity yet" detail="Member activity will appear as owners join and league history is imported." />
-          ) : (
-            <div className="space-y-2">
-              {recentMembers.map((member) => (
-                <div key={member.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2">
-                  {member.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={member.avatarUrl} alt="" className="h-8 w-8 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-800 text-[10px] font-black text-slate-400">
-                      {(member.nickname || member.displayName).slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-100">
-                      {member.nickname || member.displayName}
-                      <span className="font-normal text-slate-500"> joined</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDate(member.joinedAt)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionPanel>
-      </div>
+        </div>
+      )}
     </div>
   );
 }
