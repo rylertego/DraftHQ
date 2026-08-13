@@ -1,10 +1,10 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Pick, Team } from "@/types/draft";
 import DraftHQLogo from "@/components/DraftHQLogo";
 
-type BoardView = "draft" | "players" | "roster" | "rounds";
+type BoardView = "draft" | "players" | "roster" | "rounds" | "grades";
 
 interface DraftTickerProps {
   draftName: string;
@@ -24,8 +24,14 @@ interface DraftTickerProps {
   enabledPositions?: string[];
 }
 
-const SPEEDS = [120, 80, 50, 30, 18];
+// Scroll speed in pixels per second, not seconds per lap. The ticker's content
+// grows with every pick, so a fixed lap time would silently accelerate the
+// scroll all draft long. Holding px/sec constant keeps the reading pace the
+// commissioner picked, however many picks are on the board.
+const SPEEDS_PX_PER_SEC = [17, 25, 40, 67, 111];
 const DEFAULT_SPEED_INDEX = 2;
+/** Used until the track has been measured, so the animation never runs at 0s. */
+const FALLBACK_DURATION_S = 50;
 
 const BOARD_BUTTONS: { label: string; value: BoardView }[] = [
   { label: "Draft Board", value: "draft" },
@@ -62,12 +68,29 @@ export default function DraftTicker({
 
   const teamMap = new Map(teams.map((t) => [t.id, t.name]));
   const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
-  const duration = SPEEDS[speedIndex];
+
+  // One loop travels the width of a single content copy. Measuring it lets the
+  // duration scale with the content so the speed itself stays put. The observer
+  // also fires when picks widen the track, so no manual re-measure is needed.
+  const contentRef = useRef<HTMLSpanElement>(null);
+  const [contentWidth, setContentWidth] = useState(0);
+  useEffect(() => {
+    const el = contentRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setContentWidth(el.offsetWidth));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
+  const duration =
+    contentWidth > 0
+      ? contentWidth / SPEEDS_PX_PER_SEC[speedIndex]
+      : FALLBACK_DURATION_S;
 
   // Build rich JSX ticker segments (rendered twice for seamless loop)
-  function renderTickerContent(key: string) {
+  function renderTickerContent(key: string, ref?: React.Ref<HTMLSpanElement>) {
     return (
-      <span key={key} className="flex items-center">
+      <span key={key} ref={ref} className="flex items-center">
         {/* League intro */}
         <span className="flex items-center gap-3 px-10">
           <img src="/branding/logo-Photoroom.png" alt="DraftHQ" className="h-7 w-auto" />
@@ -146,7 +169,7 @@ export default function DraftTicker({
             style={{ animation: `ticker ${duration}s linear infinite`, willChange: "transform" }}
             aria-live="off"
           >
-            {renderTickerContent("a")}
+            {renderTickerContent("a", contentRef)}
             {renderTickerContent("b")}
           </div>
         </div>
@@ -206,9 +229,9 @@ export default function DraftTicker({
       {mode === "ticker" && (
         <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-l border-white/8 px-3">
           <button type="button" title="Speed up"
-            disabled={speedIndex >= SPEEDS.length - 1}
+            disabled={speedIndex >= SPEEDS_PX_PER_SEC.length - 1}
             className="flex h-5 w-6 items-center justify-center text-slate-600 hover:text-slate-300 disabled:opacity-20 transition-colors"
-            onClick={() => setSpeedIndex((i) => Math.min(i + 1, SPEEDS.length - 1))}>
+            onClick={() => setSpeedIndex((i) => Math.min(i + 1, SPEEDS_PX_PER_SEC.length - 1))}>
             <svg viewBox="0 0 10 6" fill="currentColor" className="h-2.5 w-3"><polygon points="5,0 10,6 0,6"/></svg>
           </button>
           <button type="button" title="Slow down"

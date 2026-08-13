@@ -48,7 +48,7 @@ export async function GET(request: Request) {
 
   const { data: rankings, error } = await supabaseAdmin
     .from("espn_rankings")
-    .select("espn_player_id, player_name, nfl_team, position, rank")
+    .select("espn_player_id, player_name, nfl_team, position, rank, adp, projected_points")
     .eq("season_year", year)
     .eq("scoring_type", scoringType)
     .order("rank", { ascending: true });

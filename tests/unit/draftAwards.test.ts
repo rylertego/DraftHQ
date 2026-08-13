@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { computeDraftAwards, computeTeamGrades, formatClockDuration, type DraftAward } from "@/lib/draftAwards";
+import { computeDraftAwards, formatClockDuration, type DraftAward } from "@/lib/draftAwards";
 import type { Pick, Team } from "@/types/draft";
 
 const BASE = Date.parse("2026-09-01T19:00:00.000Z");
@@ -187,37 +187,5 @@ describe("computeDraftAwards", () => {
     const slides = computeDraftAwards(picks, teams, rankMap);
     expect(findAward(slides, "best-draft")?.teamName).toBe("Bravo");
     expect(findAward(slides, "worst-draft")?.teamName).toBe("Alpha");
-  });
-});
-
-describe("computeTeamGrades", () => {
-  it("curves grades across the league, best value first", () => {
-    const picks = [
-      makePick(1, "t1", "a"),
-      makePick(2, "t2", "b"),
-      makePick(3, "t1", "c"),
-      makePick(4, "t2", "d"),
-    ];
-    const rankMap = new Map([["a", 10], ["b", 1], ["c", 20], ["d", 2]]);
-    const grades = computeTeamGrades(picks, teams, rankMap);
-    expect(grades).toHaveLength(2);
-    // Bravo: (2-1 + 4-2)/2 = +1.5 → top of the curve
-    expect(grades[0].teamName).toBe("Bravo");
-    expect(grades[0].valuePerPick).toBeCloseTo(1.5);
-    expect(grades[0].grade).toBe("A+");
-    // Alpha: (1-10 + 3-20)/2 = -13 → bottom
-    expect(grades[1].teamName).toBe("Alpha");
-    expect(grades[1].grade).toBe("D");
-  });
-
-  it("leaves teams with no ranked picks ungraded and sorted last", () => {
-    const picks = [makePick(1, "t1", "a"), makePick(2, "t2", "b")];
-    const rankMap = new Map([["a", 5]]);
-    const grades = computeTeamGrades(picks, teams, rankMap);
-    expect(grades[0].teamName).toBe("Alpha");
-    expect(grades[0].grade).toBe("A+");
-    expect(grades[1].teamName).toBe("Bravo");
-    expect(grades[1].grade).toBeNull();
-    expect(grades[1].rankedPicks).toBe(0);
   });
 });

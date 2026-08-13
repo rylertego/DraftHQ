@@ -18,8 +18,88 @@ import {
 } from "@/lib/leagueApi";
 import type { LeagueMember, LeagueTeam } from "@/types/league";
 
-const INPUT_CLS = "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-teal-500 focus:outline-none disabled:opacity-50 transition-colors";
-const LABEL_CLS = "mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400";
+type Tone = "neutral" | "ready" | "warning" | "danger" | "complete";
+
+const INPUT_CLS = "w-full rounded-xl border border-slate-700/80 bg-slate-950/55 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:opacity-50";
+const LABEL_CLS = "mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500";
+const HELPER_CLS = "mt-1.5 text-xs leading-relaxed text-slate-500";
+const primaryButtonClass = "inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40";
+const secondaryButtonClass = "inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40";
+
+function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
+  const classes: Record<Tone, string> = {
+    neutral: "border-slate-700 bg-slate-800/70 text-slate-300",
+    ready: "border-blue-400/35 bg-blue-500/12 text-blue-200",
+    warning: "border-amber-400/35 bg-amber-500/12 text-amber-200",
+    danger: "border-red-400/35 bg-red-500/12 text-red-200",
+    complete: "border-emerald-400/35 bg-emerald-500/12 text-emerald-200",
+  };
+
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${classes[tone]}`}>
+      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+      {label}
+    </span>
+  );
+}
+
+function MetricTile({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail?: string; tone?: Tone }) {
+  const toneClass: Record<Tone, string> = {
+    neutral: "text-white",
+    ready: "text-blue-200",
+    warning: "text-amber-200",
+    danger: "text-red-200",
+    complete: "text-emerald-200",
+  };
+
+  return (
+    <div className="rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className={`mt-1 text-xl font-black tabular-nums ${toneClass[tone]}`}>{value}</p>
+      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
+    </div>
+  );
+}
+
+function SectionPanel({ title, eyebrow, children, action, className = "" }: { title: string; eyebrow?: string; children: React.ReactNode; action?: React.ReactNode; className?: string }) {
+  return (
+    <section className={`rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)] ${className}`}>
+      <div className="flex items-start justify-between gap-4 border-b border-slate-800/80 px-5 py-4">
+        <div>
+          {eyebrow && <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>}
+          <h2 className="mt-1 text-base font-bold text-white">{title}</h2>
+        </div>
+        {action}
+      </div>
+      <div className="p-5">{children}</div>
+    </section>
+  );
+}
+
+function TeamMark({ src, name, className = "h-12 w-12", accentColor }: { src?: string | null; name: string; className?: string; accentColor: string }) {
+  return (
+    <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70 ${className}`}>
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt="" className="h-full w-full object-contain p-1" />
+      ) : (
+        <span className="text-sm font-black uppercase" style={{ color: accentColor }}>
+          {name.slice(0, 2)}
+        </span>
+      )}
+    </div>
+  );
+}
+
+function EmptyState({ title, detail, action }: { title: string; detail: string; action?: React.ReactNode }) {
+  return (
+    <div className="rounded-xl border border-dashed border-slate-700 bg-slate-950/35 px-5 py-8 text-center">
+      <p className="text-sm font-bold text-slate-200">{title}</p>
+      <p className="mx-auto mt-1 max-w-xl text-sm leading-relaxed text-slate-500">{detail}</p>
+      {action && <div className="mt-5">{action}</div>}
+    </div>
+  );
+}
 
 // ── Add Team modal ────────────────────────────────────────────────────────────
 
@@ -151,31 +231,36 @@ function ConfirmDeleteModal({
   onCancel: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <h2 className="mb-2 text-base font-bold text-white">Delete &ldquo;{teamName}&rdquo;?</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+        <div className="border-b border-slate-800/80 px-5 py-4">
+          <StatusBadge label="Danger Zone" tone="danger" />
+          <h2 className="mt-3 text-base font-black text-white">Delete &ldquo;{teamName}&rdquo;?</h2>
+        </div>
+        <div className="px-5 py-5">
         {hasHistory ? (
-          <p className="mb-5 text-sm text-slate-400">
+          <p className="mb-5 text-sm leading-6 text-slate-400">
             This team has season history. Deleting it will remove it from past season records. This cannot be undone.
           </p>
         ) : (
-          <p className="mb-5 text-sm text-slate-400">This cannot be undone.</p>
+          <p className="mb-5 text-sm leading-6 text-slate-400">This cannot be undone.</p>
         )}
-        <div className="flex gap-3">
+        <div className="flex flex-col-reverse gap-3 sm:flex-row">
           <button
             type="button"
             onClick={onCancel}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 transition-colors"
+            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             Cancel
           </button>
           <button
             type="button"
             onClick={onConfirm}
-            className="flex-1 rounded-xl bg-red-700 py-2 text-sm font-medium text-white hover:bg-red-600 transition-colors"
+            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_40px_rgba(220,38,38,0.24)] transition-colors hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 focus:ring-offset-slate-950"
           >
             Delete
           </button>
+        </div>
         </div>
       </div>
     </div>
@@ -209,11 +294,16 @@ function EditTeamModal({
   const [inviting, setInviting] = useState(false);
   const [inviteStatus, setInviteStatus] = useState("");
   const [saving, setSaving] = useState(false);
+  const [assigningOwner, setAssigningOwner] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const avatarColor = "#" + ((team.name.charCodeAt(0) * 9999991) % 0xffffff).toString(16).padStart(6, "0");
   const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
+  const ownerAssigned = Boolean(ownerUserId);
+  const selectedOwnerName = ownerUserId
+    ? members.find((member) => member.userId === ownerUserId)?.displayName ?? team.ownerDisplayName ?? "Assigned owner"
+    : "Unassigned";
 
   function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -238,6 +328,8 @@ function EditTeamModal({
   }
 
   async function handleAssignOwner(userId: string | null) {
+    setAssigningOwner(true);
+    setError("");
     try {
       await assignLeagueTeamOwner(team.leagueId, team.id, userId);
       const member = userId ? members.find((m) => m.userId === userId) : undefined;
@@ -249,6 +341,8 @@ function EditTeamModal({
       setOwnerUserId(userId ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to assign owner.");
+    } finally {
+      setAssigningOwner(false);
     }
   }
 
@@ -280,115 +374,196 @@ function EditTeamModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 overflow-y-auto">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 my-auto space-y-5">
-        <h2 className="text-lg font-bold text-white">Edit Team</h2>
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/68 px-4 py-6 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="edit-team-title"
+    >
+      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
+        <div className="relative border-b border-slate-800/80 px-5 py-4 sm:px-6">
+          <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primary }} />
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Team Command</p>
+              <h2 id="edit-team-title" className="mt-1 text-xl font-black text-white">Edit Team</h2>
+              <p className="mt-1 text-sm leading-6 text-slate-400">
+                Manage franchise identity and owner assignment for draft night.
+              </p>
+            </div>
+            <StatusBadge label={ownerAssigned ? "Assigned" : "Needs Owner"} tone={ownerAssigned ? "complete" : "warning"} />
+          </div>
+        </div>
 
-        {/* Logo */}
-        <div className="flex items-center gap-4">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            className="group relative h-20 w-20 shrink-0 overflow-hidden rounded-2xl border-2 border-dashed border-slate-600 hover:border-slate-400 transition-colors"
-            title="Upload team logo"
-          >
-            {logoPreview ? (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img src={logoPreview} alt="Logo" className="h-full w-full object-cover" />
-            ) : (
-              <div className="flex h-full w-full items-center justify-center text-xl font-bold text-white" style={{ backgroundColor: avatarColor + "55" }}>
-                {initials}
+        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
+          <section className="rounded-xl border border-slate-800/90 bg-slate-950/28 p-4">
+            <div className="mb-4">
+              <h3 className="text-sm font-black text-white">Team Identity</h3>
+              <p className="mt-1 text-xs leading-5 text-slate-500">Name, abbreviation, and logo used across DraftHQ.</p>
+            </div>
+
+            <div className="grid gap-5 sm:grid-cols-[112px_1fr]">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-600/90 bg-slate-950/70 text-white transition-colors hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950"
+                  title="Upload team logo"
+                  aria-label="Upload team logo"
+                >
+                  {logoPreview ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
+                  ) : (
+                    <div className="flex h-full w-full items-center justify-center text-2xl font-black text-white" style={{ backgroundColor: avatarColor + "55" }}>
+                      {initials}
+                    </div>
+                  )}
+                  <div className="absolute inset-x-0 bottom-0 bg-slate-950/82 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                    {logoPreview ? "Replace" : "Upload"}
+                  </div>
+                </button>
+                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+                <p className={HELPER_CLS}>PNG, JPG, or WEBP. 4MB max.</p>
+                {logoFile && !uploadingLogo && <p className="mt-1 text-xs font-semibold text-blue-200">New logo selected. Save to apply.</p>}
+                {uploadingLogo && <p className="mt-1 text-xs font-semibold" style={{ color: primary }}>Uploading logo...</p>}
+              </div>
+
+              <div className="grid content-start gap-4 sm:grid-cols-2">
+                <div className="sm:col-span-2">
+                  <label htmlFor="edit-team-name" className={LABEL_CLS}>Team Name <span className="text-red-400">*</span></label>
+                  <input
+                    id="edit-team-name"
+                    required
+                    maxLength={100}
+                    className={INPUT_CLS}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                    aria-invalid={!name.trim()}
+                    aria-describedby="edit-team-name-help"
+                  />
+                  <p id="edit-team-name-help" className={HELPER_CLS}>This is the primary franchise name shown in league views.</p>
+                </div>
+                <div>
+                  <label htmlFor="edit-team-short-name" className={LABEL_CLS}>Short Name</label>
+                  <input
+                    id="edit-team-short-name"
+                    maxLength={10}
+                    className={INPUT_CLS}
+                    placeholder="e.g. Eagles"
+                    value={shortName}
+                    onChange={(e) => setShortName(e.target.value)}
+                  />
+                  <p className={HELPER_CLS}>Optional compact label for tight draft displays.</p>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <section className="rounded-xl border border-slate-800/90 bg-slate-950/28 p-4">
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-white">Owner Assignment</h3>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  Assign a league member, invite an owner, or leave this franchise open.
+                </p>
+              </div>
+              <StatusBadge label={selectedOwnerName} tone={ownerAssigned ? "complete" : "warning"} />
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <label htmlFor="edit-team-owner" className={LABEL_CLS}>Assigned Owner</label>
+                <select
+                  id="edit-team-owner"
+                  className={INPUT_CLS}
+                  value={ownerUserId}
+                  disabled={assigningOwner || saving}
+                  onChange={(e) => void handleAssignOwner(e.target.value || null)}
+                  aria-describedby="edit-team-owner-help"
+                >
+                  <option value="">Unassigned</option>
+                  {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+                </select>
+                <p id="edit-team-owner-help" className={HELPER_CLS}>
+                  Select Unassigned to remove the current owner from this team.
+                </p>
+                {assigningOwner && <p className="mt-1 text-xs font-semibold text-blue-200">Updating owner assignment...</p>}
+              </div>
+
+              <div className="sm:col-span-2">
+                <label htmlFor="edit-team-owner-name" className={LABEL_CLS}>Owner Display Name</label>
+                <input
+                  id="edit-team-owner-name"
+                  maxLength={100}
+                  className={INPUT_CLS}
+                  placeholder="Name shown during the draft"
+                  value={ownerName}
+                  onChange={(e) => setOwnerName(e.target.value)}
+                  aria-describedby="edit-team-owner-name-help"
+                />
+                <p id="edit-team-owner-name-help" className={HELPER_CLS}>
+                  Optional draft-room display name. This does not change the owner account profile.
+                </p>
+              </div>
+            </div>
+
+            {!ownerUserId && (
+              <div className="mt-4 border-t border-slate-800/80 pt-4">
+                <label htmlFor="edit-team-invite" className={LABEL_CLS}>Invite Owner by Email</label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id="edit-team-invite"
+                    type="email"
+                    maxLength={320}
+                    className={INPUT_CLS}
+                    placeholder="owner@example.com"
+                    value={inviteEmail}
+                    onChange={(e) => setInviteEmail(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleInvite(); } }}
+                  />
+                  <button
+                    type="button"
+                    disabled={inviting || !inviteEmail.trim()}
+                    onClick={() => void handleInvite()}
+                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {inviting ? "Sending..." : "Invite"}
+                  </button>
+                </div>
+                <p className={HELPER_CLS}>Use this when the owner is not yet listed as a league member.</p>
+                {inviteStatus && (
+                  <p className={`mt-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                    inviteStatus.startsWith("Invite sent")
+                      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
+                      : "border-red-400/30 bg-red-500/10 text-red-200"
+                  }`}>
+                    {inviteStatus}
+                  </p>
+                )}
               </div>
             )}
-            <div className="absolute inset-0 flex items-center justify-center bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity">
-              <svg className="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
-              </svg>
-            </div>
-          </button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-          <div>
-            <p className="text-sm font-semibold text-white">Team Logo</p>
-            <p className="text-xs text-slate-500 mt-0.5">Click to upload · PNG, JPG, WEBP · 4MB max</p>
-            {uploadingLogo && <p className="text-xs mt-1" style={{ color: primary }}>Uploading...</p>}
-          </div>
+          </section>
+
+          {error && (
+            <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">
+              {error}
+            </p>
+          )}
         </div>
 
-        {/* Name fields */}
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className={LABEL_CLS}>Team Name <span className="text-red-400">*</span></label>
-            <input required maxLength={100} className={INPUT_CLS} value={name} onChange={(e) => setName(e.target.value)} />
-          </div>
-          <div>
-            <label className={LABEL_CLS}>Short Name</label>
-            <input maxLength={10} className={INPUT_CLS} placeholder="e.g. Eagles" value={shortName} onChange={(e) => setShortName(e.target.value)} />
-          </div>
-        </div>
-
-        {/* Owner */}
-        <div>
-          <label className={LABEL_CLS}>Owner</label>
-          <select
-            className={INPUT_CLS}
-            value={ownerUserId}
-            onChange={(e) => void handleAssignOwner(e.target.value || null)}
-          >
-            <option value="">— Unassigned —</option>
-            {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-          </select>
-        </div>
-
-        <div>
-          <label className={LABEL_CLS}>First Name</label>
-          <input maxLength={100} className={INPUT_CLS} placeholder="Display name in draft" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-        </div>
-
-        {/* Email invite (only when no owner) */}
-        {!ownerUserId && (
-          <div>
-            <label className={LABEL_CLS}>Invite Owner by Email</label>
-            <div className="flex gap-2">
-              <input
-                type="email"
-                maxLength={320}
-                className={INPUT_CLS}
-                placeholder="owner@example.com"
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleInvite(); } }}
-              />
-              <button
-                type="button"
-                disabled={inviting || !inviteEmail.trim()}
-                onClick={() => void handleInvite()}
-                className="shrink-0 rounded-lg border border-slate-600 px-3 text-xs font-semibold text-slate-300 hover:border-slate-400 hover:text-white disabled:opacity-40 transition-colors"
-              >
-                {inviting ? "..." : "Invite"}
-              </button>
-            </div>
-            {inviteStatus && (
-              <p className={`mt-1 text-xs ${inviteStatus.startsWith("Invite sent") ? "text-green-400" : "text-red-400"}`}>
-                {inviteStatus}
-              </p>
-            )}
-          </div>
-        )}
-
-        {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-
-        <div className="flex gap-3 pt-1">
-          <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors">
+        <div className="flex flex-col-reverse gap-3 border-t border-slate-800/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
+          <button type="button" onClick={onClose} className={`${secondaryButtonClass} sm:min-w-28`}>
             Cancel
           </button>
           <button
             type="button"
-            disabled={saving || !name.trim()}
+            disabled={saving || assigningOwner || !name.trim()}
             onClick={() => void handleSave()}
-            className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+            className={`${primaryButtonClass} sm:min-w-36`}
             style={{ backgroundColor: primary, color: secondary }}
           >
-            {saving ? (uploadingLogo ? "Uploading..." : "Saving...") : "Save"}
+            {saving ? (uploadingLogo ? "Uploading logo..." : "Saving...") : "Save Changes"}
           </button>
         </div>
       </div>
@@ -396,7 +571,7 @@ function EditTeamModal({
   );
 }
 
-// ── Kebab menu ────────────────────────────────────────────────────────────────
+// Kebab menu ------------------------------------------------------------
 
 function KebabMenu({ items }: {
   items: { label: string; danger?: boolean; disabled?: boolean; title?: string; onClick: () => void }[];
@@ -451,9 +626,8 @@ function KebabMenu({ items }: {
 
 // ── Team card ─────────────────────────────────────────────────────────────────
 
-function TeamCard({
+function TeamRow({
   team,
-  members,
   canManage,
   teamChangesLocked,
   onRequestDelete,
@@ -461,7 +635,32 @@ function TeamCard({
   onEdit,
 }: {
   team: LeagueTeam;
-  members: LeagueMember[];
+  canManage: boolean;
+  teamChangesLocked: boolean;
+  onRequestDelete: (team: LeagueTeam) => void;
+  onArchive: (teamId: string) => Promise<void>;
+  onEdit: (team: LeagueTeam) => void;
+}) {
+  return (
+    <TeamRosterRow
+      team={team}
+      canManage={canManage}
+      teamChangesLocked={teamChangesLocked}
+      onRequestDelete={onRequestDelete}
+      onArchive={onArchive}
+      onEdit={onEdit}
+    />
+  );
+}
+function TeamRosterRow({
+  team,
+  canManage,
+  teamChangesLocked,
+  onRequestDelete,
+  onArchive,
+  onEdit,
+}: {
+  team: LeagueTeam;
   canManage: boolean;
   teamChangesLocked: boolean;
   onRequestDelete: (team: LeagueTeam) => void;
@@ -469,9 +668,9 @@ function TeamCard({
   onEdit: (team: LeagueTeam) => void;
 }) {
   const { accentColor: primary } = useLeagueTheme();
+  const ownerAssigned = Boolean(team.ownerUserId);
   const ownerInitial = (team.ownerDisplayName ?? "?").charAt(0).toUpperCase();
   const logoInitials = team.name.trim().slice(0, 2).toUpperCase() || "T";
-
   const menuItems = canManage ? [
     { label: "Edit team", onClick: () => onEdit(team) },
     {
@@ -490,59 +689,83 @@ function TeamCard({
   ] : [];
 
   return (
-    <div
-      className="rounded-2xl border bg-slate-900/60 p-5"
-      style={{ borderColor: team.ownerUserId ? primary + "44" : "rgba(100,116,139,0.25)" }}
+    <article
+      className="grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] md:items-center"
+      style={{ borderLeft: `3px solid ${ownerAssigned ? primary + "99" : "rgba(251,191,36,0.75)"}` }}
     >
-      {/* Logo + right column */}
-      <div className="flex items-start gap-3">
-        <div className="h-20 w-20 shrink-0 overflow-hidden rounded-2xl border border-slate-700">
+      <div className="flex min-w-0 items-center gap-3">
+        <div className="h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-slate-950/70">
           {team.logoUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
-            <img src={team.logoUrl} alt="" className="h-full w-full object-cover" />
+            <img src={team.logoUrl} alt="" className="h-full w-full object-contain p-1" />
           ) : (
-            <div className="flex h-full w-full items-center justify-center text-sm font-bold text-white bg-slate-800">
+            <div className="flex h-full w-full items-center justify-center bg-slate-800 text-sm font-black uppercase text-white">
               {logoInitials}
             </div>
           )}
         </div>
-
-        <div className="min-w-0 flex-1">
-          <div className="flex items-start justify-between gap-2">
-            <div className="min-w-0">
-              <h3 className="text-base font-bold text-white leading-tight">{team.name}</h3>
-              {team.shortName && <p className="text-xs text-slate-500 mt-0.5">{team.shortName}</p>}
-            </div>
-            {canManage && <KebabMenu items={menuItems} />}
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="truncate text-base font-black leading-tight text-white">{team.name}</h3>
+            <StatusBadge label={ownerAssigned ? "Assigned" : "Needs Owner"} tone={ownerAssigned ? "complete" : "warning"} />
           </div>
-
-          {/* Owner — under the name, inside the right column */}
-          <div className="mt-3 flex items-center gap-2">
-            <div
-              className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold overflow-hidden"
-              style={{ backgroundColor: team.ownerUserId ? primary + "22" : "rgba(100,116,139,0.15)", color: team.ownerUserId ? primary : "#64748b" }}
-            >
-              {team.ownerAvatarUrl
-                // eslint-disable-next-line @next/next/no-img-element
-                ? <img src={team.ownerAvatarUrl} alt="" className="h-full w-full object-cover" />
-                : ownerInitial}
-            </div>
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-500 leading-none mb-0.5">Owner</p>
-              <p className={`text-sm font-semibold truncate leading-tight ${team.ownerUserId ? "text-white" : "text-slate-600 italic"}`}>
-                {team.ownerDisplayName ?? "Unassigned"}
-              </p>
-            </div>
-          </div>
+          <p className="mt-1 truncate text-xs text-slate-500">{team.shortName || "No short name"}</p>
         </div>
       </div>
-    </div>
+
+      <div className="flex min-w-0 items-center gap-2">
+        <div
+          className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold"
+          style={{ backgroundColor: ownerAssigned ? primary + "22" : "rgba(100,116,139,0.15)", color: ownerAssigned ? primary : "#64748b" }}
+        >
+          {team.ownerAvatarUrl
+            // eslint-disable-next-line @next/next/no-img-element
+            ? <img src={team.ownerAvatarUrl} alt="" className="h-full w-full object-cover" />
+            : ownerInitial}
+        </div>
+        <div className="min-w-0">
+          <p className="mb-0.5 text-[10px] font-black uppercase leading-none tracking-[0.16em] text-slate-500">Owner</p>
+          <p className={`truncate text-sm font-semibold leading-tight ${ownerAssigned ? "text-white" : "italic text-slate-500"}`}>
+            {team.ownerDisplayName ?? "Unassigned"}
+          </p>
+        </div>
+      </div>
+
+      <div>
+        <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Setup</p>
+        <p className={`mt-1 text-sm font-bold ${ownerAssigned ? "text-emerald-200" : "text-amber-200"}`}>
+          {ownerAssigned ? "Ready for draft slot" : "Owner assignment open"}
+        </p>
+      </div>
+
+      {canManage && (
+        <div className="flex items-center gap-2 md:justify-end">
+          {!ownerAssigned && (
+            <button
+              type="button"
+              onClick={() => onEdit(team)}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-amber-400/35 bg-amber-500/10 px-4 py-2 text-sm font-black text-amber-100 transition-colors hover:bg-amber-500/15"
+            >
+              Assign
+            </button>
+          )}
+          <button
+            type="button"
+            onClick={() => onEdit(team)}
+            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/65 px-4 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
+          >
+            Edit
+          </button>
+          <KebabMenu items={menuItems} />
+        </div>
+      )}
+    </article>
   );
 }
 
 // ── Main component ────────────────────────────────────────────────────────────
 
-export default function LeagueTeams(_: { slug: string }) {
+export default function LeagueTeams({ slug }: { slug: string }) {
   const router = useRouter();
   const { workspace, isLoading: loading, error } = useWorkspace();
   const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
@@ -566,7 +789,6 @@ export default function LeagueTeams(_: { slug: string }) {
   useEffect(() => {
     if (!league) return;
     let active = true;
-    setTeamsLoading(true);
     void getLeagueTeams(league.id)
       .then((t) => { if (active) setTeams(t); })
       .catch((err) => { if (active) setTeamsError(err instanceof Error ? err.message : "Unable to load teams."); })
@@ -650,9 +872,88 @@ export default function LeagueTeams(_: { slug: string }) {
   const archivedTeams = teams.filter((t) => t.archivedAt);
   const atCapacity = activeTeams.length >= teamMax;
   const assignedOwnerIds = new Set(activeTeams.map((t) => t.ownerUserId).filter(Boolean) as string[]);
+  const assignedCount = assignedOwnerIds.size;
+  const unassignedTeams = activeTeams.filter((team) => !team.ownerUserId);
+  const unassignedCount = unassignedTeams.length;
+  const openSlots = Math.max(0, teamMax - activeTeams.length);
+  const setupPercent = teamMax > 0 ? Math.round(((activeTeams.length + assignedCount) / (teamMax * 2)) * 100) : 0;
+  const setupLabel = teamsLoading
+    ? "Checking"
+    : activeTeams.length === 0
+      ? "No Teams"
+      : unassignedCount > 0
+        ? `${setupPercent}% Ready`
+        : activeTeams.length < teamMax
+          ? "Needs Teams"
+          : "Ready";
+  const setupTone: Tone = teamsLoading
+    ? "neutral"
+    : activeTeams.length === teamMax && unassignedCount === 0
+      ? "complete"
+      : "warning";
+  const nextActionTitle = teamChangesLocked
+    ? "Team changes locked"
+    : activeTeams.length === 0
+      ? "Add franchise teams"
+      : unassignedCount > 0
+        ? "Assign owners"
+        : openSlots > 0
+          ? "Add remaining teams"
+          : "Roster is ready";
+  const nextActionDetail = teamChangesLocked
+    ? "A draft is active or paused, so team changes are temporarily unavailable."
+    : activeTeams.length === 0
+      ? `Create or import up to ${teamMax} teams before draft setup.`
+      : unassignedCount > 0
+        ? `${unassignedCount} team${unassignedCount === 1 ? "" : "s"} still need owner assignments before draft night.`
+        : openSlots > 0
+          ? `${openSlots} open slot${openSlots === 1 ? "" : "s"} remain in this league.`
+          : "Every active team has an owner and matches the league size.";
+  const firstUnassignedTeam = unassignedTeams[0] ?? null;
+  const primaryAction = !canManage ? null : teamChangesLocked ? (
+    <button type="button" disabled className={primaryButtonClass}>Changes Locked</button>
+  ) : unassignedCount > 0 && firstUnassignedTeam ? (
+    <button type="button" onClick={() => setEditingTeam(firstUnassignedTeam)} className={primaryButtonClass}>Assign Owners</button>
+  ) : activeTeams.length === 0 || openSlots > 0 ? (
+    <button type="button" onClick={() => setShowAddModal(true)} disabled={atCapacity || teamChangesLocked} className={primaryButtonClass}>
+      {activeTeams.length === 0 ? "Add First Team" : "Add Team"}
+    </button>
+  ) : (
+    <button type="button" onClick={() => setEditingTeam(activeTeams[0] ?? null)} className={primaryButtonClass}>Review Teams</button>
+  );
+  const secondaryAction = canManage ? (
+    <button
+      type="button"
+      onClick={() => setShowImportModal(true)}
+      disabled={atCapacity || teamChangesLocked}
+      title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
+      className={secondaryButtonClass}
+    >
+      Import League
+    </button>
+  ) : null;
+  const nextActionPanel = (
+    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
+      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Commissioner Action</p>
+      <p className="mt-2 text-xl font-black text-white">{nextActionTitle}</p>
+      <p className="mt-1 text-sm leading-6 text-slate-400">{nextActionDetail}</p>
+      <div className="mt-4 flex items-center gap-3">
+        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
+          <div className="h-full rounded-full transition-all" style={{ width: `${setupPercent}%`, backgroundColor: primary }} />
+        </div>
+        <span className="text-xs font-black tabular-nums text-slate-300">{setupPercent}%</span>
+      </div>
+      {canManage && (
+        <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
+          {primaryAction}
+          {secondaryAction}
+        </div>
+      )}
+    </aside>
+  );
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6" data-league-slug={slug}>
       {pendingDelete && (
         <ConfirmDeleteModal
           teamName={pendingDelete.name}
@@ -692,126 +993,140 @@ export default function LeagueTeams(_: { slug: string }) {
         />
       )}
 
-      <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-white">Franchise Teams</h2>
-          <p className="text-sm text-slate-500">
-            <span style={atCapacity ? { color: primary } : undefined}>
-              {activeTeams.length} / {teamMax} active
-            </span>
-            {archivedTeams.length > 0 && ` · ${archivedTeams.length} archived`}
-            {canManage && !atCapacity && " · Assign owners here to pre-populate draft slots"}
-          </p>
-        </div>
-        {canManage && (
-          <div className="flex flex-col gap-2 sm:flex-row">
-            <button
-              onClick={() => setShowImportModal(true)}
-              disabled={atCapacity || teamChangesLocked}
-              title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
-              className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-            >
-              Import League
-            </button>
-            <button
-              onClick={() => setShowAddModal(true)}
-              disabled={atCapacity || teamChangesLocked}
-              title={teamChangesLocked ? "Teams cannot be added while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams). Archive or delete a team first, or raise the limit in Settings.` : undefined}
-              className="rounded-xl px-4 py-2 text-sm font-bold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ backgroundColor: primary, color: secondary }}
-            >
-              + Add Team
-            </button>
+      <section
+        className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/75 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
+        aria-labelledby="teams-page-title"
+      >
+        <div
+          className="pointer-events-none absolute inset-0 opacity-80"
+          style={{ background: `linear-gradient(135deg, ${secondary} 0%, rgba(15,23,42,0.82) 48%, #020617 100%)` }}
+        />
+        <div className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ backgroundColor: primary }} />
+        <div className="relative grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
+          <div className="min-w-0">
+            <div className="mb-5 flex items-center gap-3 lg:hidden">
+              <TeamMark src={league.logoUrl} name={league.name} className="h-14 w-14" accentColor={primary} />
+              <div className="min-w-0">
+                <p className="truncate text-base font-black text-white">{league.name}</p>
+                <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: primary }}>
+                  {members.length} members
+                </p>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: primary }}>
+                League Command Center
+              </p>
+              <StatusBadge label={setupLabel} tone={setupTone} />
+            </div>
+            <h1 id="teams-page-title" className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
+              Franchise Teams
+            </h1>
+            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+              Manage team identity and owner assignments before they become draft slots. Unassigned teams are the next commissioner bottleneck.
+            </p>
+
+            <div className="mt-5 lg:hidden">{nextActionPanel}</div>
+
+            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricTile label="Active Teams" value={teamsLoading ? "--" : `${activeTeams.length}/${teamMax}`} detail={openSlots > 0 ? `${openSlots} slots open` : "League size reached"} tone={activeTeams.length === teamMax ? "complete" : "warning"} />
+              <MetricTile label="Assigned" value={teamsLoading ? "--" : `${assignedCount}/${activeTeams.length}`} detail={unassignedCount > 0 ? "Owners needed" : "All owners set"} tone={unassignedCount === 0 && activeTeams.length > 0 ? "complete" : "warning"} />
+              <MetricTile label="Open Owners" value={teamsLoading ? "--" : String(unassignedCount)} detail="Assignment queue" tone={unassignedCount > 0 ? "warning" : "complete"} />
+              <MetricTile label="Archived" value={String(archivedTeams.length)} detail="Inactive teams" />
+            </div>
           </div>
-        )}
-      </div>
+
+          <div className="hidden lg:block">{nextActionPanel}</div>
+        </div>
+      </section>
 
       {successMessage && (
-        <div className="flex items-center justify-between rounded-xl border border-emerald-700/50 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300" role="status">
+        <div className="flex items-center justify-between rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200" role="status">
           <span>{successMessage}</span>
-          <button type="button" onClick={() => setSuccessMessage("")} className="ml-3 underline opacity-70 hover:opacity-100">Dismiss</button>
+          <button type="button" onClick={() => setSuccessMessage("")} className="ml-3 text-xs font-bold uppercase tracking-wide opacity-70 hover:opacity-100">Dismiss</button>
         </div>
       )}
 
       {teamsError && (
-        <p className="rounded-xl border border-red-800 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {teamsError}
         </p>
       )}
 
       {actionError && (
-        <p className="rounded-xl border border-red-800 bg-red-950/30 px-4 py-3 text-sm text-red-400">
+        <p className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-200">
           {actionError}
-          <button className="ml-3 underline opacity-70 hover:opacity-100" onClick={() => setActionError("")}>Dismiss</button>
+          <button className="ml-3 text-xs font-bold uppercase tracking-wide underline opacity-70 hover:opacity-100" onClick={() => setActionError("")}>Dismiss</button>
         </p>
       )}
 
       {teamsLoading ? (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-          {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-32 animate-pulse rounded-2xl bg-slate-800" />
+        <div className="space-y-3 rounded-xl border border-slate-800/90 bg-slate-900/72 p-4">
+          {[0, 1, 2, 3].map((item) => (
+            <div key={item} className="h-20 animate-pulse rounded-xl bg-slate-800/70" />
           ))}
         </div>
       ) : teamsError ? null : activeTeams.length === 0 && archivedTeams.length === 0 ? (
-        <div className="rounded-2xl border border-dashed border-slate-700 px-6 py-12 text-center">
-          <p className="text-slate-400 font-semibold">No franchise teams yet</p>
-          {canManage ? (
-            <p className="mt-1 text-sm text-slate-600">
-              Add up to {teamMax} teams and assign owners. Owners will be automatically placed in their draft slots when a season is created.
-            </p>
-          ) : (
-            <p className="mt-1 text-sm text-slate-600">
-              The commissioner hasn&apos;t set up franchise teams yet.
-            </p>
-          )}
-          {canManage && (
+        <EmptyState
+          title="No franchise teams yet"
+          detail={canManage ? `Add up to ${teamMax} teams and assign owners. Owners will be automatically placed in their draft slots when a season is created.` : "The commissioner has not set up franchise teams yet."}
+          action={canManage ? (
             <button
+              type="button"
               onClick={() => setShowAddModal(true)}
               disabled={teamChangesLocked}
               title={teamChangesLocked ? "Teams cannot be added while a draft is active." : undefined}
-              className="mt-4 rounded-xl px-5 py-2.5 text-sm font-bold transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
-              style={{ backgroundColor: primary, color: secondary }}
+              className={primaryButtonClass}
             >
-              + Add First Team
+              Add First Team
             </button>
-          )}
-        </div>
+          ) : undefined}
+        />
       ) : (
         <>
-          {canManage && assignedOwnerIds.size < activeTeams.length && (
-            <div className="rounded-xl border border-yellow-700/40 bg-yellow-950/30 px-4 py-3 text-sm text-yellow-400">
-              {activeTeams.length - assignedOwnerIds.size} team{activeTeams.length - assignedOwnerIds.size !== 1 ? "s" : ""}{" "}
-              without an owner — assign owners so they&apos;re automatically placed in their draft slots when a new season is created.
+          {canManage && unassignedCount > 0 && (
+            <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
+              <span className="font-black">{unassignedCount} team{unassignedCount === 1 ? "" : "s"} need owners.</span>{" "}
+              Assign owners here so draft slots are ready before the season is created.
             </div>
           )}
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {activeTeams.map((team) => (
-              <TeamCard
-                key={team.id}
-                team={team}
-                members={members}
-                canManage={canManage}
-                teamChangesLocked={teamChangesLocked}
-                onRequestDelete={setPendingDelete}
-                onArchive={handleArchive}
-                onEdit={setEditingTeam}
-              />
-            ))}
-          </div>
+
+          <SectionPanel
+            title="Active Roster"
+            eyebrow={`${activeTeams.length} active teams`}
+            action={<StatusBadge label={unassignedCount > 0 ? `${unassignedCount} open` : "Assigned"} tone={unassignedCount > 0 ? "warning" : "complete"} />}
+          >
+            <div className="overflow-hidden rounded-xl border border-slate-800/80">
+              <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid">
+                <span>Team</span>
+                <span>Owner</span>
+                <span>Setup</span>
+                <span className="text-right">Actions</span>
+              </div>
+              {activeTeams.map((team) => (
+                <TeamRow
+                  key={team.id}
+                  team={team}
+                  canManage={canManage}
+                  teamChangesLocked={teamChangesLocked}
+                  onRequestDelete={setPendingDelete}
+                  onArchive={handleArchive}
+                  onEdit={setEditingTeam}
+                />
+              ))}
+            </div>
+          </SectionPanel>
 
           {archivedTeams.length > 0 && (
-            <details className="group">
-              <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-semibold uppercase tracking-widest text-slate-600 hover:text-slate-400 transition-colors select-none">
-                <svg className="h-3 w-3 transition-transform group-open:rotate-90" viewBox="0 0 12 12" fill="currentColor">
-                  <path d="M4 2l4 4-4 4" />
-                </svg>
-                Archived ({archivedTeams.length})
-              </summary>
-              <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            <SectionPanel title="Archived Teams" eyebrow={`${archivedTeams.length} inactive`}>
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {archivedTeams.map((team) => (
-                  <div key={team.id} className="rounded-2xl border border-slate-800 bg-slate-900/30 p-5 opacity-60">
-                    <div className="mb-3 flex items-start justify-between gap-2">
-                      <h3 className="text-base font-bold text-slate-400 leading-tight">{team.name}</h3>
+                  <div key={team.id} className="rounded-xl border border-slate-800 bg-slate-950/35 p-4 opacity-70">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-bold text-slate-300">{team.name}</p>
+                        <p className="mt-1 text-xs italic text-slate-600">{team.ownerDisplayName ?? "No owner"} - Archived</p>
+                      </div>
                       {canManage && (
                         <KebabMenu items={[
                           {
@@ -830,17 +1145,13 @@ export default function LeagueTeams(_: { slug: string }) {
                         ]} />
                       )}
                     </div>
-                    <p className="text-xs text-slate-600 italic">
-                      {team.ownerDisplayName ?? "No owner"} · Archived
-                    </p>
                   </div>
                 ))}
               </div>
-            </details>
+            </SectionPanel>
           )}
         </>
       )}
-
       {showAddModal && league && (
         <AddTeamModal
           leagueId={league.id}

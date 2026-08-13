@@ -32,7 +32,7 @@ import {
   type DraftSetup,
   type LandmineVideo,
 } from "@/lib/draftApi";
-import { getAssignedTeamIds } from "@/lib/participantLogic";
+import { localTimeZone, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
@@ -42,30 +42,21 @@ import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { AI_ANNOUNCER_PERSONAS, ELEVENLABS_VOICE_PREFIX, getAiAnnouncerId, getAnnouncerVoiceProfile, getElevenLabsVoiceId, isAiAnnouncerEnabled, resolveAnnouncerVoice } from "@/lib/speech";
 import { fetchAnnouncerClipUrl, getStoredElevenLabsKey, listElevenLabsVoices, storeElevenLabsKey, type ElevenLabsVoice } from "@/lib/announcerClient";
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
+import { DEFAULT_ROSTER_POSITIONS } from "@/lib/rosterPositions";
 import ClockSettings from "@/components/ClockSettings";
+import {
+  CommandButton,
+  CommandPanel,
+  CommandStatusBadge,
+  commandInputClass,
+  commandLabelClass,
+} from "@/components/CommandCenterUI";
 import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
 import { initiateSpotifyPopup, isSpotifyConnected, disconnectSpotify, consumeSpotifyCallback } from "@/lib/spotifyAuth";
 import type { DraftInvitation, RosterPosition, Team, TimerBehavior, WalkUpSong } from "@/types/draft";
 
-const DEFAULT_ROSTER_POSITIONS: RosterPosition[] = [
-  { id: "QB", label: "Quarterbacks", abbrev: "QB", enabled: true, min: 0, max: 9, color: "#67E8F9" },
-  { id: "RB", label: "Running backs", abbrev: "RB", enabled: true, min: 0, max: 9, color: "#FCD34D" },
-  { id: "WR", label: "Wide Receivers", abbrev: "WR", enabled: true, min: 0, max: 9, color: "#F97316" },
-  { id: "TE", label: "Tight End", abbrev: "TE", enabled: true, min: 0, max: 9, color: "#A78BFA" },
-  { id: "K", label: "Kickers", abbrev: "K", enabled: true, min: 0, max: 9, color: "#4ADE80" },
-  { id: "DST", label: "Defense / ST", abbrev: "Def", enabled: true, min: 0, max: 9, color: "#F87171" },
-  { id: "IDP", label: "Individual Def. Players", abbrev: "IDP", enabled: false, min: 0, max: 9, color: "#C4A4A4" },
-  { id: "FLEX", label: "Flex (W/R/T)", abbrev: "FLX", enabled: false, min: 0, max: 9, color: "#94A3B8" },
-  { id: "SUPERFLEX", label: "Superflex (Q/W/R/T)", abbrev: "SF", enabled: false, min: 0, max: 9, color: "#818CF8" },
-  { id: "OP", label: "Offensive Player", abbrev: "OP", enabled: false, min: 0, max: 9, color: "#FCA5A5" },
-  { id: "DL", label: "Defensive Line", abbrev: "DL", enabled: false, min: 0, max: 9, color: "#86EFAC" },
-  { id: "LB", label: "Linebacker", abbrev: "LB", enabled: false, min: 0, max: 9, color: "#93C5FD" },
-  { id: "DB", label: "Defensive Back", abbrev: "DB", enabled: false, min: 0, max: 9, color: "#FDE68A" },
-  { id: "BN", label: "Bench", abbrev: "BN", enabled: false, min: 0, max: 9, color: "#475569" },
-  { id: "IR", label: "Injured Reserve", abbrev: "IR", enabled: false, min: 0, max: 9, color: "#7F1D1D" },
-];
 const ROSTER_POSITIONS_COLLAPSED = 7;
 
 type Tab = "settings" | "teams" | "audio";
@@ -109,12 +100,39 @@ const BEHAVIOR_LABELS: Record<string, string> = {
   auto_draft: "Auto-draft",
 };
 
-function LockIcon() {
+function DraftMetric({
+  label,
+  value,
+  detail,
+  tone = "neutral",
+}: {
+  label: string;
+  value: string;
+  detail?: string;
+  tone?: "neutral" | "ready" | "warning" | "complete";
+}) {
+  const toneClass = {
+    neutral: "text-white",
+    ready: "text-blue-100",
+    warning: "text-amber-100",
+    complete: "text-emerald-100",
+  }[tone];
+
   return (
-    <svg className="h-3.5 w-3.5 text-slate-600" viewBox="0 0 16 16" fill="none">
-      <rect x="3" y="7" width="10" height="8" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
-      <path d="M5 7V5a3 3 0 0 1 6 0v2" stroke="currentColor" strokeWidth="1.4" />
-    </svg>
+    <div className="min-w-0 rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
+      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
+      <p className={`mt-1 truncate text-xl font-black tabular-nums ${toneClass}`}>{value}</p>
+      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
+    </div>
+  );
+}
+
+function SectionIntro({ title, description }: { title: string; description: string }) {
+  return (
+    <div className="mb-5">
+      <p className="text-base font-bold text-white">{title}</p>
+      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">{description}</p>
+    </div>
   );
 }
 
@@ -139,7 +157,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-  const [assigningParticipantId, setAssigningParticipantId] = useState<string | null>(null);
   const [copyStatus, setCopyStatus] = useState("");
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteTeamId, setInviteTeamId] = useState("");
@@ -158,8 +175,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [spotifyConnected, setSpotifyConnected] = useState(false);
   useEffect(() => {
     // Consume OAuth tokens from URL fragment after redirect back from Spotify
-    if (consumeSpotifyCallback()) setSpotifyConnected(true);
-    else setSpotifyConnected(isSpotifyConnected());
+    const connected = consumeSpotifyCallback() || isSpotifyConnected();
+    const timer = window.setTimeout(() => setSpotifyConnected(connected), 0);
+    return () => window.clearTimeout(timer);
   }, []);
   const [rounds, setRounds] = useState(15);
   const [isSavingRounds, setIsSavingRounds] = useState(false);
@@ -167,9 +185,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [isSavingTeamCount, setIsSavingTeamCount] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [scheduledTimezone, setScheduledTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-  );
+  const [scheduledTimezone, setScheduledTimezone] = useState(localTimeZone);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [rosterPositions, setRosterPositions] = useState<RosterPosition[]>(DEFAULT_ROSTER_POSITIONS);
   const [showAllPositions, setShowAllPositions] = useState(false);
@@ -248,12 +264,15 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       if (!cancelled) {
         setSetup(s); setTeams(s.teams); setDraftName(s.draft.name);
         setRounds(s.draft.rounds); setTeamCount(s.draft.teamCount);
-        if (s.draft.scheduledAt) {
-          const dt = new Date(s.draft.scheduledAt);
-          setScheduledDate(dt.toISOString().slice(0, 10));
-          setScheduledTime(dt.toISOString().slice(11, 16));
-        }
+        // Read back in the draft's own zone. Slicing the ISO string showed UTC,
+        // so a draft saved for 7:00 PM Eastern reloaded as 23:00.
+        const zone = s.draft.scheduledTimezone || localTimeZone();
         if (s.draft.scheduledTimezone) setScheduledTimezone(s.draft.scheduledTimezone);
+        if (s.draft.scheduledAt) {
+          const wall = utcToZonedWallClock(s.draft.scheduledAt, zone);
+          setScheduledDate(wall.date);
+          setScheduledTime(wall.time);
+        }
         setScoringType(s.draft.scoringType ?? "standard");
         setUseLandmines(s.draft.useLandmines ?? false);
         setLandmineCount(s.draft.landmineCount ?? 3);
@@ -391,14 +410,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function updateAssignment(participantId: string, teamId: string) {
     if (!draftId || !setup) return;
-    setAssigningParticipantId(participantId);
     try {
       const updated = await assignTeam(draftId, participantId, teamId || null);
       setSetup({ ...setup, participants: setup.participants.map((p) => p.id === participantId ? updated : p) });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to assign team.");
-    } finally {
-      setAssigningParticipantId(null);
     }
   }
 
@@ -610,23 +626,79 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     ? `${window.location.origin}/join/${draft.joinCode}`
     : `/join/${draft.joinCode}`;
   const isDraftNameDirty = draftName.trim() !== draft.name && draftName.trim() !== "";
+  const namedTeams = teams.filter((team) => team.name.trim()).length;
+  const assignedTeams = teams.filter((team) =>
+    setup.participants.some((participant) => participant.teamId === team.id)
+  ).length;
+  const enabledRosterSlots = rosterPositions
+    .filter((position) => position.enabled)
+    .reduce((total, position) => total + position.max, 0);
+  const readinessIssues = [
+    draftName.trim() ? null : "Name the draft",
+    teams.length === draft.teamCount ? null : `Align team slots to ${draft.teamCount}`,
+    namedTeams === teams.length ? null : "Name every team",
+    scheduledDate ? null : "Schedule the draft",
+    enabledRosterSlots > 0 ? null : "Enable roster slots",
+  ].filter(Boolean) as string[];
+  const readinessLabel =
+    draft.status === "complete"
+      ? "Draft Complete"
+      : draft.status === "active"
+        ? "Live Draft"
+        : draft.status === "paused"
+          ? "Paused"
+          : readinessIssues.length === 0
+            ? "Ready"
+            : `${Math.max(0, Math.round(((5 - readinessIssues.length) / 5) * 100))}% Ready`;
+  const readinessTone =
+    draft.status === "complete" || readinessIssues.length === 0
+      ? "complete"
+      : draft.status === "active"
+        ? "ready"
+        : "warning";
+  const primaryActionLabel =
+    fromDraft && backToDraftHref
+      ? "Back to Draft"
+      : readinessIssues.includes("Schedule the draft")
+        ? "Schedule Draft"
+        : readinessIssues.includes("Name every team")
+          ? "Review Teams"
+          : "Enter Draft Room";
+  function handlePrimaryAction() {
+    if (fromDraft && backToDraftHref) {
+      router.push(backToDraftHref);
+      return;
+    }
+    if (readinessIssues.includes("Schedule the draft")) {
+      setTab("settings");
+      requestAnimationFrame(() => {
+        document.getElementById("draft-date-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+      return;
+    }
+    if (readinessIssues.includes("Name every team")) {
+      setTab("teams");
+      return;
+    }
+    void continueToDraft();
+  }
 
   const TABS: { id: Tab; label: string }[] = [
-    { id: "settings", label: "Settings" },
-    { id: "teams", label: "Teams" },
-    { id: "audio", label: "Audio / Video" },
+    { id: "settings", label: "General" },
+    { id: "teams", label: "Teams & Order" },
+    { id: "audio", label: "Audio & Presentation" },
   ];
 
-  const inputCls = "w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-teal-500 focus:outline-none disabled:opacity-50 transition-colors";
-  const labelCls = "block text-xs font-semibold uppercase tracking-wide text-slate-500 mb-1.5";
-  const cardCls = "rounded-2xl border border-slate-800 bg-slate-900 p-6";
+  const inputCls = commandInputClass;
+  const labelCls = commandLabelClass;
+  const cardCls = "rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]";
 
   return (
     <>
     <div className="flex-1 text-white">
 
       {/* ── Header ── */}
-      <header className="sticky top-0 z-20 border-b border-slate-800 bg-[#020617]/95 backdrop-blur">
+      <header className="hidden">
         <div className="flex items-center gap-3 px-6 py-3">
           <Link
             href={backHref}
@@ -720,6 +792,101 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         </div>
       </header>
 
+      <div className="mx-auto max-w-7xl px-4 pt-6 sm:px-6 lg:px-8">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+          <Link
+            href={backHref}
+            className="inline-flex min-h-10 items-center gap-2 rounded-xl border border-slate-800/90 bg-slate-900/60 px-3 text-sm font-bold text-slate-300 transition-colors hover:border-slate-700 hover:bg-slate-800"
+          >
+            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+              <path d="M10.5 3L5.5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            League Command
+          </Link>
+          {isCommissioner && leagueSlug && (
+            <CommandButton type="button" variant="danger" onClick={() => setShowResetDraft(true)} className="min-h-10 px-4 py-2 text-xs">
+              Reset Draft
+            </CommandButton>
+          )}
+        </div>
+
+        <section className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+          <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_360px] lg:items-center">
+            <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primary }} />
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Command Center</p>
+                <CommandStatusBadge label={readinessLabel} tone={readinessTone} />
+                {!isCommissioner && <CommandStatusBadge label="Read Only" tone="neutral" />}
+              </div>
+              <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">{draft.name}</h1>
+              <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
+                Configure the draft format, order, timing, and broadcast presentation from one commissioner workspace.
+              </p>
+              {readinessIssues.length > 0 && (
+                <p className="mt-3 text-sm leading-6 text-amber-200">
+                  Next setup requirement: <span className="font-bold">{readinessIssues[0]}</span>
+                </p>
+              )}
+              <div className="mt-5 flex flex-wrap gap-3">
+                <CommandButton
+                  type="button"
+                  variant="primary"
+                  onClick={handlePrimaryAction}
+                  disabled={isSaving}
+                  style={{ backgroundColor: primary, color: secondary }}
+                >
+                  {isSaving ? "Saving..." : primaryActionLabel}
+                </CommandButton>
+                {fromDraft && backToDraftHref && (
+                  <Link
+                    href={backToDraftHref}
+                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                  >
+                    Back to Draft
+                  </Link>
+                )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <DraftMetric label="Teams" value={`${namedTeams}/${draft.teamCount}`} detail={`${assignedTeams} assigned`} tone={namedTeams === draft.teamCount ? "complete" : "warning"} />
+              <DraftMetric label="Rounds" value={String(draft.rounds)} detail={`${draft.rounds * draft.teamCount} picks`} />
+              <DraftMetric label="Pick Clock" value={formatClock(draft.pickSeconds)} detail={BEHAVIOR_LABELS[draft.timerBehavior] ?? "Manual"} />
+              <DraftMetric label="Draft Date" value={scheduledDate ? "Set" : "Missing"} detail={scheduledDate ? scheduledTimezone.replace(/_/g, " ") : "Schedule needed"} tone={scheduledDate ? "complete" : "warning"} />
+            </div>
+          </div>
+
+          <div className="border-t border-slate-800/80 px-5 py-3">
+            <nav className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="tablist" aria-label="Draft settings sections">
+              {TABS.map((t) => {
+                const active = tab === t.id;
+                return (
+                  <button
+                    key={t.id}
+                    type="button"
+                    role="tab"
+                    aria-selected={active}
+                    onClick={() => setTab(t.id)}
+                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                      active
+                        ? "border-blue-400/45 bg-blue-500/12 text-white"
+                        : "border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                    }`}
+                    style={active ? { borderColor: primary + "66", backgroundColor: primary + "16" } : undefined}
+                  >
+                    <span className="block text-sm font-black">{t.label}</span>
+                    <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
+                      {t.id === "settings" ? "Format" : t.id === "teams" ? "Order" : "Broadcast"}
+                    </span>
+                  </button>
+                );
+              })}
+            </nav>
+          </div>
+        </section>
+      </div>
+
       {showResetDraft && draftId && (
         <ResetDraftModal
           onClose={() => setShowResetDraft(false)}
@@ -736,7 +903,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       )}
 
       {/* ── Body ── */}
-      <div className="mx-auto max-w-5xl px-6 py-8 pb-24 lg:pb-8">
+      <div className="mx-auto max-w-7xl px-4 py-6 pb-24 sm:px-6 lg:px-8 lg:pb-8">
         {error && (
           <div className="mb-6 rounded-lg border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-400">
             {error}
@@ -751,15 +918,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         <div className={`grid gap-8 ${tab === "settings" ? "lg:grid-cols-[1fr_260px]" : ""}`}>
 
           {/* ── Main content ── */}
-          <div>
+          <div className="min-w-0">
 
             {/* SETTINGS TAB */}
             {tab === "settings" && (
               <div className="space-y-5">
 
-                <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Draft details</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Name and invite link for your draft.</p>
+                <CommandPanel
+                  eyebrow="Core Configuration"
+                  title="Draft Details"
+                  description="Name the draft and share the owner join link before draft night."
+                >
 
                   <div className="grid gap-5 sm:grid-cols-2">
                     <div>
@@ -793,8 +962,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                     <div>
                       <p className={labelCls}>Join code</p>
-                      <div className="flex items-center gap-2">
-                        <span className="rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 font-mono text-lg font-bold tracking-[0.25em] text-white">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="max-w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm font-bold tracking-[0.18em] text-white sm:text-lg sm:tracking-[0.25em]">
                           {draft.joinCode}
                         </span>
                         <button
@@ -816,11 +985,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </div>
                     </div>
                   </div>
-                </div>
+                </CommandPanel>
 
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Draft format</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Changing teams will add or remove slots from the draft order.</p>
+                  <SectionIntro
+                    title="Draft Format"
+                    description="Control the team count, number of rounds, rankings profile, draft style, pick clock, and scheduled start time."
+                  />
 
                   <div className="grid gap-5 sm:grid-cols-3 mb-5">
                     <div>
@@ -903,7 +1074,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                   <hr className="mb-5 border-slate-800" />
 
-                  <div>
+                  <div id="draft-date-section" className="scroll-mt-6">
                     <div className="flex items-center gap-2 mb-1">
                       <p className={labelCls} style={{ marginBottom: 0 }}>Draft style</p>
                       {fromDraft && (
@@ -980,7 +1151,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           onBlur={() => {
                             if (!draftId || !setup || !scheduledDate) return;
                             setIsSavingSchedule(true);
-                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, scheduledTimezone);
                             updateDraftSchedule(draftId, iso, scheduledTimezone)
                               .then((updated) => setSetup({ ...setup, draft: updated }))
                               .catch((e) => setError(e instanceof Error ? e.message : "Unable to save schedule."))
@@ -999,7 +1170,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           onBlur={() => {
                             if (!draftId || !setup || !scheduledDate) return;
                             setIsSavingSchedule(true);
-                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, scheduledTimezone);
                             updateDraftSchedule(draftId, iso, scheduledTimezone)
                               .then((updated) => setSetup({ ...setup, draft: updated }))
                               .catch((e) => setError(e instanceof Error ? e.message : "Unable to save time."))
@@ -1017,7 +1188,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             setScheduledTimezone(e.target.value);
                             if (!draftId || !setup || !scheduledDate) return;
                             setIsSavingSchedule(true);
-                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            // Re-anchor the same wall clock to the newly picked
+                            // zone: 7pm Eastern becomes 7pm Pacific, not 4pm.
+                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, e.target.value);
                             updateDraftSchedule(draftId, iso, e.target.value)
                               .then((updated) => setSetup({ ...setup, draft: updated }))
                               .catch((e) => setError(e instanceof Error ? e.message : "Unable to save timezone."))
@@ -1060,9 +1233,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 </div>
 
                 {/* ── Roster Positions ── */}
-                <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Roster positions</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Choose which positions exist and how many can be rostered.</p>
+                <CommandPanel
+                  eyebrow="Roster Model"
+                  title="Roster Positions"
+                  description="Choose which positions exist and how many players can be rostered at each slot."
+                >
 
                   <div className="overflow-x-auto">
                     <table className="w-full text-sm">
@@ -1168,12 +1343,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </svg>
                     {showAllPositions ? "Show fewer positions" : "Show more positions"}
                   </button>
-                </div>
+                </CommandPanel>
 
                 {/* ── Visibility & extras ── */}
-                <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Visibility &amp; extras</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-5">Optional controls that affect what owners see and can do.</p>
+                <CommandPanel
+                  eyebrow="Advanced"
+                  title="Visibility & Extras"
+                  description="Optional controls that affect what owners see and how special draft-night moments behave."
+                >
 
                   <div className="divide-y divide-slate-800">
                     {/* Player Whammies */}
@@ -1316,7 +1493,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </div>
 
                   </div>
-                </div>
+                </CommandPanel>
 
               </div>
             )}
@@ -1324,24 +1501,26 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {/* TEAMS TAB */}
             {tab === "teams" && (
               <div className="space-y-5">
-                <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+                <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <p className="text-base font-bold text-white">Teams setup</p>
-                    <p className="mt-0.5 text-xs text-slate-500">Add details, set the draft order with the arrows, and click a team to expand and edit.</p>
+                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Operational Control</p>
+                    <h2 className="mt-1 text-base font-bold text-white">Teams & Draft Order</h2>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">Assign owners, tune team details, and maintain the live draft order from one compact command list.</p>
                   </div>
                   {isCommissioner && (
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <button
                         type="button"
                         disabled={isRefreshing}
-                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-50 transition-colors"
+                        className="min-h-10 rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 text-xs font-bold text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:opacity-50"
                         onClick={refreshParticipants}
                       >
                         {isRefreshing ? "Refreshing..." : "Refresh"}
                       </button>
                       <button
                         type="button"
-                        className="rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+                        className="min-h-10 rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 text-xs font-bold text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
                         onClick={() => {
                           setTeams((prev) => [...prev].sort(() => Math.random() - 0.5));
                           setOrderDirty(true);
@@ -1351,16 +1530,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </button>
                       <button
                         type="button"
-                        className="rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors hover:bg-slate-800"
+                        className="min-h-10 rounded-xl border px-3 text-xs font-bold transition-colors hover:bg-slate-800"
                         style={{ borderColor: primary + "66", color: primary }}
                         onClick={() => setShowOrderRace(true)}
                       >
-                        Randomize Order (fun) 🏈
+                        Draft order race
                       </button>
                       <button
                         type="button"
                         disabled={!orderDirty || savingTeamId === "order"}
-                        className="rounded-lg px-3 py-1.5 text-xs font-bold disabled:opacity-40 transition-opacity hover:opacity-90"
+                        className="min-h-10 rounded-xl px-4 text-xs font-black disabled:opacity-40 transition-opacity hover:opacity-90"
                         style={{ backgroundColor: primary, color: secondary }}
                         onClick={async () => {
                           setSavingTeamId("order");
@@ -1376,6 +1555,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </button>
                     </div>
                   )}
+                  </div>
+                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                    <DraftMetric label="Assigned" value={`${assignedTeams}/${teams.length}`} detail="Owner seats" tone={assignedTeams === teams.length ? "complete" : "warning"} />
+                    <DraftMetric label="Order" value={orderDirty ? "Unsaved" : "Saved"} detail="Manual order" tone={orderDirty ? "warning" : "complete"} />
+                    <DraftMetric label="Locked State" value={canManageAssignments ? "Editable" : "Locked"} detail={canManageAssignments ? "Setup controls on" : "Pause to edit"} tone={canManageAssignments ? "complete" : "warning"} />
+                  </div>
                 </div>
 
                 {isCommissioner && !canManageAssignments && (
@@ -1385,7 +1570,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 )}
 
                 {/* Accordion team list */}
-                <div className="rounded-2xl border border-slate-800 bg-slate-900 overflow-hidden">
+                <div className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
                   <div className="divide-y divide-slate-800">
                     {teams.map((team, index) => {
                       const owner = setup.participants.find((p) => p.teamId === team.id);
@@ -1565,7 +1750,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                       className="flex w-full items-center justify-between px-4 py-3 text-left"
                                       onClick={() => setLastSeasonOpen((prev) => {
                                         const next = new Set(prev);
-                                        next.has(team.id) ? next.delete(team.id) : next.add(team.id);
+                                        if (next.has(team.id)) next.delete(team.id);
+                                        else next.add(team.id);
                                         return next;
                                       })}
                                     >
@@ -1893,11 +2079,22 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {/* AUDIO / VIDEO TAB */}
             {tab === "audio" && (
               <div className="space-y-5">
+                <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
+                  <div className="flex flex-wrap items-start justify-between gap-4">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Broadcast Package</p>
+                      <h2 className="mt-1 text-base font-bold text-white">Audio & Presentation</h2>
+                      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Tune draft-night sounds, announcer voice, team walk-up music, and celebration moments without losing operational clarity.</p>
+                    </div>
+                    <CommandStatusBadge label={settingsSaveState === "saving" ? "Saving" : settingsSaveState === "saved" ? "Saved" : "Auto Save"} tone={settingsSaveState === "saving" ? "warning" : settingsSaveState === "saved" ? "complete" : "neutral"} />
+                  </div>
+                </div>
 
                 {/* ── Announcer Voice ── */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Announcer Voice</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Announcer</p>
+                  <p className="mt-1 text-base font-bold text-white">Pick Announcements</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">
                     Choose the voice used for pick announcements.
                     {isAiAnnouncerEnabled() && " AI announcers are generated in the cloud and sound the same on every device."}
                   </p>
@@ -2059,8 +2256,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* ── Draft Presentation ── */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Draft Presentation</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Configure pick announcements, draft start audio, and player videos.</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Presentation Cues</p>
+                  <p className="mt-1 text-base font-bold text-white">Draft Presentation</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Configure pick announcements, draft start audio, and future player-video moments.</p>
 
                   <div className="space-y-5">
                     {/* Pick is in toggle + custom SFX */}
@@ -2241,8 +2439,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* ── Walk-Up Music Behavior ── */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Walk-up music between turns</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">What happens to a team&apos;s walk-up song when they come back on the clock in a later round.</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Walk-Up Music</p>
+                  <p className="mt-1 text-base font-bold text-white">Between-Turn Behavior</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Control what happens to a team&apos;s walk-up song when they return to the clock in a later round.</p>
 
                   <div className="space-y-2">
                     {([
@@ -2277,8 +2476,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* ── End of Round Slide ── */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">End of round slide</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Show a recap at the end of each round before the next round begins.</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Round Breaks</p>
+                  <p className="mt-1 text-base font-bold text-white">End of Round Slide</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Show a recap at the end of each round before the next round begins.</p>
 
                   <label className="flex cursor-pointer items-center gap-3 mb-4">
                     <input
@@ -2355,8 +2555,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* Custom Sound Effects */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Custom Sound Effects</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">Audio clips played when SFX 1 / SFX 2 are clicked on the pick reveal card. Upload an MP3, WAV, or OGG (max 8 MB).</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Commissioner Controls</p>
+                  <p className="mt-1 text-base font-bold text-white">Custom Sound Effects</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Audio clips played when SFX 1 or SFX 2 are clicked on the pick reveal card. Upload an MP3, WAV, or OGG, max 8 MB.</p>
 
                   <div className="space-y-4">
                     {([
@@ -2458,8 +2659,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* Awards Ceremony Music */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Awards Ceremony Music</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Finale</p>
+                  <p className="mt-1 text-base font-bold text-white">Awards Ceremony Music</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">
                     The song that plays during the end-of-draft awards ceremony. Pick anything from YouTube, or leave the DraftHQ default.
                   </p>
 
@@ -2518,8 +2720,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* Voice Reactions */}
                 <div className={cardCls}>
-                  <p className="text-base font-bold text-white">Voice Reactions</p>
-                  <p className="mt-0.5 text-xs text-slate-500 mb-4">TTS phrases spoken when the 😄 or 😤 buttons are clicked. One phrase is chosen at random.</p>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Reactions</p>
+                  <p className="mt-1 text-base font-bold text-white">Voice Reactions</p>
+                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">TTS phrases spoken when reaction buttons are clicked. One phrase is chosen at random.</p>
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     {/* Positive */}
@@ -2601,8 +2804,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           {/* ── Sidebar (desktop only, settings tab only) ── */}
           <aside className={`hidden lg:sticky lg:top-[108px] lg:self-start ${tab === "settings" ? "lg:block" : ""}`}>
             <div className={cardCls}>
-              <p className="text-sm font-bold text-white">Summary</p>
-              <p className="mt-0.5 text-xs text-slate-600 mb-4">Your current setup at a glance.</p>
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
+              <p className="mt-1 text-sm font-bold text-white">Draft Setup Summary</p>
+              <p className="mt-1 mb-4 text-xs leading-5 text-slate-500">General settings autosave as each control changes. Team order changes are saved from the Teams & Order tab.</p>
 
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5">
                 <div>
@@ -2678,12 +2882,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 <>
                   <button
                     type="button"
-                    onClick={() => void saveTeams()}
+                    onClick={handlePrimaryAction}
                     disabled={isSaving}
-                    className="mt-4 w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                    className="mt-4 w-full rounded-xl py-2.5 text-sm font-black disabled:opacity-50 transition-opacity hover:opacity-90"
                     style={{ backgroundColor: primary, color: secondary }}
                   >
-                    {isSaving ? "Saving..." : "Save Changes"}
+                    {isSaving ? "Saving..." : primaryActionLabel}
                   </button>
                   {fromDraft && backToDraftHref && (
                     <Link
@@ -2705,7 +2909,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       </div>
 
       {/* ── Mobile sticky save bar ── */}
-      <div className={`lg:hidden fixed bottom-0 inset-x-0 z-20 border-t border-slate-800 bg-slate-950/90 backdrop-blur-sm px-4 py-3 flex items-center gap-3 ${fromDraft ? "hidden" : ""}`}>
+      <div className={`lg:hidden fixed bottom-0 inset-x-0 z-20 border-t border-slate-800 bg-slate-950/90 backdrop-blur-sm px-4 py-3 flex items-center gap-3 ${fromDraft || tab !== "teams" ? "hidden" : ""}`}>
         <div className="flex-1 min-w-0">
           <p className="text-xs text-slate-500 truncate">
             {draft.teamCount} teams · {draft.rounds} rounds · {formatClock(draft.pickSeconds)} clock

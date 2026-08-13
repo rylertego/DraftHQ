@@ -4,6 +4,17 @@ export interface EspnRanking {
   nfl_team: string | null;
   position: string | null;
   rank: number;
+  /** Market average draft position. Null when ESPN has no usable ADP (it
+   * flattens the field to a constant once a season is over). */
+  adp?: number | null;
+  /** ESPN's projected season points (PPR-scored default league). */
+  projected_points?: number | null;
+}
+
+export interface PlayerMarketData {
+  rank: number;
+  adp: number | null;
+  projectedPoints: number | null;
 }
 
 export async function getRankings(
@@ -49,6 +60,47 @@ export function buildRankMap(
     const match = byId ?? byName ?? byLastPosTeam;
     if (match) {
       map.set(p.id, match.rank);
+    }
+  }
+
+  return map;
+}
+
+/** Same matching as buildRankMap, but keeps rank, ADP, and projection together
+ * so the draft grader can reason about market value and expected production. */
+export function buildMarketMap(
+  players: { id: string; fullName: string; externalId?: string; nflTeam?: string; position?: string }[],
+  rankings: EspnRanking[]
+): Map<string, PlayerMarketData> {
+  const map = new Map<string, PlayerMarketData>();
+  if (!rankings.length) return map;
+
+  const espnById = new Map<string, EspnRanking>();
+  const espnByName = new Map<string, EspnRanking>();
+  const espnByLastPosTeam = new Map<string, EspnRanking>();
+
+  for (const r of rankings) {
+    espnById.set(String(r.espn_player_id), r);
+    espnByName.set(normalizeName(r.player_name), r);
+    if (r.nfl_team && r.position) {
+      espnByLastPosTeam.set(`${lastName_(r.player_name)}|${r.position}|${r.nfl_team}`, r);
+    }
+  }
+
+  for (const p of players) {
+    const byId = p.externalId ? espnById.get(p.externalId) : undefined;
+    const byName = espnByName.get(normalizeName(p.fullName));
+    const byLastPosTeam =
+      p.nflTeam && p.position
+        ? espnByLastPosTeam.get(`${lastName_(p.fullName)}|${p.position}|${p.nflTeam}`)
+        : undefined;
+    const match = byId ?? byName ?? byLastPosTeam;
+    if (match) {
+      map.set(p.id, {
+        rank: match.rank,
+        adp: match.adp ?? null,
+        projectedPoints: match.projected_points ?? null,
+      });
     }
   }
 

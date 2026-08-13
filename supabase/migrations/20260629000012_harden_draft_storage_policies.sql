@@ -116,9 +116,9 @@ create policy "draft audio delete"
     and public.is_draft_commissioner((storage.foldername(name))[1]::uuid)
   );
 
--- Note: league-assets bucket (logo/banner uploads in LeagueSettingsForm) has
--- no migration definition. That bucket was likely created manually in the
--- dashboard. Its path format ({folder}/{leagueId}-{timestamp}.ext) cannot
--- be safely policy-checked by commissioner role without a stable UUID prefix.
--- TODO: migrate league logo/banner uploads to league-team-logos or a new
---       league-assets bucket with path {league_id}/{type}.{ext}.
+-- Note: league-assets bucket (logo/banner uploads in LeagueSettingsForm) had
+-- no migration definition. It turned out the bucket did not exist at all —
+-- uploads failed silently and fell back to storing a downsampled base64 data
+-- URL in leagues.logo_url. RESOLVED in 20260806000000_league_assets_bucket.sql:
+-- the bucket is created with path {league_id}/{type}.{ext} and commissioner-
+-- scoped insert/update/delete policies.

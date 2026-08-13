@@ -1,6 +1,7 @@
 import { supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
 import type { SleeperLeaguePreview } from "@/lib/sleeper";
+import { applyImportedLeagueSettings } from "@/lib/draftApi";
 import type {
   League,
   LeagueMember,
@@ -771,7 +772,12 @@ export async function createSleeperLeagueSeason(input: {
     throw error;
   }
 
-  return getSingleSeason(data);
+  const season = getSingleSeason(data);
+  // Carry the imported starting lineup and scoring format onto the new draft.
+  if (season.draft?.id && (input.preview.lineup || input.preview.scoringType)) {
+    await applyImportedLeagueSettings(season.draft.id, input.preview);
+  }
+  return season;
 }
 
 // --- League Teams ---
@@ -859,6 +865,26 @@ export async function getLeagueTeams(leagueId: string): Promise<LeagueTeam[]> {
   }
 
   return rows.map((row) => mapLeagueTeamRow(row, profileMap, historyIds));
+}
+
+/**
+ * The 1-based draft slot a league team holds in a season, or null when the
+ * order has not been materialized yet. Owners see this on their dashboard;
+ * league members can already read `league_team_seasons` under existing RLS.
+ */
+export async function getLeagueTeamDraftSlot(
+  leagueSeasonId: string,
+  leagueTeamId: string
+): Promise<number | null> {
+  const { data, error } = await supabase
+    .from("league_team_seasons")
+    .select("draft_position")
+    .eq("league_season_id", leagueSeasonId)
+    .eq("league_team_id", leagueTeamId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return (data as { draft_position: number } | null)?.draft_position ?? null;
 }
 
 export interface CreateLeagueTeamData {

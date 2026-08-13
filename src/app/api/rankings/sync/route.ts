@@ -3,9 +3,12 @@ import { supabaseAdmin } from "@/lib/supabaseAdmin";
 const ESPN_URL =
   "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl/seasons/{year}/segments/0/leaguedefaults/3?view=kona_player_info";
 
-// ESPN position IDs → fantasy position abbreviation
+// ESPN position IDs → fantasy position abbreviation.
+// ESPN's ids are 3 = WR and 4 = TE. Listing them out of order here previously
+// disguised a swap (`4: "WR", 3: "TE"`), which labelled every wide receiver a
+// tight end and vice versa across the whole rankings table. Keep them ordered.
 const ESPN_POS: Record<number, string> = {
-  1: "QB", 2: "RB", 4: "WR", 3: "TE", 5: "K", 16: "DST",
+  1: "QB", 2: "RB", 3: "WR", 4: "TE", 5: "K", 16: "DST",
 };
 
 // ESPN pro team IDs → NFL abbreviation
@@ -97,21 +100,33 @@ export async function POST(request: Request) {
 
     const standardRank = ranks["STANDARD"]?.rank;
     const pprRank = ranks["PPR"]?.rank;
+    const adp = rawAdp(p.ownership?.averageDraftPosition);
+    const projected = seasonProjection(p.stats, year);
+    const extras = { adp, projected_points: projected };
 
     if (standardRank) {
-      rows.push({ season_year: year, scoring_type: "standard", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: standardRank, fetched_at: now });
+      rows.push({ season_year: year, scoring_type: "standard", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: standardRank, ...extras, fetched_at: now });
     }
     if (pprRank) {
-      rows.push({ season_year: year, scoring_type: "ppr", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: pprRank, fetched_at: now });
+      rows.push({ season_year: year, scoring_type: "ppr", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: pprRank, ...extras, fetched_at: now });
     }
     // Derive HALF_PPR by averaging standard and PPR ranks
     if (standardRank && pprRank) {
-      rows.push({ season_year: year, scoring_type: "half_ppr", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: Math.round((standardRank + pprRank) / 2), fetched_at: now });
+      rows.push({ season_year: year, scoring_type: "half_ppr", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: Math.round((standardRank + pprRank) / 2), ...extras, fetched_at: now });
     }
     // Superflex: same as standard but QBs are boosted (re-ranked below)
     if (standardRank) {
-      rows.push({ season_year: year, scoring_type: "superflex", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: standardRank, fetched_at: now });
+      rows.push({ season_year: year, scoring_type: "superflex", espn_player_id: espnId, player_name: name, nfl_team: nflTeam, position, rank: standardRank, ...extras, fetched_at: now });
     }
+  }
+
+  // ESPN flattens ADP to one shared constant once a season is finished (every
+  // player came back as 170 for 2025). That is not market data — drop it rather
+  // than feed the grader a fake signal.
+  const adpValues = rows.map((r) => r.adp).filter((v): v is number => v !== null);
+  const distinctAdp = new Set(adpValues).size;
+  if (adpValues.length > 0 && distinctAdp < Math.max(5, adpValues.length * 0.1)) {
+    for (const row of rows) row.adp = null;
   }
 
   // Re-rank superflex: interleave QBs roughly every 3rd pick
@@ -145,6 +160,26 @@ export async function POST(request: Request) {
   return Response.json({ synced: rows.length, year });
 }
 
+function rawAdp(value: number | undefined): number | null {
+  return typeof value === "number" && value > 0 ? value : null;
+}
+
+/** ESPN season projection: statSourceId 1 (projected) + statSplitTypeId 0
+ * (season total), keyed `10{year}`. `00{year}` is the actual total. */
+function seasonProjection(
+  stats: Array<{ id?: string; seasonId?: number; statSourceId?: number; statSplitTypeId?: number; appliedTotal?: number }> | undefined,
+  year: number
+): number | null {
+  if (!Array.isArray(stats)) return null;
+  const match = stats.find(
+    (s) =>
+      s.statSourceId === 1 &&
+      s.statSplitTypeId === 0 &&
+      (s.seasonId === year || s.id === `10${year}`)
+  );
+  return typeof match?.appliedTotal === "number" ? Math.round(match.appliedTotal * 10) / 10 : null;
+}
+
 interface EspnEntry {
   id: number;
   onTeamId?: number;
@@ -154,6 +189,14 @@ interface EspnEntry {
     defaultPositionId?: number;
     proTeamId?: number;
     draftRanksByRankType?: Record<string, { rank?: number }>;
+    ownership?: { averageDraftPosition?: number };
+    stats?: Array<{
+      id?: string;
+      seasonId?: number;
+      statSourceId?: number;
+      statSplitTypeId?: number;
+      appliedTotal?: number;
+    }>;
   };
 }
 
@@ -165,5 +208,7 @@ interface EspnRankingRow {
   nfl_team: string | null;
   position: string | null;
   rank: number;
+  adp: number | null;
+  projected_points: number | null;
   fetched_at: string;
 }

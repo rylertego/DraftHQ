@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DraftAwardsCeremony from "@/components/DraftAwardsCeremony";
+import DraftGradesBoard from "@/components/DraftGradesBoard";
+import { gradeDraft, type DraftGradeReport } from "@/lib/draftGrading";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftLobby from "@/components/DraftLobby";
 import DraftChat from "@/components/DraftChat";
 import DraftTicker from "@/components/DraftTicker";
-import { buildRankMap, getRankings } from "@/lib/rankingsApi";
+import { buildMarketMap, buildRankMap, getRankings } from "@/lib/rankingsApi";
 import { buildPositionColorMap, positionCellColors } from "@/lib/positionColors";
 import type { EspnRanking } from "@/lib/rankingsApi";
 import {
@@ -255,6 +257,7 @@ function DraftCompleteModal({
 
 function TvModeOverlay({
   draft,
+  draftName,
   picks,
   teams,
   players,
@@ -266,6 +269,15 @@ function TvModeOverlay({
   nextUpSlots,
   accentColor,
   leagueName,
+  tickerMode,
+  boardView,
+  onBoardViewChange,
+  posFilter,
+  onPosFilterChange,
+  enabledPositions,
+  chatUnread,
+  showChat,
+  onChatToggle,
   revealActive,
   landmineActive,
   tvMasterVolume,
@@ -275,6 +287,7 @@ function TvModeOverlay({
   onExit,
 }: {
   draft: Draft;
+  draftName: string;
   picks: DraftPick[];
   teams: Team[];
   players: Player[];
@@ -286,6 +299,15 @@ function TvModeOverlay({
   nextUpSlots: { teamName: string; overallPickNumber: number }[];
   accentColor: string | null;
   leagueName: string | undefined;
+  tickerMode: "ticker" | "nav";
+  boardView: "draft" | "players" | "roster" | "rounds" | "grades";
+  onBoardViewChange: (v: "draft" | "players" | "roster" | "rounds" | "grades") => void;
+  posFilter: string;
+  onPosFilterChange: (pos: string) => void;
+  enabledPositions: string[];
+  chatUnread: number;
+  showChat: boolean;
+  onChatToggle: () => void;
   revealActive: boolean;
   landmineActive: boolean;
   tvMasterVolume: number;
@@ -298,6 +320,8 @@ function TvModeOverlay({
   const accent = accentColor ?? "#14b8a6";
   const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
   const lastPick = sorted.length > 0 ? sorted[sorted.length - 1] : null;
+  const tickerBoardView: "draft" | "players" | "roster" | "rounds" =
+    boardView === "grades" ? "draft" : boardView;
   const lastPickTeam = lastPick ? teams.find((t) => t.id === lastPick.teamId) : null;
   const lastPickHeadshot = lastPick
     ? players.find((p) => p.id === lastPick.playerId)?.headshotUrl
@@ -305,9 +329,27 @@ function TvModeOverlay({
   const sortedTeamNames = [...teams]
     .sort((a, b) => a.draftPosition - b.draftPosition)
     .map((t) => t.name);
+  const timerState =
+    draft.status === "complete"
+      ? "complete"
+      : draft.status !== "active"
+      ? "paused"
+      : draft.pickSeconds > 0 && timerSeconds <= 0
+      ? "expired"
+      : draft.pickSeconds > 0 && timerSeconds <= 10
+      ? "warning"
+      : "running";
+  const timerStateLabel =
+    timerState === "expired"
+      ? "Expired"
+      : timerState === "warning"
+      ? "Final Seconds"
+      : timerState === "paused"
+      ? "Paused"
+      : "Running";
 
   // Spotlight background radiates from the on-clock team (left side)
-  const bgSpotlight = `radial-gradient(ellipse 75% 90% at 28% 45%, ${accent}0d 0%, transparent 65%), radial-gradient(ellipse 40% 60% at 28% 45%, ${accent}07 0%, transparent 50%)`;
+  const bgSpotlight = `radial-gradient(ellipse 70% 100% at 28% 45%, ${accent}10 0%, transparent 62%), radial-gradient(ellipse 42% 75% at 58% 48%, ${accent}08 0%, transparent 55%)`;
 
   return (
     <div className="fixed inset-0 z-[45] flex flex-col overflow-hidden" style={{ backgroundColor: "#020617" }}>
@@ -315,7 +357,7 @@ function TvModeOverlay({
       {/* ── Header ── */}
       <div
         className="flex shrink-0 items-center justify-between px-5"
-        style={{ height: 52, borderBottom: `1px solid ${accent}20`, background: `linear-gradient(to bottom, ${accent}09, transparent)` }}
+        style={{ height: 46, borderBottom: `1px solid ${accent}20`, background: `linear-gradient(to bottom, ${accent}09, transparent)` }}
       >
         {/* Brand */}
         <div className="flex items-center gap-3">
@@ -329,10 +371,10 @@ function TvModeOverlay({
         </div>
 
         {/* Controls */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 opacity-35 transition-opacity hover:opacity-100 focus-within:opacity-100">
           {/* Round / pick badge */}
           {currentRound !== null && draft.status !== "complete" && (
-            <div className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1">
+            <div className="hidden items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1">
               <span className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-600">Rd</span>
               <span className="text-lg font-black text-white">{currentRound}</span>
               <span className="text-slate-700 mx-0.5">·</span>
@@ -404,7 +446,7 @@ function TvModeOverlay({
           <button
             type="button"
             onClick={onExit}
-            className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-slate-300 transition-colors hover:bg-white/10"
+            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.035] px-3 py-1.5 text-xs font-bold text-slate-400 transition-colors hover:bg-white/10 hover:text-slate-200"
           >
             <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="h-3 w-3">
               <path d="M1 1l10 10M11 1L1 11" />
@@ -420,7 +462,7 @@ function TvModeOverlay({
         {/* PRESENTATION AREA — 55 % of content height */}
         <div
           className="relative flex shrink-0 flex-col overflow-hidden"
-          style={{ height: "55%", background: bgSpotlight }}
+          style={{ height: "clamp(320px, 34vh, 420px)", background: bgSpotlight }}
         >
           {/* Vignette */}
           <div
@@ -429,10 +471,10 @@ function TvModeOverlay({
           />
 
           {/* HERO ROW — on-clock left, timer right */}
-          <div className="relative flex min-h-0 flex-1 items-stretch">
+          <div className="relative grid min-h-0 flex-1 grid-cols-[minmax(0,1.25fr)_minmax(18rem,0.75fr)] items-stretch">
 
             {/* LEFT: Team on the clock */}
-            <div className="flex flex-1 flex-col justify-center px-10 py-6">
+            <div className="flex min-w-0 flex-col justify-center px-10 py-5">
               {draft.status === "complete" ? (
                 <div
                   className="font-black uppercase leading-none text-green-400"
@@ -442,46 +484,39 @@ function TvModeOverlay({
                 </div>
               ) : teamOnClock ? (
                 <>
-                  <div className="mb-4 text-[10px] font-black uppercase tracking-[0.35em] text-slate-600">
-                    On the Clock
+                  <div className="mb-3 flex flex-wrap items-center gap-3">
+                    <div className="text-[10px] font-black uppercase tracking-[0.35em]" style={{ color: accent }}>
+                      On the Clock
+                    </div>
+                    {currentRound !== null && (
+                      <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5">
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Round</span>
+                        <span className="text-2xl font-black leading-none text-white">{currentRound}</span>
+                        <span className="h-5 w-px bg-white/10" />
+                        <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Pick</span>
+                        <span className="text-2xl font-black leading-none text-white">{currentPickInRound ?? "-"}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Logo + name side-by-side so the logo is a dominant TV visual */}
                   <div className="flex min-w-0 items-center gap-6">
 
-                    {/* Logo with animated accent glow */}
+                    {/* Logo with accent broadcast framing */}
                     <div className="relative shrink-0">
-                      {/* Outer slow pulse ring */}
-                      <div
-                        className="absolute rounded-full animate-pulse"
-                        style={{
-                          inset: -24,
-                          background: `radial-gradient(circle, ${accent}30 0%, transparent 70%)`,
-                        }}
-                      />
-                      {/* Inner steady glow */}
-                      <div
-                        className="absolute rounded-full"
-                        style={{
-                          inset: -8,
-                          background: `radial-gradient(circle, ${accent}25 0%, transparent 65%)`,
-                        }}
-                      />
                       {teamOnClock.logoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={teamOnClock.logoUrl}
                           alt=""
-                          className="relative h-[clamp(8rem,14vw,16rem)] w-[clamp(8rem,14vw,16rem)] rounded-full object-cover"
-                          style={{ boxShadow: `0 0 0 4px ${accent}70, 0 0 48px 12px ${accent}30` }}
+                          className="relative h-[clamp(8rem,11vw,13rem)] w-[clamp(8rem,11vw,13rem)] object-contain"
                         />
                       ) : (
                         <div
-                          className="relative flex h-[clamp(8rem,14vw,16rem)] w-[clamp(8rem,14vw,16rem)] items-center justify-center rounded-full font-black text-white"
+                          className="relative flex h-[clamp(8rem,11vw,13rem)] w-[clamp(8rem,11vw,13rem)] items-center justify-center rounded-3xl font-black text-white"
                           style={{
                             fontSize: "clamp(2.5rem, 5vw, 6rem)",
                             backgroundColor: `${accent}18`,
-                            boxShadow: `0 0 0 4px ${accent}70, 0 0 48px 12px ${accent}30`,
                           }}
                         >
                           {teamOnClock.name.slice(0, 2).toUpperCase()}
@@ -493,34 +528,34 @@ function TvModeOverlay({
                     <div className="min-w-0 flex-1">
                       <div
                         className="line-clamp-2 break-words font-black uppercase leading-tight tracking-wide"
-                        style={{ fontSize: "clamp(1.75rem, 3.5vw, 5rem)", color: accent }}
+                        style={{ fontSize: "clamp(2rem, 3.6vw, 4.6rem)", color: accent }}
                       >
                         {teamOnClock.name}
                       </div>
 
                       {/* Next up — visual numbered pills */}
                       {nextUpSlots.length > 0 && (
-                        <div className="mt-4 flex flex-wrap items-center gap-2">
-                          <span className="mr-1 text-[9px] font-black uppercase tracking-[0.2em] text-slate-700">
-                            Next
+                        <div className="mt-4 flex flex-wrap items-center gap-2.5">
+                          <span className="mr-0.5 text-[10px] font-black uppercase tracking-[0.22em] text-slate-600">
+                            Next Up
                           </span>
                       {nextUpSlots.slice(0, 5).map((slot, i) => {
                         const slotTeam = teams.find((t) => t.name === slot.teamName);
                         return (
                           <div
                             key={slot.overallPickNumber}
-                            className="flex items-center gap-1.5 rounded-full border border-white/8 bg-white/[0.04] px-3 py-1.5"
+                            className="flex items-center gap-2 rounded-full border border-white/8 bg-white/[0.045] px-3 py-1.5"
                           >
-                            <span className="text-[10px] font-black text-slate-700">{i + 1}</span>
+                            <span className="text-[11px] font-black" style={{ color: i === 0 ? accent : "#64748b" }}>{i + 1}</span>
                             {slotTeam?.logoUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
-                              <img src={slotTeam.logoUrl} alt="" className="h-4 w-4 rounded-full object-cover" />
+                              <img src={slotTeam.logoUrl} alt="" className="h-5 w-5 object-contain" />
                             ) : (
                               <span className="text-[10px] font-bold text-slate-600">
                                 {slot.teamName.slice(0, 2).toUpperCase()}
                               </span>
                             )}
-                            <span className="text-sm font-bold text-slate-300">{slot.teamName}</span>
+                            <span className="text-base font-bold text-slate-300">{slot.teamName}</span>
                           </div>
                         );
                       })}
@@ -535,24 +570,46 @@ function TvModeOverlay({
             </div>
 
             {/* Divider */}
-            <div className="w-px shrink-0 self-stretch" style={{ backgroundColor: `${accent}12` }} />
+            <div className="hidden" />
 
             {/* RIGHT: TIMER — the dominant focal point */}
             <div
-              className="flex w-[45%] shrink-0 flex-col items-center justify-center px-8 py-6"
+              className="flex min-w-0 flex-col items-center justify-center px-8 py-5"
+              style={{
+                borderLeft: `1px solid ${accent}16`,
+                background: `linear-gradient(90deg, transparent, ${accent}08)`,
+              }}
             >
               {draft.status !== "complete" && (
                 <>
+                  <div className="mb-2 flex items-center gap-2">
+                    <span
+                      className="h-2 w-2 rounded-full"
+                      style={{
+                        backgroundColor:
+                          timerState === "expired"
+                            ? "#ef4444"
+                            : timerState === "warning"
+                            ? "#f59e0b"
+                            : timerState === "paused"
+                            ? "#94a3b8"
+                            : accent,
+                      }}
+                    />
+                    <span className="text-[10px] font-black uppercase tracking-[0.24em] text-slate-500">
+                      {timerStateLabel}
+                    </span>
+                  </div>
                   <div
                     className={`font-mono font-black tabular-nums leading-none ${
                       draft.pickSeconds > 0 ? timerColor : "text-slate-800"
                     }`}
-                    style={{ fontSize: "clamp(5rem, 15vw, 20rem)" }}
+                    style={{ fontSize: "clamp(4.25rem, 8.5vw, 10rem)" }}
                   >
                     {draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
                   </div>
                   {draft.pickSeconds > 0 && (
-                    <div className="mt-2 text-[9px] font-black uppercase tracking-[0.3em] text-slate-700">
+                    <div className="mt-2 text-[10px] font-black uppercase tracking-[0.3em] text-slate-600">
                       Time Remaining
                     </div>
                   )}
@@ -565,29 +622,29 @@ function TvModeOverlay({
           {lastPick && (
             <div
               key={lastPick.overallPickNumber}
-              className="relative shrink-0 flex items-center gap-5 overflow-hidden px-8"
+              className="relative shrink-0 flex items-center gap-4 overflow-hidden px-8"
               style={{
-                height: 80,
-                background: `linear-gradient(90deg, ${accent}22 0%, rgba(2,6,23,0.97) 60%)`,
+                height: 66,
+                background: `linear-gradient(90deg, ${accent}20 0%, rgba(2,6,23,0.97) 55%)`,
                 borderTop: `2px solid ${accent}30`,
                 animation: "tv-lower-third-in 0.45s cubic-bezier(0.22,1,0.36,1)",
               }}
             >
               {/* Label + pick number */}
               <div className="shrink-0 text-right">
-                <div className="text-[8px] font-black uppercase tracking-[0.3em]" style={{ color: accent }}>
+                <div className="text-[9px] font-black uppercase tracking-[0.28em]" style={{ color: accent }}>
                   Last Pick
                 </div>
-                <div className="text-[10px] font-bold text-slate-700">
+                <div className="text-xs font-bold text-slate-500">
                   {lastPick.round}.{lastPick.pickNumber} · #{lastPick.overallPickNumber}
                 </div>
               </div>
 
-              <div className="h-10 w-px shrink-0 bg-white/10" />
+              <div className="hidden" />
 
               {/* Headshot slot — layout-ready; renders image when available */}
               <div
-                className="h-14 w-14 shrink-0 overflow-hidden rounded-full"
+                className="h-12 w-12 shrink-0 overflow-hidden rounded-full"
                 style={{ border: `2px solid ${accent}30`, backgroundColor: "rgba(15,23,42,0.6)" }}
               >
                 {lastPickHeadshot ? (
@@ -600,21 +657,21 @@ function TvModeOverlay({
 
               {/* Player info */}
               <div className="min-w-0 flex-1">
-                <div className="truncate text-[clamp(1.1rem,2.2vw,2rem)] font-black leading-tight text-white">
+                <div className="truncate text-[clamp(1.1rem,1.7vw,1.7rem)] font-black leading-tight text-white">
                   {lastPick.playerName}
                 </div>
-                <div className="mt-0.5 flex items-center gap-2">
+                <div className="mt-0.5 flex items-center gap-2 text-sm">
                   <span
                     className="rounded px-2 py-0.5 text-xs font-black text-slate-950"
                     style={{ backgroundColor: POSITION_COLORS[lastPick.playerPosition] ?? "#94A3B8" }}
                   >
                     {lastPick.playerPosition}
                   </span>
-                  <span className="text-sm font-bold text-slate-400">{lastPick.nflTeam ?? "FA"}</span>
+                  <span className="font-bold text-slate-400">{lastPick.nflTeam ?? "FA"}</span>
                   {lastPickTeam && (
                     <>
                       <span className="text-slate-700">·</span>
-                      <span className="text-sm text-slate-500">
+                      <span className="text-slate-500">
                         Drafted by{" "}
                         <span className="font-semibold text-slate-300">{lastPickTeam.name}</span>
                       </span>
@@ -644,41 +701,30 @@ function TvModeOverlay({
               canMakePick={false}
               canUndoPick={false}
               playerNameSize={5}
+              accentColor={accent}
+              tvMode
               onSlotClick={() => {}}
               onUndoPick={() => {}}
             />
           )}
         </div>
 
-        {/* RECENT PICKS TICKER */}
-        {sorted.length > 0 && (
-          <div className="shrink-0 border-t border-white/8 bg-black">
-            <div className="flex h-11 items-center gap-1 overflow-x-auto px-5 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-              <span className="mr-3 shrink-0 text-[9px] font-black uppercase tracking-[0.2em] text-slate-700">
-                Recent
-              </span>
-              {[...sorted].reverse().slice(0, 30).map((p) => {
-                const pickedBy = teams.find((t) => t.id === p.teamId);
-                return (
-                  <div
-                    key={p.id}
-                    className="flex shrink-0 items-center gap-1.5 rounded-lg bg-white/[0.03] px-3 py-1"
-                  >
-                    <span className="text-[10px] font-bold text-slate-700">{p.round}.{p.pickNumber}</span>
-                    <span className="text-sm font-semibold text-white">{p.playerName}</span>
-                    <span
-                      className="text-xs font-black"
-                      style={{ color: POSITION_COLORS[p.playerPosition] ?? "#94A3B8" }}
-                    >
-                      {p.playerPosition}
-                    </span>
-                    {pickedBy && <span className="text-[10px] text-slate-700">{pickedBy.name}</span>}
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
+        <DraftTicker
+          draftName={draftName}
+          leagueName={leagueName}
+          picks={picks}
+          teams={teams}
+          unread={chatUnread}
+          isChatOpen={showChat}
+          onChatToggle={onChatToggle}
+          accentColor={accent}
+          mode={tickerMode}
+          boardView={tickerBoardView}
+          onBoardViewChange={onBoardViewChange}
+          posFilter={posFilter}
+          onPosFilterChange={onPosFilterChange}
+          enabledPositions={enabledPositions}
+        />
       </div>
     </div>
   );
@@ -730,7 +776,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [byeWeeks, setByeWeeks] = useState<Map<string, number>>(new Map());
   const [showChat, setShowChat] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
-  const [boardView, setBoardView] = useState<"draft" | "players" | "roster" | "rounds">("draft");
+  const [boardView, setBoardView] = useState<"draft" | "players" | "roster" | "rounds" | "grades">("draft");
   const [compactHeader, setCompactHeader] = useState(false);
   const [showBoardMenu, setShowBoardMenu] = useState(false);
   const [showCommishMenu, setShowCommishMenu] = useState(false);
@@ -935,6 +981,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
   // True once the user has clicked through the audio-unlock overlay this session.
   const audioUnlockedOnceRef = useRef(false);
+  // Grading walks every pick against the whole board, so it is cached against a
+  // cheap signature rather than recomputed on each render.
+  const gradeCacheRef = useRef<{ key: string; report: DraftGradeReport } | null>(null);
 
   // ── Walk-up resume mode (commissioner setting) ──────────────────────────
   // Mode mirror for the onEnded closure.
@@ -1233,6 +1282,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       // Landmine animation takes priority over pick reveal
       if (newest.isLandmine) {
         const team = snapshot.teams.find((t) => t.id === newest.teamId);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- Existing realtime event handling: state opens the landmine presentation when a new pick arrives.
         setLandmineActive(true);
         landmineActiveRef.current = true;
         if (walkUpDelayRef.current) { clearTimeout(walkUpDelayRef.current); walkUpDelayRef.current = null; }
@@ -1863,6 +1913,38 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     ...p,
     rank: espnRankMap.get(p.id) ?? p.rank,
   }));
+
+  // Post-draft grading. Only computed once the draft is over and something
+  // actually needs it; cached against pick count + rankings so re-renders
+  // (timer ticks, presence updates) don't re-run the whole evaluation.
+  function getGradeReport(): DraftGradeReport | null {
+    if (!snapshot || snapshot.draft.status !== "complete") return null;
+    const key = `${snapshot.picks.length}:${espnRankings.length}:${snapshot.draft.scoringType}:${snapshot.draft.rounds}`;
+    if (gradeCacheRef.current?.key === key) return gradeCacheRef.current.report;
+
+    const market = buildMarketMap(snapshot.players, espnRankings);
+    // Fall back to each player's static rank so grading still works when ESPN
+    // rankings were never synced.
+    for (const player of snapshot.players) {
+      if (!market.has(player.id) && typeof player.rank === "number") {
+        market.set(player.id, { rank: player.rank, adp: null, projectedPoints: null });
+      }
+    }
+    const report = gradeDraft({
+      picks: snapshot.picks,
+      teams: snapshot.teams,
+      players: snapshot.players,
+      market,
+      rosterPositions: snapshot.draft.rosterPositions,
+      scoringType: snapshot.draft.scoringType,
+      teamCount: snapshot.draft.teamCount,
+      rounds: snapshot.draft.rounds,
+      byeWeeks,
+    });
+    gradeCacheRef.current = { key, report };
+    return report;
+  }
+  const gradeReport = boardView === "grades" || showAwards ? getGradeReport() : null;
   const currentRound = teamOnClock
     ? getRoundForPick(snapshot.draft.currentPick, snapshot.draft.teamCount)
     : null;
@@ -1916,7 +1998,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const accentStyle = primaryColor ? { backgroundColor: primaryColor, color: secondaryColor ?? "#0f172a" } : {};
 
   return (
-    <div className="flex h-dvh flex-col overflow-hidden bg-slate-950 text-white">
+    <div className="flex h-dvh flex-col overflow-hidden bg-[#020617] text-white [background-image:linear-gradient(rgba(148,163,184,0.045)_1px,transparent_1px),linear-gradient(90deg,rgba(148,163,184,0.045)_1px,transparent_1px),radial-gradient(circle_at_18%_0%,rgba(20,184,166,0.13),transparent_32%),radial-gradient(circle_at_88%_8%,rgba(59,130,246,0.1),transparent_34%)] [background-size:64px_64px,64px_64px,100%_100%,100%_100%]">
       <WalkUpPlayer
         ref={walkUpPlayerRef}
         onPlaybackBlocked={() => {
@@ -2039,7 +2121,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         <div className="flex items-stretch divide-x divide-white/5 overflow-hidden">
 
           {/* Timer block */}
-          <div className="flex shrink-0 items-center gap-2.5 px-2.5 py-2 sm:gap-4 sm:px-4 sm:py-3">
+          <div className="flex shrink-0 items-center gap-2.5 px-2.5 py-3 sm:gap-4 sm:px-4 sm:py-4">
             {/* Commissioner clock controls */}
             {isCommissioner && showCommishControls && snapshot.draft.status !== "complete" && (
               <div className="flex flex-col gap-1.5">
@@ -2143,7 +2225,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           </div>
 
           {/* Round / Pick */}
-          <div className="flex shrink-0 items-center gap-3 px-3 py-2 sm:gap-5 sm:px-5 sm:py-3">
+          <div className="flex shrink-0 items-center gap-3 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4">
             <div className="text-center">
               <div className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">Round</div>
               <div className="text-3xl sm:text-5xl font-black leading-none">{currentRound ?? (snapshot.draft.status === "complete" ? "—" : "1")}</div>
@@ -2156,13 +2238,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
           {/* Team on clock + Next Up stacked */}
           {teamOnClock && snapshot.draft.status !== "complete" && (
-            <div className="flex min-w-0 flex-1 items-center gap-2.5 px-3 py-2 sm:gap-4 sm:px-5">
+            <div className="flex min-w-0 flex-1 items-center gap-3 px-3 py-3 sm:gap-5 sm:px-5 sm:py-4">
               {/* Logo / avatar always shown */}
               {teamOnClock.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={teamOnClock.logoUrl} alt="" className="h-10 w-10 sm:h-16 sm:w-16 shrink-0 rounded-full object-cover ring-2 ring-white/10" />
+                <img src={teamOnClock.logoUrl} alt="" className="h-20 w-20 shrink-0 object-contain sm:h-28 sm:w-28" />
               ) : (
-                <div className="flex h-10 w-10 sm:h-16 sm:w-16 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm sm:text-xl font-black text-slate-300">
+                <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full bg-slate-800 text-sm font-black text-slate-300 sm:h-28 sm:w-28 sm:text-2xl">
                   {teamOnClock.name.slice(0, 2).toUpperCase()}
                 </div>
               )}
@@ -2250,13 +2332,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button type="button"
               className="flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-slate-200 hover:bg-white/10 transition-colors"
               onClick={() => { setShowBoardMenu((v) => !v); setShowCommishMenu(false); }}>
-              {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : "Round Summary"}
+              {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : boardView === "grades" ? "Draft Grades" : "Round Summary"}
               <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5 text-slate-500"><path d="M0 0l5 6 5-6z"/></svg>
             </button>
             {showBoardMenu && (
               <div className="absolute top-full left-0 mt-1 w-44 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
-                {(["draft","players","roster","rounds"] as const).map((v) => {
-                  const labels = { draft: "Draft Board", players: "Player Board", roster: "Roster Board", rounds: "Round Summary" };
+                {(snapshot.draft.status === "complete"
+                  ? (["draft","players","roster","rounds","grades"] as const)
+                  : (["draft","players","roster","rounds"] as const)
+                ).map((v) => {
+                  const labels = { draft: "Draft Board", players: "Player Board", roster: "Roster Board", rounds: "Round Summary", grades: "Draft Grades" };
                   return (
                     <button key={v} type="button"
                       className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${boardView === v ? "bg-white/10 font-semibold text-white" : "text-slate-400 hover:bg-white/5 hover:text-white"}`}
@@ -2323,7 +2408,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               type="text"
               placeholder={stagedPlayer ? `${stagedPlayer.fullName} ${stagedPlayer.position}/${stagedPlayer.nflTeam ?? "FA"}` : "Search players..."}
               value={playerSearch}
-              className="w-28 sm:w-52 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-44 sm:focus:w-72 transition-all"
+              className="w-32 sm:w-64 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-48 sm:focus:w-80 transition-all"
               style={{
                 paddingLeft: "32px",
                 borderColor: stagedPlayer && !playerSearch ? "#14b8a6" : "rgba(255,255,255,0.08)",
@@ -2538,7 +2623,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       </div>
 
       {/* ── Board area (fills remaining space) ── */}
-      <div className="min-h-0 flex-1 overflow-hidden">
+      <div className="min-h-0 flex-1 overflow-hidden p-2">
         {boardView === "draft" && (
           <DraftBoard
             teams={teamNames}
@@ -2550,13 +2635,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             canUndoPick={canUndoPick && !isUndoing}
             byeWeeks={byeWeeks.size > 0 ? byeWeeks : undefined}
             playerNameSize={playerNameSize}
-            myTeamName={
-              accessState.kind === "assigned"
-                ? snapshot.teams.find((t) => t.id === accessState.teamId)?.name
-                : undefined
-            }
             teamMap={new Map(snapshot.teams.map((t) => [t.id, t.name]))}
             rosterPositions={snapshot.draft.rosterPositions}
+            accentColor={primaryColor}
             onSlotClick={() => { setActionError(""); setShowPickModal(true); }}
             onUndoPick={handleUndoPick}
             onEditPick={isCommissioner ? (pick) => setEditingPick(pick) : undefined}
@@ -2602,6 +2683,10 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             isCommissioner={isCommissioner}
             onUndoPick={handleUndoPick}
           />
+        )}
+
+        {boardView === "grades" && gradeReport && (
+          <DraftGradesBoard report={gradeReport} accentColor={primaryColor} />
         )}
       </div>
 
@@ -2777,6 +2862,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {showTvMode && (
         <TvModeOverlay
           draft={snapshot.draft}
+          draftName={snapshot.draft.name}
           picks={snapshot.picks}
           teams={snapshot.teams}
           players={snapshot.players}
@@ -2788,6 +2874,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           nextUpSlots={nextUpSlots}
           accentColor={primaryColor}
           leagueName={leagueBranding?.name ?? undefined}
+          tickerMode={tickerMode}
+          boardView={boardView}
+          onBoardViewChange={setBoardView}
+          posFilter={posFilter}
+          onPosFilterChange={setPosFilter}
+          enabledPositions={enabledPositions}
+          chatUnread={chatUnread}
+          showChat={showChat}
+          onChatToggle={() => setShowChat((v) => !v)}
           revealActive={revealPick !== null}
           landmineActive={landmineActive}
           tvMasterVolume={tvMasterVolume}
@@ -2822,6 +2917,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           accentColor={primaryColor}
           awardsSong={snapshot.draft.awardsSong}
           musicVolume={musicVolume}
+          teamGrades={gradeReport?.teams ?? null}
           leagueLogoUrl={leagueLogoUrl ?? undefined}
           onClose={() => setShowAwards(false)}
         />
@@ -3086,16 +3182,16 @@ function PlayerListView({
     });
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]">
       {/* Filter / sort bar */}
-      <div className="shrink-0 flex items-center gap-2 border-b border-white/5 bg-slate-950/80 px-3 py-2">
+      <div className="shrink-0 flex items-center gap-2 border-b border-white/10 bg-slate-950/90 px-3 py-2">
         {/* Position pills */}
         <div className="flex gap-1 overflow-x-auto">
           {positions.map((pos) => {
             const card = pos !== "ALL" ? getCard(pos) : null;
             return (
               <button key={pos} type="button"
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-black transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300/60 ${
                   posFilter === pos
                     ? "border-white/30 bg-white text-slate-950"
                     : "border-white/5 bg-white/5 hover:bg-white/10 hover:text-white"
@@ -3113,7 +3209,7 @@ function PlayerListView({
         {/* Sort dropdown */}
         <div className="relative">
           <button type="button"
-            className="flex items-center gap-1.5 rounded-lg border border-white/8 bg-white/5 px-3 py-1 text-xs font-semibold text-slate-400 hover:bg-white/10 transition-colors"
+            className="flex h-8 items-center gap-1.5 rounded-md border border-white/10 bg-white/5 px-3 text-xs font-black uppercase tracking-[0.1em] text-slate-400 transition-colors hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-blue-300/60"
             onClick={() => setShowSortMenu((v) => !v)}>
             {sort === "rank" ? "By Rank" : sort === "name" ? "By Name" : "By Position"}
             <svg viewBox="0 0 8 5" fill="currentColor" className="h-2 w-2"><path d="M0 0l4 5 4-5z"/></svg>
@@ -3134,7 +3230,7 @@ function PlayerListView({
           )}
         </div>
 
-        <span className="shrink-0 text-[10px] text-slate-700">{visible.length} available</span>
+        <span className="shrink-0 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-slate-500">{visible.length} available</span>
       </div>
 
       {/* Rankings notice */}
@@ -3151,7 +3247,7 @@ function PlayerListView({
             <p className="text-sm text-slate-600">No players match your filter.</p>
           </div>
         ) : (
-          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(175px, 1fr))", gap: "1px", backgroundColor: "#0f172a" }}>
+          <div className="grid" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(185px, 1fr))", gap: "1px", backgroundColor: "rgba(148,163,184,0.14)" }}>
             {visible.slice(0, 300).map((p) => {
               const { first, last } = splitName(p.fullName);
               const card = getCard(p.position);
@@ -3172,7 +3268,7 @@ function PlayerListView({
                     onCardClick(p.id, rect);
                   }}
                   style={{ backgroundColor: card.bg }}
-                  className={`group relative overflow-hidden text-left transition-all duration-100 ${
+                  className={`group relative overflow-hidden text-left transition-all duration-100 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-white/70 ${
                     isStaged ? "brightness-125 ring-2 ring-inset ring-white/50"
                     : isQueued ? "ring-2 ring-inset ring-white/40"
                     : ""

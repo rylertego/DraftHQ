@@ -10,7 +10,7 @@ import {
 } from "@/lib/draftApi";
 import { createSleeperLeagueSeason } from "@/lib/leagueApi";
 import { normalizeEmail } from "@/lib/email";
-import { normalizeSleeperLeagueId } from "@/lib/sleeper";
+import { normalizeSleeperLeagueId, type SleeperLeaguePreview } from "@/lib/sleeper";
 
 interface EditableTeam {
   rosterId: number;
@@ -40,6 +40,10 @@ export default function SleeperImportForm({
   const [draftId, setDraftId] = useState<string | null>(null);
   const [teams, setTeams] = useState<EditableTeam[]>([]);
   const [warnings, setWarnings] = useState<string[]>([]);
+  // Carried straight through from the preview so the created draft inherits the
+  // league's real starting lineup and scoring format.
+  const [lineup, setLineup] = useState<SleeperLeaguePreview["lineup"]>(null);
+  const [scoringType, setScoringType] = useState<SleeperLeaguePreview["scoringType"]>(null);
   const [createdDraftId, setCreatedDraftId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
@@ -63,6 +67,8 @@ export default function SleeperImportForm({
       setRounds(preview.rounds);
       setDraftId(preview.draftId);
       setWarnings(preview.warnings);
+      setLineup(preview.lineup);
+      setScoringType(preview.scoringType);
       setTeams(
         preview.teams.map((team) => ({
           rosterId: team.rosterId,
@@ -135,11 +141,13 @@ export default function SleeperImportForm({
     setIsCreating(true);
 
     try {
-      const preview = {
+      const preview: SleeperLeaguePreview = {
         leagueId,
         draftId,
         leagueName: leagueName.trim(),
         rounds,
+        lineup,
+        scoringType,
         warnings,
         teams: teams.map((team, index) => ({
           rosterId: team.rosterId,

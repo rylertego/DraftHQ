@@ -1,17 +1,7 @@
 "use client";
 
 import type { Draft, TimerBehavior } from "@/types/draft";
-
-const PICK_CLOCK_OPTIONS = [
-  { seconds: 30, label: "30 seconds" },
-  { seconds: 45, label: "45 seconds" },
-  { seconds: 60, label: "1 minute" },
-  { seconds: 90, label: "1:30" },
-  { seconds: 120, label: "2 minutes" },
-  { seconds: 180, label: "3 minutes" },
-  { seconds: 300, label: "5 minutes" },
-  { seconds: 600, label: "10 minutes" },
-];
+import { commandInputClass, commandLabelClass } from "@/components/CommandCenterUI";
 
 const EXTENSION_COUNT_OPTIONS = [0, 1, 2, 3, 4, 5];
 const EXTENSION_TIME_OPTIONS = [
@@ -57,16 +47,16 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
 
   return (
     <section>
-      <div className="grid gap-6 sm:grid-cols-3">
+      <div className="grid gap-5 lg:grid-cols-3">
         {/* Pick Clock */}
         <div>
-          <p className="mb-2 text-sm font-semibold text-white">Pick Clock</p>
+          <p className="mb-3 text-sm font-bold text-white">Pick Clock</p>
           <div className="flex gap-2">
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Minutes</p>
+              <p className={commandLabelClass}>Minutes</p>
               <select
                 disabled={disabled}
-                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
+                className={`${commandInputClass} w-24`}
                 value={Math.floor(draft.pickSeconds / 60)}
                 onChange={(e) => emitChange({ pickSeconds: Number(e.target.value) * 60 + (draft.pickSeconds % 60) })}
               >
@@ -76,10 +66,10 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
               </select>
             </div>
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Seconds</p>
+              <p className={commandLabelClass}>Seconds</p>
               <select
                 disabled={disabled}
-                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
+                className={`${commandInputClass} w-24`}
                 value={draft.pickSeconds % 60}
                 onChange={(e) => emitChange({ pickSeconds: Math.floor(draft.pickSeconds / 60) * 60 + Number(e.target.value) })}
               >
@@ -93,13 +83,13 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
 
         {/* Clock Extensions */}
         <div>
-          <p className="mb-2 text-sm font-semibold text-white">Clock Extensions</p>
+          <p className="mb-3 text-sm font-bold text-white">Clock Extensions</p>
           <div className="flex gap-2">
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Count</p>
+              <p className={commandLabelClass}>Count</p>
               <select
                 disabled={disabled}
-                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
+                className={`${commandInputClass} w-24`}
                 value={draft.maxClockExtensions}
                 onChange={(e) => emitChange({ maxClockExtensions: Number(e.target.value) })}
               >
@@ -109,10 +99,10 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
               </select>
             </div>
             <div>
-              <p className="mb-1 text-[10px] uppercase tracking-wide text-slate-500">Time</p>
+              <p className={commandLabelClass}>Time</p>
               <select
                 disabled={disabled || draft.maxClockExtensions === 0}
-                className="rounded-lg border border-slate-600 bg-slate-800 px-2 py-1.5 text-sm disabled:opacity-50"
+                className={`${commandInputClass} w-24`}
                 value={draft.clockExtensionSeconds}
                 onChange={(e) => emitChange({ clockExtensionSeconds: Number(e.target.value) })}
               >
@@ -126,7 +116,7 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
 
         {/* When clock hits zero */}
         <div>
-          <p className="mb-2 text-sm font-semibold text-white">
+          <p className="mb-3 text-sm font-bold text-white">
             When clock hits zero{" "}
             <span
               className="ml-1 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-slate-600 text-[10px] text-slate-400"
@@ -137,7 +127,7 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
           </p>
           <div className="space-y-2">
             {TIMER_BEHAVIORS.map((b) => (
-              <label key={b.value} className="flex cursor-pointer items-start gap-2">
+              <label key={b.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800/80 bg-slate-950/25 px-3 py-2.5 has-[:checked]:border-blue-400/40 has-[:checked]:bg-blue-500/10">
                 <input
                   type="radio"
                   name="timer-behavior"
@@ -145,7 +135,7 @@ export default function ClockSettings({ draft, disabled = false, onSave }: Clock
                   disabled={disabled}
                   checked={draft.timerBehavior === b.value}
                   onChange={() => emitChange({ timerBehavior: b.value })}
-                  className="mt-0.5 disabled:opacity-50"
+                  className="mt-1 disabled:opacity-50"
                 />
                 <span className="text-sm leading-tight">
                   <span className="font-medium text-white">{b.label}</span>

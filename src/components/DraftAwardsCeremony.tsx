@@ -2,7 +2,8 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
-import { computeDraftAwards, computeTeamGrades, type DraftAward } from "@/lib/draftAwards";
+import { computeDraftAwards, type DraftAward } from "@/lib/draftAwards";
+import type { TeamGrade } from "@/lib/draftGrading";
 import type { Pick, Team, WalkUpSong } from "@/types/draft";
 
 // Full-screen end-of-draft awards ceremony. Each award gets its own screen:
@@ -20,6 +21,8 @@ interface DraftAwardsCeremonyProps {
   awardsSong: WalkUpSong | null;
   /** Mirrors the draft room's music volume slider (0-100) */
   musicVolume: number;
+  /** Full post-draft grades, best first. Null before grading is available. */
+  teamGrades: TeamGrade[] | null;
   leagueLogoUrl?: string;
   onClose: () => void;
 }
@@ -116,13 +119,13 @@ export default function DraftAwardsCeremony({
   accentColor,
   awardsSong,
   musicVolume,
+  teamGrades,
   leagueLogoUrl,
   onClose,
 }: DraftAwardsCeremonyProps) {
   const accent = accentColor ?? "#14b8a6";
   const playerRef = useRef<WalkUpPlayerHandle>(null);
   const allAwards = useMemo(() => computeDraftAwards(picks, teams, rankMap), [picks, teams, rankMap]);
-  const teamGrades = useMemo(() => computeTeamGrades(picks, teams, rankMap), [picks, teams, rankMap]);
   // One award per screen — each gets its own tease and reveal.
   const slides = useMemo<Slide[]>(
     () => [
@@ -440,13 +443,13 @@ export default function DraftAwardsCeremony({
                 </div>
               </div>
 
-              {/* Draft grades — curved within the league */}
+              {/* Draft grades */}
               <div>
                 <p className="mb-3 text-[11px] font-black uppercase tracking-[0.3em] text-slate-600">
                   Draft Grades
                 </p>
                 <div className="space-y-2">
-                  {teamGrades.map((row) => (
+                  {(teamGrades ?? []).map((row) => (
                     <div key={row.teamId} className="flex items-center gap-3 rounded-xl border border-white/8 bg-white/[0.03] px-4 py-2">
                       {row.teamLogoUrl ? (
                         // eslint-disable-next-line @next/next/no-img-element
@@ -457,26 +460,22 @@ export default function DraftAwardsCeremony({
                         </span>
                       )}
                       <span className="min-w-0 flex-1 truncate text-sm font-bold text-white">{row.teamName}</span>
-                      {row.grade ? (
-                        <>
-                          <span className="shrink-0 text-[11px] tabular-nums text-slate-600">
-                            {row.valuePerPick >= 0 ? "+" : ""}{row.valuePerPick.toFixed(1)}
-                          </span>
-                          <span
-                            className="w-12 shrink-0 rounded-lg py-1 text-center text-sm font-black"
-                            style={gradeStyle(row.grade)}
-                          >
-                            {row.grade}
-                          </span>
-                        </>
-                      ) : (
-                        <span className="w-12 shrink-0 text-center text-xs text-slate-600">—</span>
-                      )}
+                      <span className="shrink-0 text-[11px] tabular-nums text-slate-600">{row.score}</span>
+                      <span
+                        className="w-12 shrink-0 rounded-lg py-1 text-center text-sm font-black"
+                        style={gradeStyle(row.grade)}
+                      >
+                        {row.grade}
+                      </span>
                     </div>
                   ))}
+                  {(teamGrades ?? []).length === 0 && (
+                    <p className="text-sm text-slate-500">Grades aren&apos;t available for this draft.</p>
+                  )}
                 </div>
                 <p className="mt-3 text-[10px] leading-snug text-slate-600">
-                  Graded on a curve: average draft slot vs. each player&apos;s consensus rank.
+                  Value vs. market, roster need, positional scarcity, player caliber, and roster fit
+                  — judged on how each pick looked at the time. Full breakdown in Draft Grades.
                 </p>
               </div>
             </div>

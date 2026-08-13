@@ -27,6 +27,10 @@
 .DS_Store
 *.pem
 
+# local agent artifacts
+.claude/settings.local.json
+.codex-screenshots/
+
 # debug
 npm-debug.log*
 yarn-debug.log*
