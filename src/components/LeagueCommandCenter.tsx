@@ -718,7 +718,9 @@ export default function LeagueCommandCenter({
           {champion && lastCompletedSeason ? (
             <div className="grid min-h-[34rem] grid-rows-2">
               <div className="flex flex-col items-center justify-center text-center">
-                <p className="mb-4 text-lg font-black text-white">Champion</p>
+                <p className="mb-4 text-lg font-black text-white">
+                  {previousLeagueYear ? `${previousLeagueYear} Champion` : "Champion"}
+                </p>
                 <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
                 <p className="mt-1 text-sm text-slate-500">
@@ -727,17 +729,24 @@ export default function LeagueCommandCenter({
               </div>
 
               <div className="flex flex-col items-center justify-center border-t border-slate-800 text-center">
-                <p className="mb-4 text-lg font-black text-white">Loser</p>
                 {lastPlace && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
-                  <>
+                  <div className="flex flex-col items-center justify-center">
+                    <p className="mb-4 text-lg font-black text-white">
+                      {previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}
+                    </p>
                     <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
                     <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
                     <p className="mt-1 text-sm text-slate-500">
                       {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
                     </p>
-                  </>
+                  </div>
                 ) : (
-                  <p className="text-sm text-slate-500">No last-place team available.</p>
+                  <div className="flex flex-col items-center justify-center">
+                    <p className="mb-4 text-lg font-black text-white">
+                      {previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}
+                    </p>
+                    <p className="text-sm text-slate-500">No last-place team available.</p>
+                  </div>
                 )}
               </div>
             </div>
