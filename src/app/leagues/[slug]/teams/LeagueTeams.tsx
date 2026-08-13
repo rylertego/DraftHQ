@@ -43,24 +43,6 @@ function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: Tone }
   );
 }
 
-function MetricTile({ label, value, detail, tone = "neutral" }: { label: string; value: string; detail?: string; tone?: Tone }) {
-  const toneClass: Record<Tone, string> = {
-    neutral: "text-white",
-    ready: "text-blue-200",
-    warning: "text-amber-200",
-    danger: "text-red-200",
-    complete: "text-emerald-200",
-  };
-
-  return (
-    <div className="rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-black tabular-nums ${toneClass[tone]}`}>{value}</p>
-      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
-    </div>
-  );
-}
-
 function SectionPanel({ title, eyebrow, children, action, className = "" }: { title: string; eyebrow?: string; children: React.ReactNode; action?: React.ReactNode; className?: string }) {
   return (
     <section className={`rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)] ${className}`}>
@@ -73,21 +55,6 @@ function SectionPanel({ title, eyebrow, children, action, className = "" }: { ti
       </div>
       <div className="p-5">{children}</div>
     </section>
-  );
-}
-
-function TeamMark({ src, name, className = "h-12 w-12", accentColor }: { src?: string | null; name: string; className?: string; accentColor: string }) {
-  return (
-    <div className={`flex shrink-0 items-center justify-center overflow-hidden rounded-xl border border-white/10 bg-slate-950/70 ${className}`}>
-      {src ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={src} alt="" className="h-full w-full object-contain p-1" />
-      ) : (
-        <span className="text-sm font-black uppercase" style={{ color: accentColor }}>
-          {name.slice(0, 2)}
-        </span>
-      )}
-    </div>
   );
 }
 
@@ -768,7 +735,6 @@ function TeamRosterRow({
 export default function LeagueTeams({ slug }: { slug: string }) {
   const router = useRouter();
   const { workspace, isLoading: loading, error } = useWorkspace();
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [teams, setTeams] = useState<LeagueTeam[]>([]);
   const [teamsLoading, setTeamsLoading] = useState(true);
   const [teamsError, setTeamsError] = useState("");
@@ -871,86 +837,28 @@ export default function LeagueTeams({ slug }: { slug: string }) {
   const activeTeams = teams.filter((t) => !t.archivedAt);
   const archivedTeams = teams.filter((t) => t.archivedAt);
   const atCapacity = activeTeams.length >= teamMax;
-  const assignedOwnerIds = new Set(activeTeams.map((t) => t.ownerUserId).filter(Boolean) as string[]);
-  const assignedCount = assignedOwnerIds.size;
-  const unassignedTeams = activeTeams.filter((team) => !team.ownerUserId);
-  const unassignedCount = unassignedTeams.length;
-  const openSlots = Math.max(0, teamMax - activeTeams.length);
-  const setupPercent = teamMax > 0 ? Math.round(((activeTeams.length + assignedCount) / (teamMax * 2)) * 100) : 0;
-  const setupLabel = teamsLoading
-    ? "Checking"
-    : activeTeams.length === 0
-      ? "No Teams"
-      : unassignedCount > 0
-        ? `${setupPercent}% Ready`
-        : activeTeams.length < teamMax
-          ? "Needs Teams"
-          : "Ready";
-  const setupTone: Tone = teamsLoading
-    ? "neutral"
-    : activeTeams.length === teamMax && unassignedCount === 0
-      ? "complete"
-      : "warning";
-  const nextActionTitle = teamChangesLocked
-    ? "Team changes locked"
-    : activeTeams.length === 0
-      ? "Add franchise teams"
-      : unassignedCount > 0
-        ? "Assign owners"
-        : openSlots > 0
-          ? "Add remaining teams"
-          : "Roster is ready";
-  const nextActionDetail = teamChangesLocked
-    ? "A draft is active or paused, so team changes are temporarily unavailable."
-    : activeTeams.length === 0
-      ? `Create or import up to ${teamMax} teams before draft setup.`
-      : unassignedCount > 0
-        ? `${unassignedCount} team${unassignedCount === 1 ? "" : "s"} still need owner assignments before draft night.`
-        : openSlots > 0
-          ? `${openSlots} open slot${openSlots === 1 ? "" : "s"} remain in this league.`
-          : "Every active team has an owner and matches the league size.";
-  const firstUnassignedTeam = unassignedTeams[0] ?? null;
-  const primaryAction = !canManage ? null : teamChangesLocked ? (
-    <button type="button" disabled className={primaryButtonClass}>Changes Locked</button>
-  ) : unassignedCount > 0 && firstUnassignedTeam ? (
-    <button type="button" onClick={() => setEditingTeam(firstUnassignedTeam)} className={primaryButtonClass}>Assign Owners</button>
-  ) : activeTeams.length === 0 || openSlots > 0 ? (
-    <button type="button" onClick={() => setShowAddModal(true)} disabled={atCapacity || teamChangesLocked} className={primaryButtonClass}>
-      {activeTeams.length === 0 ? "Add First Team" : "Add Team"}
-    </button>
-  ) : (
-    <button type="button" onClick={() => setEditingTeam(activeTeams[0] ?? null)} className={primaryButtonClass}>Review Teams</button>
-  );
-  const secondaryAction = canManage ? (
-    <button
-      type="button"
-      onClick={() => setShowImportModal(true)}
-      disabled={atCapacity || teamChangesLocked}
-      title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
-      className={secondaryButtonClass}
-    >
-      Import League
-    </button>
-  ) : null;
-  const nextActionPanel = (
-    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Commissioner Action</p>
-      <p className="mt-2 text-xl font-black text-white">{nextActionTitle}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-400">{nextActionDetail}</p>
-      <div className="mt-4 flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-          <div className="h-full rounded-full transition-all" style={{ width: `${setupPercent}%`, backgroundColor: primary }} />
-        </div>
-        <span className="text-xs font-black tabular-nums text-slate-300">{setupPercent}%</span>
-      </div>
-      {canManage && (
-        <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
-          {primaryAction}
-          {secondaryAction}
-        </div>
-      )}
-    </aside>
-  );
+  const rosterActions = canManage ? (
+    <div className="flex flex-wrap justify-end gap-2">
+      <button
+        type="button"
+        onClick={() => setShowAddModal(true)}
+        disabled={atCapacity || teamChangesLocked}
+        title={teamChangesLocked ? "Teams cannot be added while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
+        className={primaryButtonClass}
+      >
+        Add Team
+      </button>
+      <button
+        type="button"
+        onClick={() => setShowImportModal(true)}
+        disabled={atCapacity || teamChangesLocked}
+        title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
+        className={secondaryButtonClass}
+      >
+        Import League
+      </button>
+    </div>
+  ) : undefined;
 
   return (
     <div className="space-y-6" data-league-slug={slug}>
@@ -992,53 +900,6 @@ export default function LeagueTeams({ slug }: { slug: string }) {
           }}
         />
       )}
-
-      <section
-        className="relative overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/75 shadow-[0_24px_80px_rgba(0,0,0,0.28)]"
-        aria-labelledby="teams-page-title"
-      >
-        <div
-          className="pointer-events-none absolute inset-0 opacity-80"
-          style={{ background: `linear-gradient(135deg, ${secondary} 0%, rgba(15,23,42,0.82) 48%, #020617 100%)` }}
-        />
-        <div className="pointer-events-none absolute inset-x-0 top-0 h-px" style={{ backgroundColor: primary }} />
-        <div className="relative grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
-          <div className="min-w-0">
-            <div className="mb-5 flex items-center gap-3 lg:hidden">
-              <TeamMark src={league.logoUrl} name={league.name} className="h-14 w-14" accentColor={primary} />
-              <div className="min-w-0">
-                <p className="truncate text-base font-black text-white">{league.name}</p>
-                <p className="mt-0.5 text-[11px] font-black uppercase tracking-[0.16em]" style={{ color: primary }}>
-                  {members.length} members
-                </p>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: primary }}>
-                League Command Center
-              </p>
-              <StatusBadge label={setupLabel} tone={setupTone} />
-            </div>
-            <h1 id="teams-page-title" className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
-              Franchise Teams
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              Manage team identity and owner assignments before they become draft slots. Unassigned teams are the next commissioner bottleneck.
-            </p>
-
-            <div className="mt-5 lg:hidden">{nextActionPanel}</div>
-
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricTile label="Active Teams" value={teamsLoading ? "--" : `${activeTeams.length}/${teamMax}`} detail={openSlots > 0 ? `${openSlots} slots open` : "League size reached"} tone={activeTeams.length === teamMax ? "complete" : "warning"} />
-              <MetricTile label="Assigned" value={teamsLoading ? "--" : `${assignedCount}/${activeTeams.length}`} detail={unassignedCount > 0 ? "Owners needed" : "All owners set"} tone={unassignedCount === 0 && activeTeams.length > 0 ? "complete" : "warning"} />
-              <MetricTile label="Open Owners" value={teamsLoading ? "--" : String(unassignedCount)} detail="Assignment queue" tone={unassignedCount > 0 ? "warning" : "complete"} />
-              <MetricTile label="Archived" value={String(archivedTeams.length)} detail="Inactive teams" />
-            </div>
-          </div>
-
-          <div className="hidden lg:block">{nextActionPanel}</div>
-        </div>
-      </section>
 
       {successMessage && (
         <div className="flex items-center justify-between rounded-xl border border-emerald-400/25 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-200" role="status">
@@ -1084,17 +945,10 @@ export default function LeagueTeams({ slug }: { slug: string }) {
         />
       ) : (
         <>
-          {canManage && unassignedCount > 0 && (
-            <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-3 text-sm text-amber-100">
-              <span className="font-black">{unassignedCount} team{unassignedCount === 1 ? "" : "s"} need owners.</span>{" "}
-              Assign owners here so draft slots are ready before the season is created.
-            </div>
-          )}
-
           <SectionPanel
-            title="Active Roster"
+            title="Active Teams"
             eyebrow={`${activeTeams.length} active teams`}
-            action={<StatusBadge label={unassignedCount > 0 ? `${unassignedCount} open` : "Assigned"} tone={unassignedCount > 0 ? "warning" : "complete"} />}
+            action={rosterActions}
           >
             <div className="overflow-hidden rounded-xl border border-slate-800/80">
               <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid">
