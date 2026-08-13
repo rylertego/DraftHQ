@@ -32,7 +32,7 @@ function draftLifecycleLabel(status: LeagueSeason["status"] | undefined, draftSt
   if (!status) return "No season";
   // Without a draft there is no draft status to report. Falling through to the
   // season's own status here is what made an un-created draft read as "active".
-  if (!draftStatus) return "Not created";
+  if (!draftStatus) return "Not Created";
   if (draftStatus === "setup") return "Pre-Draft";
   if (draftStatus === "active") return "Live";
   if (draftStatus === "paused") return "Paused";
@@ -44,7 +44,7 @@ function statusTone(label: string): Tone {
   if (label === "Live" || label === "Drafting") return "live";
   if (label === "Paused") return "warning";
   if (label === "Complete") return "complete";
-  if (label === "No draft" || label === "No season" || label === "Not created") return "warning";
+  if (label === "No draft" || label === "No season" || label === "Not Created") return "warning";
   if (label === "Pre-Draft") return "ready";
   return "neutral";
 }
@@ -493,12 +493,16 @@ export default function LeagueCommandCenter({
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {isOwnerView ? (
-                <>
-                  <MetricTile label="Draft Status" value={draftLabel} detail={draft?.name ?? "Season setup"} tone={draftTone} />
-                  <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
-                  <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
-                  <MetricTile label="League" value={String(workspace.members.length)} detail="Members" />
-                </>
+                draft ? (
+                  <>
+                    <MetricTile label="Draft Status" value={draftLabel} detail={draft.name} tone={draftTone} />
+                    <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
+                    <MetricTile label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per pick" />
+                    <MetricTile label="League" value={String(workspace.members.length)} detail="Members" />
+                  </>
+                ) : (
+                  <MetricTile label="Draft Status" value={draftLabel} detail="Season setup" tone={draftTone} />
+                )
               ) : (
                 <>
                   <MetricTile label="Readiness" value={setupLabel} detail={draft?.name ?? "Season setup"} tone={setupTone} />
@@ -509,35 +513,37 @@ export default function LeagueCommandCenter({
               )}
             </div>
 
-            <div className="mt-5 max-w-5xl rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
-              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
-                <div className="flex flex-wrap items-center gap-3">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
-                    <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+            {draft && (
+              <div className="mt-5 max-w-5xl rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
+                      <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+                    </div>
+                    {workspace.canManage && !draft.scheduledAt && (
+                      <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
+                        Schedule Draft
+                      </Link>
+                    )}
                   </div>
-                  {workspace.canManage && draft && !draft.scheduledAt && (
-                    <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
-                      Schedule Draft
-                    </Link>
+                </div>
+                <div className={draft.scheduledAt ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
+                  {draft.scheduledAt && (
+                    <Countdown
+                      scheduledAt={draft.scheduledAt}
+                      status={draft.status}
+                      accentColor={primary}
+                    />
                   )}
+                  <div className={draft.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
+                    <MetricTile compact label="Rounds" value={String(draft.rounds)} detail="Draft length" />
+                    <MetricTile compact label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per pick" />
+                    <MetricTile compact label="Expiry" value={draft.timerBehavior === "auto_draft" ? "Auto" : draft.timerBehavior === "skip" ? "Skip" : "Hold"} detail="Clock behavior" />
+                  </div>
                 </div>
               </div>
-              <div className={draft?.scheduledAt ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
-                {draft?.scheduledAt && (
-                  <Countdown
-                    scheduledAt={draft.scheduledAt}
-                    status={draft.status}
-                    accentColor={primary}
-                  />
-                )}
-                <div className={draft?.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
-                  <MetricTile compact label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
-                  <MetricTile compact label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
-                  <MetricTile compact label="Expiry" value={draft?.timerBehavior === "auto_draft" ? "Auto" : draft?.timerBehavior === "skip" ? "Skip" : draft ? "Hold" : "--"} detail="Clock behavior" />
-                </div>
-              </div>
-            </div>
+            )}
           </div>
 
         </div>
