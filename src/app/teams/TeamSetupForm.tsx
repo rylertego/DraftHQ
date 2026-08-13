@@ -32,6 +32,7 @@ import {
   type DraftSetup,
   type LandmineVideo,
 } from "@/lib/draftApi";
+import { localTimeZone, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
@@ -184,9 +185,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [isSavingTeamCount, setIsSavingTeamCount] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
-  const [scheduledTimezone, setScheduledTimezone] = useState(
-    Intl.DateTimeFormat().resolvedOptions().timeZone
-  );
+  const [scheduledTimezone, setScheduledTimezone] = useState(localTimeZone);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [rosterPositions, setRosterPositions] = useState<RosterPosition[]>(DEFAULT_ROSTER_POSITIONS);
   const [showAllPositions, setShowAllPositions] = useState(false);
@@ -265,12 +264,15 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       if (!cancelled) {
         setSetup(s); setTeams(s.teams); setDraftName(s.draft.name);
         setRounds(s.draft.rounds); setTeamCount(s.draft.teamCount);
-        if (s.draft.scheduledAt) {
-          const dt = new Date(s.draft.scheduledAt);
-          setScheduledDate(dt.toISOString().slice(0, 10));
-          setScheduledTime(dt.toISOString().slice(11, 16));
-        }
+        // Read back in the draft's own zone. Slicing the ISO string showed UTC,
+        // so a draft saved for 7:00 PM Eastern reloaded as 23:00.
+        const zone = s.draft.scheduledTimezone || localTimeZone();
         if (s.draft.scheduledTimezone) setScheduledTimezone(s.draft.scheduledTimezone);
+        if (s.draft.scheduledAt) {
+          const wall = utcToZonedWallClock(s.draft.scheduledAt, zone);
+          setScheduledDate(wall.date);
+          setScheduledTime(wall.time);
+        }
         setScoringType(s.draft.scoringType ?? "standard");
         setUseLandmines(s.draft.useLandmines ?? false);
         setLandmineCount(s.draft.landmineCount ?? 3);
@@ -1149,7 +1151,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           onBlur={() => {
                             if (!draftId || !setup || !scheduledDate) return;
                             setIsSavingSchedule(true);
-                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, scheduledTimezone);
                             updateDraftSchedule(draftId, iso, scheduledTimezone)
                               .then((updated) => setSetup({ ...setup, draft: updated }))
                               .catch((e) => setError(e instanceof Error ? e.message : "Unable to save schedule."))
@@ -1168,7 +1170,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           onBlur={() => {
                             if (!draftId || !setup || !scheduledDate) return;
                             setIsSavingSchedule(true);
-                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, scheduledTimezone);
                             updateDraftSchedule(draftId, iso, scheduledTimezone)
                               .then((updated) => setSetup({ ...setup, draft: updated }))
                               .catch((e) => setError(e instanceof Error ? e.message : "Unable to save time."))
@@ -1186,7 +1188,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             setScheduledTimezone(e.target.value);
                             if (!draftId || !setup || !scheduledDate) return;
                             setIsSavingSchedule(true);
-                            const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
+                            // Re-anchor the same wall clock to the newly picked
+                            // zone: 7pm Eastern becomes 7pm Pacific, not 4pm.
+                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, e.target.value);
                             updateDraftSchedule(draftId, iso, e.target.value)
                               .then((updated) => setSetup({ ...setup, draft: updated }))
                               .catch((e) => setError(e instanceof Error ? e.message : "Unable to save timezone."))

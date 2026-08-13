@@ -7,6 +7,7 @@ import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { createDraftForSeason, resetSeasonDraft } from "@/lib/leagueApi";
 import { updateDraftSchedule } from "@/lib/draftApi";
+import { localTimeZone, zonedWallClockToUtc } from "@/lib/draftSchedule";
 import type { LeagueSeason } from "@/types/league";
 
 function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onClose: () => void; onReset: () => void }) {
@@ -117,8 +118,8 @@ function CreateDraftModal({
       if (scheduledDate) {
         // The date is optional, and the draft already exists by this point — a
         // failed schedule save must not read as a failed draft creation.
-        const iso = new Date(`${scheduledDate}T${scheduledTime || "00:00"}`).toISOString();
-        const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || null;
+        const timezone = localTimeZone();
+        const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, timezone);
         try {
           await updateDraftSchedule(createdSeason.draftId, iso, timezone);
         } catch {
