@@ -433,6 +433,9 @@ export default function LeagueCommandCenter({
     (standing) => standing.leagueTeamId === lastCompletedSeason.championTeamId
   ) ?? null;
   const leagueStandings = lastCompletedSeason?.standings ?? [];
+  const lastPlace = leagueStandings.length > 0
+    ? leagueStandings.reduce((worst, standing) => standing.finalRank > worst.finalRank ? standing : worst, leagueStandings[0])
+    : null;
   const recentMembers = [...workspace.members]
     .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
     .slice(0, 3);
@@ -712,15 +715,32 @@ export default function LeagueCommandCenter({
 
         <SectionPanel title="Last Year's Champion" eyebrow="League history">
           {champion && lastCompletedSeason ? (
-            <div className="flex flex-col items-center text-center">
-              <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-28 w-28" accentColor={primary} />
-              <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
-              <p className="mt-1 text-sm font-bold" style={{ color: primary }}>
-                {lastCompletedSeason.year} Champion
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
-              </p>
+            <div className="space-y-6">
+              <div className="flex flex-col items-center text-center">
+                <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
+                <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
+                <p className="mt-1 text-sm font-bold" style={{ color: primary }}>
+                  {lastCompletedSeason.year} Champion
+                </p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
+                </p>
+              </div>
+
+              {lastPlace && lastPlace.leagueTeamId !== champion.leagueTeamId && (
+                <div className="border-t border-slate-800 pt-5 text-center">
+                  <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Last Place from Last Year</p>
+                  <div className="mt-3 flex items-center justify-center gap-3 text-left">
+                    <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-16 w-16" accentColor={primary} />
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-black text-white">{lastPlace.teamName}</p>
+                      <p className="mt-0.5 text-sm text-slate-500">
+                        {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <EmptyState title="No champion yet" detail="The champion spotlight will unlock after a completed season is connected." />
