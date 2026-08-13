@@ -728,12 +728,12 @@ export default function LeagueCommandCenter({
                 </p>
               </div>
 
-              <div className="flex flex-col items-center justify-center border-t border-slate-800 text-center">
+              <div className="grid grid-rows-[auto_1fr] border-t border-slate-800 pt-5 text-center">
+                <p className="text-lg font-black text-white">
+                  {previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}
+                </p>
                 {lastPlace && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
-                  <div className="flex flex-col items-center justify-center">
-                    <p className="mb-4 text-lg font-black text-white">
-                      {previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}
-                    </p>
+                  <div className="flex flex-col items-center justify-center pb-5">
                     <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
                     <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
                     <p className="mt-1 text-sm text-slate-500">
@@ -741,10 +741,7 @@ export default function LeagueCommandCenter({
                     </p>
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center">
-                    <p className="mb-4 text-lg font-black text-white">
-                      {previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}
-                    </p>
+                  <div className="flex flex-col items-center justify-center pb-5">
                     <p className="text-sm text-slate-500">No last-place team available.</p>
                   </div>
                 )}
