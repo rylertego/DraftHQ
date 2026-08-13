@@ -1,3 +1,5 @@
+import type { WalkUpSong } from "@/types/draft";
+
 export type LeagueRole = "commissioner" | "co-commissioner" | "member";
 export type LeagueTheme = "classic" | "broadcast" | "dark" | "modern";
 export type LeagueSeasonStatus =
@@ -91,6 +93,7 @@ export interface LeagueTeam {
   lastSeasonPick: number | null;
   lastSeasonRecord: string | null;
   lastSeasonPlayoffs: boolean | null;
+  walkUpSongs: WalkUpSong[];
   createdAt: string;
 }
 
