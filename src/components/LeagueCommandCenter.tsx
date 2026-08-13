@@ -41,7 +41,7 @@ function draftLifecycleLabel(status: LeagueSeason["status"] | undefined, draftSt
   // Without a draft there is no draft status to report. Falling through to the
   // season's own status here is what made an un-created draft read as "active".
   if (!draftStatus) return "Not created";
-  if (draftStatus === "setup") return "Pre-draft";
+  if (draftStatus === "setup") return "Pre-Draft";
   if (draftStatus === "active") return "Live";
   if (draftStatus === "paused") return "Paused";
   if (draftStatus === "complete") return "Complete";
@@ -53,7 +53,7 @@ function statusTone(label: string): Tone {
   if (label === "Paused") return "warning";
   if (label === "Complete") return "complete";
   if (label === "No draft" || label === "No season" || label === "Not created") return "warning";
-  if (label === "Pre-draft") return "ready";
+  if (label === "Pre-Draft") return "ready";
   return "neutral";
 }
 

@@ -212,7 +212,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                 <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>
                   Team Identity
                 </p>
-                <h2 className="text-xl font-black text-white">Name, logo, and owner display</h2>
+                <h2 className="text-xl font-black text-white">Team Details</h2>
               </div>
 
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
@@ -268,7 +268,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                   <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>
                     Walk-Up Playlist
                   </p>
-                  <h2 className="mt-1 text-xl font-black text-white">Draft-night entrance songs</h2>
+                  <h2 className="mt-1 text-xl font-black text-white">Draft Night Walk-Up Songs</h2>
                 </div>
                 <button
                   type="button"
