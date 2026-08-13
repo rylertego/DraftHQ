@@ -714,10 +714,11 @@ export default function LeagueCommandCenter({
           )}
         </SectionPanel>
 
-        <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Champion` : "Last Year's Champion"} eyebrow="League history">
+        <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Season` : "Last Season"} eyebrow="League history">
           {champion && lastCompletedSeason ? (
             <div className="grid min-h-[34rem] grid-rows-2">
               <div className="flex flex-col items-center justify-center text-center">
+                <p className="mb-4 text-lg font-black text-white">Champion</p>
                 <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
                 <p className="mt-1 text-sm text-slate-500">
@@ -726,9 +727,7 @@ export default function LeagueCommandCenter({
               </div>
 
               <div className="flex flex-col items-center justify-center border-t border-slate-800 text-center">
-                <p className="mb-4 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">
-                  {previousLeagueYear ? `${previousLeagueYear} Loser` : "Last Year's Loser"}
-                </p>
+                <p className="mb-4 text-lg font-black text-white">Loser</p>
                 {lastPlace && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
                   <>
                     <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
