@@ -450,6 +450,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const connectedProvider = activeIntegration
     ? activeIntegration.charAt(0).toUpperCase() + activeIntegration.slice(1)
     : "None";
+  const showSleeperIntegration = !activeIntegration || activeIntegration === "sleeper";
+  const showUnavailableIntegrations = !activeIntegration;
 
   if (isLoading) {
     return (
@@ -512,40 +514,37 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
           <CommandPanel
             eyebrow="League History"
             title="Connected Sources"
-            description="Connect supported fantasy platforms to import completed season history. Unsupported platforms stay visible without pretending they are available."
-            action={<CommandStatusBadge label={activeIntegration ? `${connectedProvider} Connected` : "No Active Integration"} tone={activeIntegration ? "complete" : "neutral"} />}
+            description={activeIntegration
+              ? `${connectedProvider} is connected for completed season history.`
+              : "Connect supported fantasy platforms to import completed season history."}
           >
             <div className="space-y-4">
-              <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-black text-white">Sleeper</h3>
-                        <CommandStatusBadge label={activeIntegration === "sleeper" ? "Connected" : "Available"} tone={activeIntegration === "sleeper" ? "complete" : "ready"} />
+              {showSleeperIntegration && (
+                <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-black text-white">Sleeper</h3>
+                          <CommandStatusBadge label={activeIntegration === "sleeper" ? "Connected" : "Available"} tone={activeIntegration === "sleeper" ? "complete" : "ready"} />
+                        </div>
+                        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                          Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
+                        </p>
+                        {sleeperLastSyncedAt && (
+                          <p className="mt-2 text-xs font-semibold text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
+                        )}
                       </div>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                        Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
-                      </p>
-                      {sleeperLastSyncedAt && (
-                        <p className="mt-2 text-xs font-semibold text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
-                      )}
                     </div>
+                    {activeIntegration === "sleeper" && canManage && (
+                      <CommandButton type="button" variant="secondary" onClick={handleDisconnect} disabled={isDisconnecting} className="sm:min-w-32">
+                        {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                      </CommandButton>
+                    )}
                   </div>
-                  {activeIntegration === "sleeper" && canManage && (
-                    <CommandButton type="button" variant="secondary" onClick={handleDisconnect} disabled={isDisconnecting} className="sm:min-w-32">
-                      {isDisconnecting ? "Disconnecting..." : "Disconnect"}
-                    </CommandButton>
-                  )}
-                </div>
 
-                {activeIntegration && activeIntegration !== "sleeper" ? (
-                  <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    Disconnect your active integration before connecting Sleeper.
-                  </p>
-                ) : (
                   <form onSubmit={handleSleeperSync} className="mt-5 border-t border-slate-800/80 pt-5">
                     <label htmlFor="sleeper-league-id" className={commandLabelClass}>Sleeper League ID</label>
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -571,51 +570,51 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                     </div>
                     <p className={commandHelperClass}>Sync is manual and only runs when you press this button.</p>
                   </form>
-                )}
 
-                {sleeperResult && (
-                  <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/45 p-4 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-bold text-white">{sleeperResult.seasonYear} season</p>
-                      <CommandStatusBadge
-                        label={`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
-                        tone={sleeperResult.unmappedTeams.length > 0 ? "warning" : "complete"}
-                      />
+                  {sleeperResult && (
+                    <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/45 p-4 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-white">{sleeperResult.seasonYear} season</p>
+                        <CommandStatusBadge
+                          label={`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
+                          tone={sleeperResult.unmappedTeams.length > 0 ? "warning" : "complete"}
+                        />
+                      </div>
+                      <div className="mt-3 space-y-2 leading-6">
+                        {sleeperResult.unmappedTeams.length > 0 && (
+                          <p className="text-amber-200"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
+                        )}
+                        {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
+                          <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
+                        )}
+                        {sleeperResult.draftHqTeamNames?.length === 0 && (
+                          <p className="font-semibold text-red-300">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
+                        )}
+                        {sleeperResult.leagueTeamsError && (
+                          <p className="text-xs text-red-300"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
+                        )}
+                        {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
+                          <p className="text-xs text-slate-500">Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-3 space-y-2 leading-6">
-                      {sleeperResult.unmappedTeams.length > 0 && (
-                        <p className="text-amber-200"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
-                      )}
-                      {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
-                        <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
-                      )}
-                      {sleeperResult.draftHqTeamNames?.length === 0 && (
-                        <p className="font-semibold text-red-300">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
-                      )}
-                      {sleeperResult.leagueTeamsError && (
-                        <p className="text-xs text-red-300"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
-                      )}
-                      {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
-                        <p className="text-xs text-slate-500">Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
-              {([
+              {showUnavailableIntegrations && ([
                 { id: "espn", name: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
                 { id: "yahoo", name: "Yahoo", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
               ] as const).map((provider) => (
                 <div key={provider.id} className="rounded-xl border border-slate-800/80 bg-slate-950/25 p-4 opacity-80">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-lg font-black text-white">{provider.name}</h3>
-                          <CommandStatusBadge label={activeIntegration && activeIntegration !== provider.id ? "Locked" : "Coming Soon"} tone="neutral" />
+                          <CommandStatusBadge label="Coming Soon" tone="neutral" />
                         </div>
                         <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{provider.copy}</p>
                       </div>
