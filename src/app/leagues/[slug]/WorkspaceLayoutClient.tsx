@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import LeagueAccessDenied from "@/components/LeagueAccessDenied";
 import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
 import { LeagueWorkspaceContext } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
@@ -170,6 +171,19 @@ export default function WorkspaceLayoutClient({
   }, [league, setAccentColor, setBgColor]);
 
   const initials = (league?.name ?? "").slice(0, 2).toUpperCase() || "LG";
+
+  // Replace the whole workspace chrome rather than rendering the denial inside
+  // it — the sidebar would otherwise sit there with an empty league identity,
+  // and every /leagues/[slug]/* route gets this for free.
+  if (ctx.failure && !ctx.workspace) {
+    return (
+      <LeagueAccessDenied
+        failure={ctx.failure}
+        detail={ctx.failure === "error" ? ctx.error : undefined}
+        onRetry={ctx.reload}
+      />
+    );
+  }
 
   return (
     <LeagueWorkspaceContext.Provider value={ctx}>

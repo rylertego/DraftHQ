@@ -2,11 +2,15 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { getLeagueWorkspace } from "@/lib/leagueApi";
+import { classifyLeagueLoadError, type LeagueAccessFailure } from "@/lib/leagueAccess";
 import type { LeagueWorkspace } from "@/types/league";
 
 export function useLeagueWorkspace(slug: string) {
   const [workspace, setWorkspace] = useState<LeagueWorkspace | null>(null);
   const [error, setError] = useState("");
+  // Why it failed, not just that it did — an unauthorized visitor needs a
+  // different screen from a network blip.
+  const [failure, setFailure] = useState<LeagueAccessFailure | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [rev, setRev] = useState(0);
 
@@ -19,6 +23,7 @@ export function useLeagueWorkspace(slug: string) {
         if (active) {
           setWorkspace(result);
           setError("");
+          setFailure(null);
         }
       })
       .catch((loadError) => {
@@ -28,6 +33,7 @@ export function useLeagueWorkspace(slug: string) {
               ? loadError.message
               : "Unable to load the league."
           );
+          setFailure(classifyLeagueLoadError(loadError));
         }
       })
       .finally(() => {
@@ -41,5 +47,5 @@ export function useLeagueWorkspace(slug: string) {
 
   const reload = useCallback(() => setRev((r) => r + 1), []);
 
-  return { workspace, error, isLoading, reload };
+  return { workspace, error, failure, isLoading, reload };
 }

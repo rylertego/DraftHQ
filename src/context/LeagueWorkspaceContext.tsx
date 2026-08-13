@@ -1,12 +1,15 @@
 "use client";
 
 import { createContext, useContext } from "react";
+import type { LeagueAccessFailure } from "@/lib/leagueAccess";
 import type { LeagueWorkspace } from "@/types/league";
 
 interface LeagueWorkspaceContextValue {
   workspace: LeagueWorkspace | null;
   isLoading: boolean;
   error: string;
+  /** Why the load failed, when it did. Null while loading or on success. */
+  failure: LeagueAccessFailure | null;
   reload: () => void;
 }
 
