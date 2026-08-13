@@ -432,7 +432,7 @@ export default function LeagueCommandCenter({
   const champion = lastCompletedSeason?.standings.find(
     (standing) => standing.leagueTeamId === lastCompletedSeason.championTeamId
   ) ?? null;
-  const topStandings = lastCompletedSeason?.standings.slice(0, 5) ?? [];
+  const leagueStandings = lastCompletedSeason?.standings ?? [];
   const recentMembers = [...workspace.members]
     .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
     .slice(0, 3);
@@ -603,6 +603,41 @@ export default function LeagueCommandCenter({
                 </>
               )}
             </div>
+
+            <div className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
+              <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
+                  <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+                </div>
+                {draft?.scheduledAt && (
+                  <StatusBadge label={draftLabel} tone={draftTone} />
+                )}
+              </div>
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-end">
+                <Countdown
+                  scheduledAt={draft?.scheduledAt ?? null}
+                  status={draft?.status ?? null}
+                  accentColor={primary}
+                  unscheduledTitle={isOwnerView ? (draftCreated ? "Draft date not set yet" : "No draft yet") : undefined}
+                  unscheduledDetail={isOwnerView
+                    ? (draftCreated
+                        ? "Your commissioner hasn't locked the start time. The countdown starts here the moment they do."
+                        : "This season's draft hasn't been opened yet. Check back - the countdown lands here first.")
+                    : undefined}
+                  action={workspace.canManage && draft ? (
+                    <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200">
+                      Schedule Draft
+                    </Link>
+                  ) : undefined}
+                />
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3">
+                  <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
+                  <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
+                  <MetricTile label="Expiry" value={draft?.timerBehavior === "auto_draft" ? "Auto" : draft?.timerBehavior === "skip" ? "Skip" : draft ? "Hold" : "--"} detail="Clock behavior" />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="hidden lg:block">{heroPanel}</div>
@@ -615,9 +650,8 @@ export default function LeagueCommandCenter({
         )}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,1.15fr)_minmax(280px,0.75fr)]">
-        <div className="grid gap-5">
-
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.38fr)]">
+        {/*
           <SectionPanel title="Draft Countdown" eyebrow="Next event">
             <div className="space-y-4">
               <Countdown
@@ -643,12 +677,12 @@ export default function LeagueCommandCenter({
               </div>
             </div>
           </SectionPanel>
-        </div>
+        */}
 
         <SectionPanel title="League Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
           {lastCompletedSeason ? (
             <div className="overflow-hidden rounded-xl border border-slate-800">
-              {topStandings.map((standing) => (
+              {leagueStandings.map((standing) => (
                 <div key={standing.leagueTeamId} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-800 bg-slate-950/30 px-3 py-3 last:border-0">
                   <span className={`text-center text-sm font-black tabular-nums ${standing.finalRank === 1 ? "text-amber-300" : "text-slate-500"}`}>
                     {standing.finalRank}
