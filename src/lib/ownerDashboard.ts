@@ -73,7 +73,15 @@ export function buildOwnerDashboardView(input: OwnerDashboardInput): OwnerDashbo
     headline = "Your commissioner hasn't locked the date yet. You'll see the countdown here once it's set.";
   }
 
-  const primaryCta: OwnerDashboardView["primaryCta"] = !draftExists
+  // Owners get room access only once the draft is real to them: scheduled, or
+  // already underway/finished. A draft row that exists but is still unscheduled
+  // is a commissioner setting things up — letting owners wander into that room
+  // is worse than giving them nothing to enter. They still always get a button,
+  // it just points at the team list instead.
+  const roomOpenToOwners =
+    draftExists && (scheduled || draftStatus === "active" || draftStatus === "paused" || draftStatus === "complete");
+
+  const primaryCta: OwnerDashboardView["primaryCta"] = !roomOpenToOwners
     ? { label: "View League Teams", target: "teams" }
     : draftStatus === "complete"
       ? { label: "Review Draft", target: "room" }
