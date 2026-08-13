@@ -386,8 +386,10 @@ export default function LeagueCommandCenter({
     : null;
   const previousLeagueYear = currentSeason?.year ? currentSeason.year - 1 : lastCompletedSeason?.year;
 
+  const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
   const teamSetupHref = `/leagues/${slug}/teams`;
+  const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
   const ownerView = buildOwnerDashboardView({
     draftExists: draftCreated,
     draftStatus: draft?.status ?? null,
@@ -477,6 +479,11 @@ export default function LeagueCommandCenter({
                   </Link>
                 )
               )}
+              {draftScheduled && roomHref && (
+                <Link href={roomHref} className={primaryButtonClass}>
+                  Enter Draft Room
+                </Link>
+              )}
             </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
               {isOwnerView ? ownerView.headline : setupSummary}
@@ -501,7 +508,7 @@ export default function LeagueCommandCenter({
             </div>
 
             <div className="mt-5 rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                 <div className="flex flex-wrap items-center gap-3">
                   <div>
                     <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
@@ -517,7 +524,7 @@ export default function LeagueCommandCenter({
                   <StatusBadge label={draftLabel} tone={draftTone} />
                 )}
               </div>
-              <div className={draft?.scheduledAt ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-end" : "grid gap-3 sm:grid-cols-3"}>
+              <div className={draft?.scheduledAt ? "grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
                 {draft?.scheduledAt && (
                   <Countdown
                     scheduledAt={draft.scheduledAt}
