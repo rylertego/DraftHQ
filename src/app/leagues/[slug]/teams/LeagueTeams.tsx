@@ -657,7 +657,7 @@ function TeamRosterRow({
 
   return (
     <article
-      className="grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] md:items-center"
+      className="grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:grid-cols-[minmax(0,1fr)_220px_240px_auto] md:items-center"
       style={{ borderLeft: `3px solid ${ownerAssigned ? primary + "99" : "rgba(251,191,36,0.75)"}` }}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -674,13 +674,12 @@ function TeamRosterRow({
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate text-base font-black leading-tight text-white">{team.name}</h3>
-            <StatusBadge label={ownerAssigned ? "Assigned" : "Needs Owner"} tone={ownerAssigned ? "complete" : "warning"} />
           </div>
           <p className="mt-1 truncate text-xs text-slate-500">{team.shortName || "No short name"}</p>
         </div>
       </div>
 
-      <div className="flex min-w-0 items-center gap-2">
+      <div className="flex min-w-0 items-center gap-2 md:justify-center">
         <div
           className="flex h-9 w-9 shrink-0 items-center justify-center overflow-hidden rounded-full text-xs font-bold"
           style={{ backgroundColor: ownerAssigned ? primary + "22" : "rgba(100,116,139,0.15)", color: ownerAssigned ? primary : "#64748b" }}
@@ -690,7 +689,7 @@ function TeamRosterRow({
             ? <img src={team.ownerAvatarUrl} alt="" className="h-full w-full object-cover" />
             : ownerInitial}
         </div>
-        <div className="min-w-0">
+        <div className="min-w-0 w-32">
           <p className="mb-0.5 text-[10px] font-black uppercase leading-none tracking-[0.16em] text-slate-500">Owner</p>
           <p className={`truncate text-sm font-semibold leading-tight ${ownerAssigned ? "text-white" : "italic text-slate-500"}`}>
             {team.ownerDisplayName ?? "Unassigned"}
@@ -698,7 +697,7 @@ function TeamRosterRow({
         </div>
       </div>
 
-      <div>
+      <div className="md:text-center">
         <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Setup</p>
         <p className={`mt-1 text-sm font-bold ${ownerAssigned ? "text-emerald-200" : "text-amber-200"}`}>
           {ownerAssigned ? "Ready for draft slot" : "Owner assignment open"}
@@ -951,10 +950,10 @@ export default function LeagueTeams({ slug }: { slug: string }) {
             action={rosterActions}
           >
             <div className="overflow-hidden rounded-xl border border-slate-800/80">
-              <div className="hidden grid-cols-[minmax(0,1.35fr)_minmax(180px,0.8fr)_minmax(150px,0.6fr)_auto] border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid">
+              <div className="hidden grid-cols-[minmax(0,1fr)_220px_240px_auto] border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid">
                 <span>Team</span>
-                <span>Owner</span>
-                <span>Setup</span>
+                <span className="text-center">Owner</span>
+                <span className="text-center">Setup</span>
                 <span className="text-right">Actions</span>
               </div>
               {activeTeams.map((team) => (
