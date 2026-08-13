@@ -435,12 +435,18 @@ export default function LeagueCommandCenter({
         )}
         {isOwnerView && workspace.myTeam && (
           <div className="absolute right-5 top-5 z-10 lg:right-6 lg:top-6">
-            <TeamMark
-              src={workspace.myTeam.logoUrl}
-              name={ownerView.teamLabel}
-              className="h-16 w-16"
-              accentColor={primary}
-            />
+            {workspace.myTeam.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Preserve transparent uploaded logo treatment without an image wrapper.
+              <img
+                src={workspace.myTeam.logoUrl}
+                alt={`${ownerView.teamLabel} logo`}
+                className="h-24 w-24 object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)]"
+              />
+            ) : (
+              <span className="block text-xl font-black uppercase" style={{ color: primary }}>
+                {ownerView.teamLabel.slice(0, 2)}
+              </span>
+            )}
           </div>
         )}
         <div className="relative grid gap-5 p-5 lg:p-6">
