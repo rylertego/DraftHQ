@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { normalizeEmail } from "@/lib/email";
+import { emailFrom, normalizeEmail } from "@/lib/email";
 import { draftInviteEmail } from "@/lib/emailTemplates";
 
 interface InvitationRequest {
@@ -198,7 +198,7 @@ export async function POST(
 
       const resend = new Resend(apiKey);
       const { error: emailError } = await resend.emails.send({
-        from: "DraftHQ <onboarding@resend.dev>",
+        from: emailFrom(),
         to: email,
         subject,
         html,

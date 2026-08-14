@@ -1,4 +1,6 @@
-const SITE_URL = "https://draft-hq.vercel.app";
+// Must be a publicly reachable origin — email clients fetch the logo directly,
+// so this cannot fall back to a localhost NEXT_PUBLIC_SITE_URL.
+const SITE_URL = "https://drafthq.net";
 const LOGO_URL = `${SITE_URL}/branding/logo-primary.png`;
 
 function emailLayout(title: string, eyebrow: string, body: string, footerNote: string) {

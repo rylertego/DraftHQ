@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { normalizeEmail } from "@/lib/email";
+import { emailFrom, normalizeEmail } from "@/lib/email";
 import { leagueInviteEmail } from "@/lib/emailTemplates";
 
 interface RouteContext {
@@ -229,7 +229,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
       const resend = new Resend(apiKey);
       const { error: emailError } = await resend.emails.send({
-        from: "DraftHQ <onboarding@resend.dev>",
+        from: emailFrom(),
         to: email,
         subject,
         html,
