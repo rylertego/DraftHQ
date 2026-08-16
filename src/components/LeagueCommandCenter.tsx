@@ -471,22 +471,20 @@ export default function LeagueCommandCenter({
                   <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
                     Configure Draft
                   </Link>
-                ) : currentSeason ? (
-                  <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
-                    Create Draft
-                  </button>
-                ) : (
+                ) : !currentSeason ? (
                   <Link href={`/leagues/${slug}/seasons/new`} className={secondaryButtonClass}>
                     Create Season
                   </Link>
-                )
+                ) : null
+                // Season exists but no draft: the hero stays empty. Draft
+                // creation lives in the readiness panel rather than competing
+                // with the season title.
               )}
               {isOwnerView ? (
-                // Owners always get a way forward. A draft merely existing is
-                // enough — the lobby handles pre-draft — and with no draft at
-                // all this points at the team list rather than leaving the hero
-                // with no action, which is the defect this whole view exists to
-                // fix. Requiring draftScheduled here stranded them again.
+                // Owners always get a way forward, but only into a room that is
+                // actually open to them — see roomOpenToOwners in
+                // ownerDashboard.ts. Otherwise this points at the team list, so
+                // the hero is never actionless for an owner.
                 <Link
                   href={ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref}
                   className={primaryButtonClass}
@@ -664,7 +662,18 @@ export default function LeagueCommandCenter({
           <SectionPanel
             title="Draft Readiness"
             eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
-            action={<StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />}
+            action={
+              // Draft creation lives here now that the hero stays empty before
+              // a draft exists. This is the only entry point to the create-draft
+              // modal, so it must not be dropped without relocating it.
+              workspace.canManage && !draft && currentSeason ? (
+                <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
+                  Create Draft
+                </button>
+              ) : (
+                <StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />
+              )
+            }
           >
             <div className="space-y-1">
               {readinessItems.map((item) => (
