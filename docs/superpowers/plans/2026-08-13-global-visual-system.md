@@ -1,5 +1,44 @@
 # DraftHQ Global Visual System Implementation Plan
 
+## Progress
+
+> **Keep this block and the checkboxes current as tasks complete.** They were
+> not maintained for the first five tasks, and the result was a session that
+> read the main checkout, saw unchecked boxes and no `src/components/ui/`, and
+> concluded the plan had never been started — when Tasks 1–5 were done. The
+> work is in a **linked worktree**, so `git worktree list` is the first thing to
+> check. Commit history is the fallback record; these boxes should be the
+> primary one.
+
+**Branch:** `feature/global-visual-system-execution` at
+`.worktrees/global-visual-system`. **Not** in the main checkout.
+
+| Phase | Tasks | State |
+| --- | --- | --- |
+| 0 — Baseline Contract | 1 | ✅ Complete |
+| 1 — Shared Foundation | 2, 3, 4, 5 | ✅ Complete |
+| 2 — Global Product Surfaces | 6 | ⏳ In progress — see below |
+| 2 — Global Product Surfaces | 7, 8 | ⬜ Not started |
+| 3–8 | 9–… | ⬜ Not started |
+
+**Task 6 is being done in slices**, because the original full-scope attempts
+stalled. Steps below are left unticked until every slice lands:
+
+- ✅ Slice 1 — `LeagueAccessDenied` (`14328ec`)
+- ✅ Slice 2 — `AccountNav` (`cdc4ae3`)
+- ✅ Slice 3 — `LeagueInvitationInbox` + `mail`/`badgeCount` trigger extension (`f4fc6d2`)
+- ⬜ Slice 4 — `layout.tsx` (the earlier stalled diff never actually touched it)
+- ⬜ Browser QA — the phase gate. `preview_start` resolves `.claude/launch.json`
+  from the primary working directory and cannot set a cwd, so it will not serve
+  this worktree while port 3000 runs the main checkout. A second dev server is
+  needed. `AccountNav` renders on every page, so this is the highest
+  blast-radius change currently unverified.
+
+**Baseline at last commit:** typecheck clean, 215 tests, production build clean.
+
+---
+
+
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
 **Goal:** Implement one shared, semantic DraftHQ visual system and migrate every user-facing route without changing business logic, permissions, routing, or specialized draft workflows.
@@ -131,7 +170,7 @@ If a phase reveals a functional defect unrelated to styling, stop that route mig
 - Consumes: Existing application routes, authenticated session, existing screenshot archive.
 - Produces: A committed ledger keyed by route, role, state, viewport, and local screenshot filename.
 
-- [ ] **Step 1: Inventory route states**
+- [x] **Step 1: Inventory route states**
 
 Use this exact ledger schema:
 
@@ -143,11 +182,11 @@ Use this exact ledger schema:
 
 Include anonymous, commissioner, co-commissioner, assigned owner, unassigned member, empty, loading, validation error, save failure, destructive confirmation, active draft, paused draft, completed draft, and unauthorized states where supported.
 
-- [ ] **Step 2: Capture missing baselines**
+- [x] **Step 2: Capture missing baselines**
 
 Use 390x844 and 1440x900 for all operational pages. Use 1366x768, 1440x900, and 1920x1080 for Lobby, Draft Room, TV Mode, pick reveal, recap, and awards. Do not alter code to manufacture visual states.
 
-- [ ] **Step 3: Verify the ledger**
+- [x] **Step 3: Verify the ledger**
 
 Run:
 
@@ -158,7 +197,7 @@ git check-ignore .codex-screenshots/global-redesign/baseline/example.png
 
 Expected: all user-facing route families appear; screenshot output is ignored.
 
-- [ ] **Step 4: Commit the baseline contract**
+- [x] **Step 4: Commit the baseline contract**
 
 ```powershell
 git add -- docs/ui-audit/global-redesign-baselines.md
@@ -179,7 +218,7 @@ git commit -m "docs: record visual migration baselines"
 - Consumes: Hex colors from league branding and the product fallback token.
 - Produces: `deriveAccentTokens(input, fallback): AccentTokens` and internal WCAG contrast helpers.
 
-- [ ] **Step 1: Write failing unit tests**
+- [x] **Step 1: Write failing unit tests**
 
 ```ts
 import { describe, expect, it } from "vitest";
@@ -205,17 +244,17 @@ describe("deriveAccentTokens", () => {
 });
 ```
 
-- [ ] **Step 2: Run the focused test and confirm RED**
+- [x] **Step 2: Run the focused test and confirm RED**
 
 Run: `npm.cmd run test:unit -- tests/unit/uiColor.test.ts`
 
 Expected: failure because `@/lib/uiColor` does not exist.
 
-- [ ] **Step 3: Implement the pure color module**
+- [x] **Step 3: Implement the pure color module**
 
 Implement strict `#rgb`/`#rrggbb` parsing, sRGB relative luminance, `contrastRatio`, bounded RGB mixing, and `deriveAccentTokens`. Select black or white foreground by the higher ratio; if neither reaches 4.5 after normalization, adjust the base toward the contrasting endpoint until it does. Do not access `window`, CSS, React, or Supabase.
 
-- [ ] **Step 4: Run the focused and full unit suites**
+- [x] **Step 4: Run the focused and full unit suites**
 
 ```powershell
 npm.cmd run test:unit -- tests/unit/uiColor.test.ts
@@ -224,7 +263,7 @@ npm.cmd run test:unit
 
 Expected: all tests pass.
 
-- [ ] **Step 5: Commit the color engine**
+- [x] **Step 5: Commit the color engine**
 
 ```powershell
 git add -- src/lib/uiColor.ts tests/unit/uiColor.test.ts
@@ -242,11 +281,11 @@ git commit -m "feat: add semantic accent derivation"
 - Consumes: `deriveAccentTokens`, current league primary/accent color.
 - Produces: CSS variables for canvas, surfaces, borders, text, product accent, league accent, statuses, spacing, typography, radii, elevation, motion, and density.
 
-- [ ] **Step 1: Run GitNexus impact analysis**
+- [x] **Step 1: Run GitNexus impact analysis**
 
 Analyze `LeagueThemeProvider` upstream. Record callers and risk before editing. Treat HIGH or CRITICAL as a stop-and-report gate.
 
-- [ ] **Step 2: Add semantic token families**
+- [x] **Step 2: Add semantic token families**
 
 Define the specification’s variables under `:root`, including these stable public names:
 
@@ -293,15 +332,15 @@ Define the specification’s variables under `:root`, including these stable pub
 
 Keep legacy variables only as aliases during migration. Remove global element selectors that force one-off input/button appearance only after the new primitives cover their consumers.
 
-- [ ] **Step 3: Expand `LeagueThemeProvider`**
+- [x] **Step 3: Expand `LeagueThemeProvider`**
 
 Use `deriveAccentTokens` once per league color with `useMemo`. Install all league accent variables on the provider element. Set `--color-focus-ring` to league focus inside a league workspace and leave product focus elsewhere. Preserve current context values and behavior.
 
-- [ ] **Step 4: Verify token behavior**
+- [x] **Step 4: Verify token behavior**
 
 Run typecheck, focused tests, build, and browser-inspect a very light, very dark, and default league color. Confirm text contrast and focus visibility without changing large surfaces.
 
-- [ ] **Step 5: Commit tokens**
+- [x] **Step 5: Commit tokens**
 
 ```powershell
 git add -- src/app/globals.css src/context/LeagueThemeContext.tsx tests/unit/uiColor.test.ts
@@ -320,11 +359,11 @@ git commit -m "feat: establish semantic visual tokens"
 - Consumes: Semantic CSS variables and shared types listed above.
 - Produces: `PageShell`, `PageHeader`, `Section`, `Panel`, `DataSurface`, `FormLayout`, `SettingsShell`, `WorkspaceToolbar`, `Button`, `LinkButton`, and `IconButton`.
 
-- [ ] **Step 1: Inventory `CommandCenterUI` consumers without editing compatibility exports**
+- [x] **Step 1: Inventory `CommandCenterUI` consumers without editing compatibility exports**
 
 Run GitNexus context/impact analysis and `rg "CommandCenterUI" src` to record every consumer. This inventory defines the route-migration checklist; do not edit `CommandCenterUI.tsx` in this task.
 
-- [ ] **Step 2: Implement the shared types and layout primitives**
+- [x] **Step 2: Implement the shared types and layout primitives**
 
 Use compact defaults and these constraints:
 
@@ -338,7 +377,7 @@ const contentWidths = {
 
 `PageHeader` permits title, eyebrow, description, identity, status, and actions without nesting a second card. `Panel` is for a discrete object/workflow and uses `--radius-panel: 6px`. `DataSurface` is for tables/grids and uses no more than the 4px standard framed-surface radius. `Section` defaults to unframed grouping with optional divider.
 
-- [ ] **Step 3: Implement action primitives**
+- [x] **Step 3: Implement action primitives**
 
 Map semantic intent as follows:
 
@@ -352,11 +391,11 @@ danger            -> danger family
 
 Enforce stable heights, `--radius-control: 4px`, disabled semantics, `aria-busy` during loading, visible `:focus-visible`, icon-only accessible names, and at least 44px mobile touch targets. Do not accept raw color class props.
 
-- [ ] **Step 4: Prove foundation isolation**
+- [x] **Step 4: Prove foundation isolation**
 
 Confirm `git diff -- src/components/CommandCenterUI.tsx` is empty. Render every existing `CommandCenterUI` consumer at its baseline viewport and verify there is no intentional visual change from introducing the new files and tokens. New primitives remain unused by legacy routes until their individual migration tasks.
 
-- [ ] **Step 5: Verify and commit**
+- [x] **Step 5: Verify and commit**
 
 Run the phase gate. Browser-check League Dashboard, Teams, Settings, and Draft Settings against their baseline captures to prove foundation work did not change their appearance.
 
@@ -380,27 +419,27 @@ git commit -m "feat: add shared layout and action primitives"
 - Consumes: Shared semantic tokens, action primitives, React portals.
 - Produces: The remaining component library named in the specification.
 
-- [ ] **Step 1: Implement forms with stable state contracts**
+- [x] **Step 1: Implement forms with stable state contracts**
 
 `Field` owns label, description, required marker, error, and `aria-describedby`. Inputs use 40px compact desktop height and 44px touch height. Error overrides neutral/league borders with danger. Disabled fields remain readable. Saving/saved/failure states are explicit text, not color alone.
 
-- [ ] **Step 2: Implement navigation and feedback**
+- [x] **Step 2: Implement navigation and feedback**
 
 Tabs render `role="tablist"`, arrow-key movement, selected underline, and horizontal overflow on mobile. Badges expose semantic status only. Empty states include title, useful explanation, and at most one contextual action. Skeleton dimensions match loaded content. Progress includes an accessible value label.
 
-- [ ] **Step 3: Implement overlays without a new framework**
+- [x] **Step 3: Implement overlays without a new framework**
 
 Use `createPortal` to `document.body`, focus capture/restore, Escape close where allowed, outside-click close for non-destructive menus, scroll lock, and viewport collision handling. Menus must escape table/panel overflow; dialogs use restrained backdrop opacity and a mobile bottom-sheet-like fit without changing semantics. Overlays default to 6px and may use `--radius-overlay: 8px` only where the larger radius improves separation; no overlay may exceed 8px.
 
-- [ ] **Step 4: Implement identity primitives**
+- [x] **Step 4: Implement identity primitives**
 
 Provide stable square dimensions, `object-contain`, transparent image backgrounds, initials/fallbacks, and no implicit decorative border. Team and league logos may receive an explicit `framed` prop only where the object truly needs a bounded tile.
 
-- [ ] **Step 5: Remove conflicting global selectors and verify**
+- [x] **Step 5: Remove conflicting global selectors and verify**
 
 Replace legacy global input/button rules with primitive-owned selectors only after `rg` confirms no uncovered native controls would become unusable. Run phase gate and keyboard-test tabs, menu, dialog, and form errors in a temporary local harness only if an existing route cannot expose the state; do not commit a harness.
 
-- [ ] **Step 6: Commit the complete foundation**
+- [x] **Step 6: Commit the complete foundation**
 
 ```powershell
 git add -- src/components/ui src/app/globals.css

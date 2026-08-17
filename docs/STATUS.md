@@ -1,7 +1,16 @@
 # DraftHQ — Status & Handoff
 
-_Last updated: 2026-08-13. Branch: `feature/owner-team-experience`._
-_Supersedes `docs/STATUS-2026-08-06.md`._
+> **This is the living status doc. Update it at task boundaries, not per commit.**
+> Dated STATUS files are history only; this filename never changes so there is
+> never a question about which one is current.
+>
+> Companions: [`deployment-runbook.md`](deployment-runbook.md) for infrastructure,
+> and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
+> whose checkboxes are the progress ledger for the visual-system work.
+
+_Last updated: 2026-08-13._
+_`main` is at the owner-experience merge; visual-system work is on
+`feature/global-visual-system-execution` in `.worktrees/global-visual-system`._
 
 > **Note on the previous doc's filename:** `STATUS-2026-08-06.md` is misdated. Its
 > content was written on **2026-08-12**. The facts in it are correct; only the
@@ -40,6 +49,62 @@ visual-system work:
 Claude cannot see Codex's session, reasoning, or subagents — only what Codex
 writes to disk or git. The reverse is presumably also true. **Anything one agent
 needs the other to know has to land in a file.**
+
+---
+
+## Visual system execution — where it actually is
+
+**The work is in a separate worktree.** `.worktrees/global-visual-system` on
+branch `feature/global-visual-system-execution`. Looking only at the main
+checkout makes it appear the plan was never started — no `src/components/ui/`,
+no `docs/ui-audit/`, every plan checkbox unchecked. That is wrong. **Check
+`git worktree list` first.** The plan's checkboxes are never ticked; commit
+history is the real progress record.
+
+Completed and independently reviewed (13 commits):
+
+| Task | Commits | What |
+| --- | --- | --- |
+| 1 | `abc13bb` `a2be09d` | Baseline ledger + 22 normalized captures (this is Phase 0) |
+| 2 | `83d337b` +2 fixes | Semantic accent derivation (`src/lib/uiColor.ts`) |
+| 3 | `8ec5c02` `968b0ee` | Semantic tokens, legacy aliases preserved |
+| 4 | `6f32b3a` `7a03aa0` | Layout + action primitives |
+| 5 | `ab0ddaf` +3 fixes | Forms, navigation, feedback, overlays, identity |
+
+Each went implement → independent review → fix rounds. Task 2 caught a contract
+bug before it reached CSS; Task 3 caught semantic accent inheriting legacy teal;
+Task 5 needed three rounds on overlay focus behaviour.
+
+**Task 6 (global chrome) is half done.** Slices 1–2 landed:
+
+- `14328ec` — `LeagueAccessDenied` → PageShell/Panel/EmptyState/InlineNotice
+- `cdc4ae3` — `AccountNav` → shared `Menu` + LinkButtons
+
+Remaining: `LeagueInvitationInbox`, and `layout.tsx` — which the earlier stalled
+agents never actually migrated despite appearing in their diff. That diff was
+discarded (unattributable and incomplete); it is preserved as
+`task6-stalled-agents.patch` in the session scratchpad if anyone wants it.
+
+### Two things that will bite whoever continues
+
+**Primitives omit `className`, `style`, and `color`.** That is the Task 4
+protected-token contract, not an oversight. Migrating a component means deleting
+its local class constants, not re-expressing them. If you find yourself wanting
+an escape hatch, the primitive is missing a prop — add it there.
+
+**Draft settings pins its League Command bar at `top-[113px]`** against
+`AccountNav`'s height (logo `h-24` 96px + `py-2` 16px + 1px border). The header
+shell was left untouched in slice 2 for exactly this reason. When the shell is
+retokenised, that literal must become a shared layout variable or the bar will
+silently misalign — it will still *pin*, just behind or below the header, which
+looks like "sticky is broken" rather than "the offset is stale".
+
+**Browser QA for Task 6 is outstanding.** `preview_start` resolves
+`.claude/launch.json` from the primary working directory and cannot set a cwd, so
+it will not serve the worktree while port 3000 runs the main checkout. Someone
+needs a second dev server from `.worktrees/global-visual-system` before the phase
+gate can close. `AccountNav` renders on every page, so this is the highest
+blast-radius change currently unverified.
 
 ---
 
