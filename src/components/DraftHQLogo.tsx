@@ -1,40 +1,47 @@
-// The mark's source cyan is now #22D3EE — the same value as
-// --color-product-accent — so the product accent needs no filter at all and
-// every other delta is measured from 188°.
+"use client";
+
+import type { CSSProperties } from "react";
+import DraftHQLockup from "@/components/brand/DraftHQLockup";
+import { DEFAULT_ACCENT } from "@/context/LeagueThemeContext";
+import { deriveAccentTokens } from "@/lib/uiColor";
+
+// The mark used to be an <img> recoloured with hue-rotate, because CSS cannot
+// reach inside an <img src="…svg">. That was an approximation: it rotated every
+// hue proportionally, could not hit an arbitrary accent exactly, and needed
+// recalibrating each time the source art changed — which it did twice in one
+// day. The lockup is inline SVG now, so its fills read the accent tokens
+// directly and any colour is exact.
 //
-// This map only exists because `<img src="…svg">` is opaque to the page: CSS
-// cannot reach inside it, so hue-rotate is the only lever. It is an
-// approximation (it rotates every hue proportionally, and cannot hit an
-// arbitrary target exactly) and it has to be recalibrated whenever the source
-// art changes. Inlining the SVG and using var(--color-league-accent) deletes
-// this whole mechanism — see docs/STATUS.md.
-const FILTER_MAP: Record<string, string> = {
-  "#22d3ee": "",                    // Cyan    — source, no filter
-  "#14b8a6": "hue-rotate(345deg)",  // Teal
-  "#3b82f6": "hue-rotate(29deg)",   // Royal
-  "#10b981": "hue-rotate(332deg)",  // Emerald
-  "#a855f7": "hue-rotate(83deg)",   // Violet
-  "#ef4444": "hue-rotate(172deg)",  // Crimson
-  "#f59e0b": "hue-rotate(210deg)",  // Gold
-  "#f43f5e": "hue-rotate(162deg)",  // Rose
-  "#6366f1": "hue-rotate(51deg)",   // Indigo
-  "#fb923c": "hue-rotate(199deg)",  // Sunset
-};
+// Normally the surrounding LeagueThemeScope supplies those tokens. An explicit
+// accentColor scopes them locally instead, for surfaces like the draft room
+// that carry their own accent rather than inheriting one.
+
+type ThemeVars = CSSProperties & Record<`--${string}`, string>;
 
 interface Props {
   accentColor?: string;
   className?: string;
 }
 
-export default function DraftHQLogo({ accentColor = "#22D3EE", className = "h-24 w-auto" }: Props) {
-  const filter = FILTER_MAP[accentColor.toLowerCase()] ?? "";
+export default function DraftHQLogo({ accentColor, className = "h-24 w-auto" }: Props) {
+  let style: ThemeVars | undefined;
+
+  if (accentColor) {
+    const tokens = deriveAccentTokens(accentColor, DEFAULT_ACCENT);
+    style = {
+      display: "contents",
+      "--color-league-accent": tokens.base,
+      "--color-league-accent-border": tokens.border,
+    };
+  }
+
+  if (!style) {
+    return <DraftHQLockup className={className} />;
+  }
+
   return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img
-      src="/branding/lockup.svg"
-      alt="DraftHQ"
-      className={className}
-      style={filter ? { filter } : undefined}
-    />
+    <span style={style}>
+      <DraftHQLockup className={className} />
+    </span>
   );
 }
