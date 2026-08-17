@@ -830,13 +830,19 @@ export default function LeagueTeams({ slug }: { slug: string }) {
   const activeTeams = teams.filter((t) => !t.archivedAt);
   const archivedTeams = teams.filter((t) => t.archivedAt);
   const atCapacity = activeTeams.length >= teamMax;
-  const rosterActions = canManage ? (
+  // Hidden at capacity rather than disabled. A full league has nowhere to put
+  // another team, so the controls are not "temporarily unavailable" — they do
+  // not apply. Removing or archiving a team drops activeTeams below teamMax and
+  // they come back on their own, since this derives from the reloaded list.
+  // teamChangesLocked stays a disabled state: that one is genuinely temporary,
+  // and hiding the buttons mid-draft would look like they had been taken away.
+  const rosterActions = canManage && !atCapacity ? (
     <div className="flex flex-wrap justify-end gap-2">
       <button
         type="button"
         onClick={() => setShowAddModal(true)}
-        disabled={atCapacity || teamChangesLocked}
-        title={teamChangesLocked ? "Teams cannot be added while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
+        disabled={teamChangesLocked}
+        title={teamChangesLocked ? "Teams cannot be added while a draft is active." : undefined}
         className={primaryButtonClass}
       >
         Add Team
@@ -844,8 +850,8 @@ export default function LeagueTeams({ slug }: { slug: string }) {
       <button
         type="button"
         onClick={() => setShowImportModal(true)}
-        disabled={atCapacity || teamChangesLocked}
-        title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : atCapacity ? `League is at capacity (${teamMax} teams).` : undefined}
+        disabled={teamChangesLocked}
+        title={teamChangesLocked ? "Teams cannot be imported while a draft is active." : undefined}
         className={secondaryButtonClass}
       >
         Import League
