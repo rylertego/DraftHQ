@@ -296,37 +296,6 @@ export default function LeagueCommandCenter({
     };
   }, [isOwnerView, myTeamId, currentSeasonId]);
 
-  const readinessItems: Array<{ label: string; done: boolean | null; detail: string }> = [
-    { label: "League created", done: true, detail: workspace.league.name },
-    { label: "Draft created", done: draftCreated, detail: draft ? draft.name : "Create this season's draft" },
-    { label: "Draft date set", done: draftScheduled, detail: draft?.scheduledAt ? formatDraftDate(draft.scheduledAt) : "Schedule the draft" },
-    { label: "Teams added", done: teamsLoading ? null : teamsReady, detail: teamsLoading ? "Checking teams" : `${activeTeams.length} of ${expectedTeams} teams` },
-    { label: "Owners assigned", done: teamsLoading ? null : ownersReady, detail: teamsLoading ? "Checking owners" : `${assignedOwners} of ${activeTeams.length} assigned` },
-    {
-      label: "Draft room ready",
-      done: teamsLoading ? null : draftCreated && draftScheduled && teamsReady && ownersReady,
-      detail: draftCreated && draftScheduled && teamsReady && ownersReady ? "Ready to open" : "Finish setup first",
-    },
-  ];
-
-  // readinessItems is no longer rendered as a checklist, but it still answers
-  // "is setup finished", which drives the summary line below.
-  const openItems = readinessItems.filter((item) => item.done === false).length;
-  const setupReady = openItems === 0 && !teamsLoading && !teamsError;
-  const scheduledDraftDate = draft?.scheduledAt ? formatDraftDate(draft.scheduledAt) : "";
-  const setupSummary = setupReady && draft?.status === "complete"
-    ? "The draft is complete. Review results and keep the league record current."
-    : teamsError
-      ? "Team data could not be loaded. Resolve the issue before relying on readiness status."
-      : !draftCreated
-        ? "Create this season's draft so commissioners can configure the room."
-        : !draftScheduled
-          ? "Draft setup is underway. Schedule the start time before owners arrive."
-          : !teamsReady
-            ? "Draft setup is underway. Align the team count with league settings before draft night."
-            : !ownersReady
-              ? "Draft setup is underway. Assign every team to an owner before draft night."
-              : `Draft night is scheduled for ${scheduledDraftDate}.`;
   const lastCompletedSeason = workspace.seasons.find(
     (season) => season.status === "complete" && season.standings.length > 0
   );
@@ -384,18 +353,20 @@ export default function LeagueCommandCenter({
             Reset draft
           </button>
         )}
-        {isOwnerView && workspace.myTeam && (
+        {/* Commissioners own a team too — the logo is about the viewer's
+            franchise, not their role, so it is no longer gated on isOwnerView. */}
+        {workspace.myTeam && (
           <div className="absolute right-5 top-5 z-10 lg:right-6 lg:top-6">
             {workspace.myTeam.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- Preserve transparent uploaded logo treatment without an image wrapper.
               <img
                 src={workspace.myTeam.logoUrl}
-                alt={`${ownerView.teamLabel} logo`}
+                alt={`${workspace.myTeam.name} logo`}
                 className="h-24 w-24 object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)]"
               />
             ) : (
               <span className="block text-xl font-black uppercase" style={{ color: primary }}>
-                {ownerView.teamLabel.slice(0, 2)}
+                {workspace.myTeam.name.slice(0, 2)}
               </span>
             )}
           </div>
@@ -471,9 +442,16 @@ export default function LeagueCommandCenter({
                 )
               )}
             </div>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-              {isOwnerView ? ownerView.headline : setupSummary}
-            </p>
+            {/* Owners get a headline because they cannot act and need to know
+                what is happening. Commissioners have the button and the tiles —
+                the old summary narrated the state back at them ("create this
+                season's draft so commissioners can configure the room"), which
+                said nothing the Create Draft button beside it did not. */}
+            {isOwnerView && (
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
+                {ownerView.headline}
+              </p>
+            )}
 
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {isOwnerView ? (
