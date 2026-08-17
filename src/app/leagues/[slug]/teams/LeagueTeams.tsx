@@ -636,7 +636,13 @@ function TeamRosterRow({
 }) {
   const { accentColor: primary } = useLeagueTheme();
   const ownerAssigned = Boolean(team.ownerUserId);
-  const ownerInitial = (team.ownerDisplayName ?? "?").charAt(0).toUpperCase();
+  // A linked DraftHQ account is not the same thing as having an owner. Sleeper
+  // imports fill ownerName with a real person who has not signed up yet, so
+  // reading only ownerDisplayName reported most of an imported league as
+  // unowned. ownerAssigned still gates the assign/claim affordances — that
+  // distinction is real — but the name shown is the best one available.
+  const ownerLabel = team.ownerDisplayName ?? team.ownerName ?? null;
+  const ownerInitial = (ownerLabel ?? "?").charAt(0).toUpperCase();
   const logoInitials = team.name.trim().slice(0, 2).toUpperCase() || "T";
   const menuItems = canManage ? [
     { label: "Edit team", onClick: () => onEdit(team) },
@@ -693,8 +699,8 @@ function TeamRosterRow({
         </div>
         <div className="min-w-0 w-32">
           <p className="mb-0.5 text-[10px] font-black uppercase leading-none tracking-[0.16em] text-slate-500">Owner</p>
-          <p className={`truncate text-sm font-semibold leading-tight ${ownerAssigned ? "text-white" : "italic text-slate-500"}`}>
-            {team.ownerDisplayName ?? "Unassigned"}
+          <p className={`truncate text-sm font-semibold leading-tight ${ownerLabel ? "text-white" : "italic text-slate-500"}`}>
+            {ownerLabel ?? "Unassigned"}
           </p>
         </div>
       </div>
@@ -982,7 +988,7 @@ export default function LeagueTeams({ slug }: { slug: string }) {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-sm font-bold text-slate-300">{team.name}</p>
-                        <p className="mt-1 text-xs italic text-slate-600">{team.ownerDisplayName ?? "No owner"} - Archived</p>
+                        <p className="mt-1 text-xs italic text-slate-600">{team.ownerDisplayName ?? team.ownerName ?? "No owner"} - Archived</p>
                       </div>
                       {canManage && (
                         <KebabMenu items={[
