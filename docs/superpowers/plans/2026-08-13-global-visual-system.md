@@ -49,6 +49,16 @@ stalled. Steps below are left unticked until every slice lands:
 
 ## Global Constraints
 
+- **Status is not conveyed by colour** (spec amended 2026-08-13). Readiness
+  percentages, counts like "3/10 owners", lifecycle labels, and checklist items
+  render in standard foreground text. Colour is reserved for destructive/error,
+  live draft state, and the league accent. Every route migration must strip
+  semantic tinting from status text rather than port it forward.
+- **Badge budget** (spec amended 2026-08-13). A badge marks an *exception*. If
+  every row in a list has one, render a column instead. `RoleBadge` only on the
+  members list for roles above `member`, and on draft-night surfaces where
+  commissioner authority must be unmistakable. `StatusBadge` at most once per
+  surface, on the single fact that governs what to do next.
 - Use semantic `product-accent` terminology. The current DraftHQ blue/cyan brand color is only the implementation value.
 - Inside a league workspace, primary operational actions use the accessible league accent. Global actions use the product accent.
 - Destructive actions remain red. Secondary and tertiary actions remain neutral.
@@ -425,7 +435,7 @@ git commit -m "feat: add shared layout and action primitives"
 
 - [x] **Step 2: Implement navigation and feedback**
 
-Tabs render `role="tablist"`, arrow-key movement, selected underline, and horizontal overflow on mobile. Badges expose semantic status only. Empty states include title, useful explanation, and at most one contextual action. Skeleton dimensions match loaded content. Progress includes an accessible value label.
+Tabs render `role="tablist"`, arrow-key movement, selected underline, and horizontal overflow on mobile. Badges default to neutral and follow the badge budget in Global Constraints. Empty states include title, useful explanation, and at most one contextual action. Skeleton dimensions match loaded content. Progress includes an accessible value label.
 
 - [x] **Step 3: Implement overlays without a new framework**
 

@@ -93,7 +93,33 @@ Inside a league workspace, primary operational actions use the configured league
 - Rankings and current-pick indicators.
 - Important league-specific highlights.
 
-League accent tokens must not fill large background surfaces. Secondary and tertiary actions remain neutral. Destructive actions remain red regardless of league configuration. Semantic statuses retain their semantic colors rather than inheriting the league accent.
+League accent tokens must not fill large background surfaces. Secondary and tertiary actions remain neutral. Destructive actions remain red regardless of league configuration. Semantic statuses do not inherit the league accent.
+
+### Status Is Not Conveyed By Colour
+
+**Amended 2026-08-13.** Operational status values — readiness percentages, counts
+such as "3/10 owners", draft lifecycle labels, checklist items — render in
+**standard foreground text, not a semantic colour**. The previous rule kept
+amber/green/red on these; it produced dashboards where nearly every number was
+tinted and the tint stopped meaning anything.
+
+Status must be legible from **the words and the arrangement**, not the hue:
+
+- Say what is true. "3 of 10 owners assigned" already carries the state; it does
+  not need to be amber to say it.
+- Where a state genuinely needs marking, use an **icon** or a neutral outline,
+  not a colour fill.
+- Rank and group by state where layout allows, so "needs attention" is found by
+  position rather than by scanning for colour.
+
+Colour is reserved for three things and stays meaningful because of it:
+
+1. **Destructive** actions and genuine error states — red.
+2. **Live** draft state — the one moment a colour should pull the eye.
+3. The **league accent**, on the surfaces already enumerated above.
+
+This is also the accessible default: status that depends on hue alone fails for
+colour-blind users and in TV-mode glare, both of which apply here.
 
 ### Accessible Accent Derivation
 
@@ -237,8 +263,34 @@ Segmented or pill controls are permitted only for genuine mode selection.
 
 ### Status And Feedback
 
-- `StatusBadge`: compact semantic status with text and optional dot/icon.
+- `StatusBadge`: compact status with text and optional dot/icon. Neutral by
+  default — see "Status Is Not Conveyed By Colour" and the badge budget below.
 - `RoleBadge`: commissioner, co-commissioner, owner, or member identity.
+  **Restricted** — see the badge budget below.
+
+### Badge Budget
+
+**Amended 2026-08-13.** Badges had no usage rule, so they accumulated: a members
+list where all three rows carry a role pill, dashboards where every tile has a
+status chip. A badge earns attention by being rare, and these had stopped being
+rare.
+
+**A badge is justified only when it marks an exception.** If every row in a list
+has one, it is not a badge — it is a column, and should be rendered as one.
+
+`RoleBadge` is permitted on:
+
+- The league **members list**, and only for roles above `member`. Plain members
+  get no pill; ordinary membership is the default state and needs no marking.
+- **Draft-night surfaces** where commissioner authority must be unmistakable —
+  lobby and draft room.
+
+`RoleBadge` is **not** permitted on team rows, member cards, avatars, dashboard
+tiles, or anywhere the role is already implied by the surface the viewer is on.
+
+`StatusBadge` is permitted **once per surface at most**, on the single fact that
+governs what the viewer should do next. Everything else states its status in
+words. Prefer no badge over a badge that repeats the heading.
 - `Alert`: compact message with title, description, icon, and optional action.
 - `InlineNotice`: non-blocking guidance within a natural content flow.
 - `Toast`: transient success or failure feedback.
