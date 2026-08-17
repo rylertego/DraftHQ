@@ -298,8 +298,15 @@ export default function LeagueCommandCenter({
   // league team list. Undefined while teams are still loading, or when the
   // franchise has no owner assigned — both render as no line rather than a
   // placeholder.
-  const ownerNameFor = (leagueTeamId: string) =>
-    teams.find((team) => team.id === leagueTeamId)?.ownerDisplayName ?? null;
+  // Linked DraftHQ account first, then the commissioner's free-text owner name,
+  // then an explicit "Unassigned". Imported leagues are mostly people who have
+  // not signed up yet, so ownerName carries the real answer far more often than
+  // ownerDisplayName does. Always returning a string matters: rendering nothing
+  // for an unowned team looks identical to the feature being broken.
+  const ownerNameFor = (leagueTeamId: string) => {
+    const team = teams.find((entry) => entry.id === leagueTeamId);
+    return team?.ownerDisplayName ?? team?.ownerName ?? "Unassigned";
+  };
 
   const champion = lastCompletedSeason?.standings.find(
     (standing) => standing.leagueTeamId === lastCompletedSeason.championTeamId
@@ -579,9 +586,7 @@ export default function LeagueCommandCenter({
               <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
-                {ownerNameFor(champion.leagueTeamId) && (
-                  <p className="mt-1 text-sm font-semibold text-slate-300">{ownerNameFor(champion.leagueTeamId)}</p>
-                )}
+                <p className="mt-1 text-sm font-semibold text-slate-300">{ownerNameFor(champion.leagueTeamId)}</p>
                 <p className="mt-1 text-sm text-slate-500">
                   {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
                 </p>
@@ -596,9 +601,7 @@ export default function LeagueCommandCenter({
               <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
-                {ownerNameFor(lastPlace.leagueTeamId) && (
-                  <p className="mt-1 text-sm font-semibold text-slate-300">{ownerNameFor(lastPlace.leagueTeamId)}</p>
-                )}
+                <p className="mt-1 text-sm font-semibold text-slate-300">{ownerNameFor(lastPlace.leagueTeamId)}</p>
                 <p className="mt-1 text-sm text-slate-500">
                   {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
                 </p>
