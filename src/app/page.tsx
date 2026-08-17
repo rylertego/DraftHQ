@@ -1,17 +1,44 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
 
+/** Landing = marketing. A signed-in user has already bought in, so send them
+ *  to the dashboard instead of pitching the product to them again. */
+type AuthState = "checking" | "signed-out" | "redirecting";
+
 export default function HomePage() {
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const router = useRouter();
+  const [authState, setAuthState] = useState<AuthState>("checking");
 
   useEffect(() => {
+    let active = true;
     void supabase.auth.getUser().then(({ data }) => {
-      setIsLoggedIn(!!data.user && !data.user.is_anonymous);
+      if (!active) return;
+      // Anonymous sessions are created for draft guests and are not a real
+      // account, so they keep seeing the landing page.
+      const signedIn = !!data.user && !data.user.is_anonymous;
+      if (signedIn) {
+        setAuthState("redirecting");
+        // replace, not push: the landing page should not sit in history for a
+        // signed-in user, or Back from the dashboard bounces straight here and
+        // redirects again.
+        router.replace("/dashboard");
+        return;
+      }
+      setAuthState("signed-out");
     });
-  }, []);
+    return () => {
+      active = false;
+    };
+  }, [router]);
+
+  // Render nothing until the session is known. Showing the marketing hero and
+  // then yanking it away is worse than a brief blank frame, and the check
+  // resolves from the cached session without a network round trip.
+  if (authState !== "signed-out") return null;
 
   return (
     <main className="flex flex-1 items-center px-4 py-12 sm:px-6 sm:py-20">
@@ -50,19 +77,17 @@ export default function HomePage() {
             <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Commissioners</p>
             <h2 className="text-2xl font-bold text-white">Running the league?</h2>
             <p className="mt-3 text-sm leading-6 text-slate-400">
-              {isLoggedIn
-                ? "Create a draft, manage your league, or enter your draft room."
-                : "Log in to create, configure, and control your draft."}
+              Log in to create, configure, and control your draft.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
               <Link
-                href={isLoggedIn ? "/dashboard" : "/login"}
+                href="/login"
                 className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-center text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
               >
-                {isLoggedIn ? "Dashboard" : "Log In"}
+                Log In
               </Link>
               <Link
-                href={isLoggedIn ? "/leagues/new" : "/login"}
+                href="/login"
                 className="rounded-xl bg-teal-500 px-4 py-3 text-center text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
               >
                 Create League
