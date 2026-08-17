@@ -19,14 +19,32 @@
 import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 
 const ACCENT = "var(--color-league-accent)";
-const DEEP = "var(--color-league-accent-border)";
+// The gradient's dark end.
+//
+// Not --color-league-accent-border: that token only darkens accents which are
+// bright against the canvas, so half the palette (Royal, Violet, Crimson, Rose,
+// Indigo) got a "border" indistinguishable from the base and the mark rendered
+// flat.
+//
+// And not a --…-deep custom property either, which is the obvious tidier
+// version and does not work: a custom property resolves the var()s inside it at
+// the element where it is *declared*, so one defined at :root computes once
+// against the root accent and children inherit that frozen result. Overriding
+// the accent further down would not change it. Spelled out inline, it resolves
+// at each stop against whatever accent is in scope there.
+//
+// 62% of the accent over black reproduces the designer's deep stop from the
+// cyan artwork (#0C839C) and stays a true shade for every accent.
+const DEEP = `color-mix(in srgb, ${ACCENT} 62%, #000)`;
 
 // Source stop -> token expression. The four cyans are the ramp from the
-// brightest highlight down to the deepest shadow.
+// brightest highlight down to the deepest shadow. The intermediate ratios are
+// measured against the original artwork: #16d0ed sits 4% of the way from base
+// to deep, #0e99b3 sits 72% of the way.
 const COLOR_MAP = {
   "#22d3ee": ACCENT,
-  "#16d0ed": `color-mix(in srgb, ${ACCENT} 88%, ${DEEP})`,
-  "#0e99b3": `color-mix(in srgb, ${ACCENT} 32%, ${DEEP})`,
+  "#16d0ed": `color-mix(in srgb, ${ACCENT} 96%, ${DEEP})`,
+  "#0e99b3": `color-mix(in srgb, ${ACCENT} 28%, ${DEEP})`,
   "#0c839c": DEEP,
 };
 

@@ -34,6 +34,11 @@
   --color-league-accent-hover: var(--color-product-accent-hover);
   --color-league-accent-muted: var(--color-product-accent-muted);
   --color-league-accent-border: var(--color-product-accent-border);
+  /* Note: there is deliberately no --color-league-accent-deep token here. A
+     custom property resolves the var()s inside it at the element where it is
+     declared, so one defined at :root would freeze against the root accent and
+     ignore every league override. The brand mark spells its dark stop out
+     inline instead — see scripts/generate-brand-components.mjs. */
   --color-league-accent-foreground: var(--color-product-accent-foreground);
   --color-league-focus-ring: var(--color-product-focus-ring);
   --color-focus-ring: var(--color-product-focus-ring);

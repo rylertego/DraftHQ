@@ -15,7 +15,7 @@ export default function DraftHQLockup({ className = "h-24 w-auto", title = "Draf
       <defs>
         <linearGradient id={`${uid}-linear-gradient`} x1="915.68" y1="192.57" x2="915.68" y2="326.6" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="var(--color-league-accent)"/>
-          <stop offset="1" stopColor="var(--color-league-accent-border)"/>
+          <stop offset="1" stopColor="color-mix(in srgb, var(--color-league-accent) 62%, #000)"/>
         </linearGradient>
         <linearGradient id={`${uid}-linear-gradient-2`} x1="1045.87" y1="192.57" x2="1045.87" y2="326.6" href={`#${uid}-linear-gradient`}/>
         <linearGradient id={`${uid}-linear-gradient-3`} x1="798.75" y1="374.33" x2="798.75" y2="396.06" href={`#${uid}-linear-gradient`}/>
@@ -32,9 +32,9 @@ export default function DraftHQLockup({ className = "h-24 w-auto", title = "Draf
         <linearGradient id={`${uid}-linear-gradient-14`} x1="219.25" y1="168.23" x2="219.25" y2="435.7" href={`#${uid}-linear-gradient`}/>
         <linearGradient id={`${uid}-linear-gradient-15`} x1="210.28" y1="92.47" x2="210.28" y2="190.58" gradientUnits="userSpaceOnUse">
           <stop offset=".03" stopColor="var(--color-league-accent)"/>
-          <stop offset=".14" stopColor="color-mix(in srgb, var(--color-league-accent) 88%, var(--color-league-accent-border))"/>
-          <stop offset=".72" stopColor="color-mix(in srgb, var(--color-league-accent) 32%, var(--color-league-accent-border))"/>
-          <stop offset="1" stopColor="var(--color-league-accent-border)"/>
+          <stop offset=".14" stopColor="color-mix(in srgb, var(--color-league-accent) 96%, color-mix(in srgb, var(--color-league-accent) 62%, #000))"/>
+          <stop offset=".72" stopColor="color-mix(in srgb, var(--color-league-accent) 28%, color-mix(in srgb, var(--color-league-accent) 62%, #000))"/>
+          <stop offset="1" stopColor="color-mix(in srgb, var(--color-league-accent) 62%, #000)"/>
         </linearGradient>
       </defs>
       <g>

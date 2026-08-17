@@ -15,13 +15,13 @@ export default function DraftHQMark({ className = "h-24 w-auto", title = "DraftH
       <defs>
         <linearGradient id={`${uid}-linear-gradient`} x1="621.02" y1="403.95" x2="621.02" y2="1030.31" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="var(--color-league-accent)"/>
-          <stop offset="1" stopColor="var(--color-league-accent-border)"/>
+          <stop offset="1" stopColor="color-mix(in srgb, var(--color-league-accent) 62%, #000)"/>
         </linearGradient>
         <linearGradient id={`${uid}-linear-gradient-2`} x1="600" y1="226.54" x2="600" y2="456.31" gradientUnits="userSpaceOnUse">
           <stop offset=".03" stopColor="var(--color-league-accent)"/>
-          <stop offset=".14" stopColor="color-mix(in srgb, var(--color-league-accent) 88%, var(--color-league-accent-border))"/>
-          <stop offset=".72" stopColor="color-mix(in srgb, var(--color-league-accent) 32%, var(--color-league-accent-border))"/>
-          <stop offset="1" stopColor="var(--color-league-accent-border)"/>
+          <stop offset=".14" stopColor="color-mix(in srgb, var(--color-league-accent) 96%, color-mix(in srgb, var(--color-league-accent) 62%, #000))"/>
+          <stop offset=".72" stopColor="color-mix(in srgb, var(--color-league-accent) 28%, color-mix(in srgb, var(--color-league-accent) 62%, #000))"/>
+          <stop offset="1" stopColor="color-mix(in srgb, var(--color-league-accent) 62%, #000)"/>
         </linearGradient>
       </defs>
       <g>
