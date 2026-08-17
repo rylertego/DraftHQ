@@ -339,15 +339,6 @@ export default function LeagueCommandCenter({
           className="pointer-events-none absolute inset-x-0 top-0 h-px"
           style={{ backgroundColor: primary }}
         />
-        {workspace.canManage && draft && (
-          <button
-            type="button"
-            onClick={onResetDraft}
-            className="absolute right-5 top-5 z-10 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950 lg:right-6 lg:top-6"
-          >
-            Reset draft
-          </button>
-        )}
         {/* Commissioners own a team too — the logo is about the viewer's
             franchise, not their role, so it is no longer gated on isOwnerView. */}
         {workspace.myTeam && (
@@ -444,6 +435,19 @@ export default function LeagueCommandCenter({
                   </Link>
                 )
               )}
+              {/* Reset draft used to sit absolutely positioned in the top-right
+                  corner, underneath the team logo — hard to see and easy to hit
+                  by accident. It belongs with the other draft actions, and last
+                  in the row since it is the destructive one. */}
+              {workspace.canManage && draft && (
+                <button
+                  type="button"
+                  onClick={onResetDraft}
+                  className="inline-flex items-center justify-center rounded-xl border border-red-500/30 px-4 py-3 text-sm font-bold text-red-300 transition-colors hover:border-red-400/50 hover:bg-red-500/10 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+                >
+                  Reset Draft
+                </button>
+              )}
             </div>
             {/* Owners get a headline because they cannot act and need to know
                 what is happening. Commissioners have the button and the tiles —
@@ -470,7 +474,12 @@ export default function LeagueCommandCenter({
                     )}
                   </div>
                 </div>
-                <div className={draft.scheduledAt ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
+                {/* One band, not two columns. The old grid gave the clock 1fr
+                    and the meta 0.75fr, so rounds and pick clock floated off at
+                    the far right with a gap between — and boxed them inside a
+                    panel that was already a box. They now sit next to the clock
+                    as plain figures. */}
+                <div className="flex flex-wrap items-end gap-x-10 gap-y-4">
                   {draft.scheduledAt && (
                     <Countdown
                       scheduledAt={draft.scheduledAt}
@@ -478,9 +487,15 @@ export default function LeagueCommandCenter({
                       accentColor={primary}
                     />
                   )}
-                  <div className={draft.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
-                    <MetricTile compact label="Rounds" value={String(draft.rounds)} detail="Draft Length" />
-                    <MetricTile compact label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per Pick" />
+                  <div className="flex items-end gap-8">
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Rounds</p>
+                      <p className="mt-1 text-lg font-black tabular-nums text-white">{draft.rounds}</p>
+                    </div>
+                    <div>
+                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">Pick Clock</p>
+                      <p className="mt-1 text-lg font-black tabular-nums text-white">{formatPickClock(draft.pickSeconds)}</p>
+                    </div>
                   </div>
                 </div>
               </div>
