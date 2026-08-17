@@ -362,7 +362,7 @@ export default function LeagueCommandCenter({
               <img
                 src={workspace.myTeam.logoUrl}
                 alt={`${workspace.myTeam.name} logo`}
-                className="h-24 w-24 object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)]"
+                className="h-28 w-28 object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)] lg:h-40 lg:w-40"
               />
             ) : (
               <span className="block text-xl font-black uppercase" style={{ color: primary }}>
