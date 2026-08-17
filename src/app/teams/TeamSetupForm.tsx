@@ -640,22 +640,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     scheduledDate ? null : "Schedule the draft",
     enabledRosterSlots > 0 ? null : "Enable roster slots",
   ].filter(Boolean) as string[];
-  const readinessLabel =
-    draft.status === "complete"
-      ? "Draft Complete"
-      : draft.status === "active"
-        ? "Live Draft"
-        : draft.status === "paused"
-          ? "Paused"
-          : readinessIssues.length === 0
-            ? "Ready"
-            : `${Math.max(0, Math.round(((5 - readinessIssues.length) / 5) * 100))}% Ready`;
-  const readinessTone =
-    draft.status === "complete" || readinessIssues.length === 0
-      ? "complete"
-      : draft.status === "active"
-        ? "ready"
-        : "warning";
   const primaryActionLabel =
     fromDraft && backToDraftHref
       ? "Back to Draft"
@@ -834,7 +818,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             <div>
               <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Command Center</p>
-                <CommandStatusBadge label={readinessLabel} tone={readinessTone} />
+                {/* No readiness percentage. It was removed from the league
+                    dashboard for saying nothing actionable, and two surfaces
+                    disagreeing about that is worse than either choice. The
+                    "next setup requirement" line below states what to do.
+                    Read Only stays: it is an exception, not a status. */}
                 {!isCommissioner && <CommandStatusBadge label="Read Only" tone="neutral" />}
               </div>
               <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">{draft.name}</h1>
