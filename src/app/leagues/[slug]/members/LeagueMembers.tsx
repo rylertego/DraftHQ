@@ -543,7 +543,7 @@ export default function LeagueMembers({ slug, embedded = false }: { slug: string
           </p>
         )}
 
-        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-950/30">
+        <div className="overflow-visible rounded-xl border border-slate-800 bg-slate-950/30">
           {workspace.members.map((member) => (
             <MemberCard
               key={member.id}

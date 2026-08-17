@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import LeagueAccessDenied from "@/components/LeagueAccessDenied";
 import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
 import { LeagueWorkspaceContext } from "@/context/LeagueWorkspaceContext";
-import { useLeagueTheme } from "@/context/LeagueThemeContext";
+import { DEFAULT_ACCENT, DEFAULT_BG, useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useEffect } from "react";
 
 function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
@@ -25,13 +26,23 @@ function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
     },
     {
       href: `${base}/teams`,
-      label: "Teams",
+      label: "League",
       icon: (
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
           <path d="M1 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           <circle cx="14" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17c0-2.5-1.3-4.6-3.2-5.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      ),
+    },
+    {
+      href: `${base}/my-team`,
+      label: "My Team",
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+          <path d="M10 2.5l5.5 2v4.2c0 3.6-2.2 6.8-5.5 8.8-3.3-2-5.5-5.2-5.5-8.8V4.5l5.5-2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M7.5 10.2l1.7 1.7 3.4-3.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ),
     },
@@ -104,13 +115,23 @@ function BottomMobileNav({ slug, canManage }: { slug: string; canManage: boolean
     },
     {
       href: `${base}/teams`,
-      label: "Teams",
+      label: "League",
       icon: (
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <circle cx="7" cy="7" r="3" stroke="currentColor" strokeWidth="1.5" />
           <path d="M1 17c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
           <circle cx="14" cy="7" r="2.5" stroke="currentColor" strokeWidth="1.5" />
           <path d="M17 17c0-2.5-1.3-4.6-3.2-5.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      ),
+    },
+    {
+      href: `${base}/my-team`,
+      label: "My Team",
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+          <path d="M10 2.5l5.5 2v4.2c0 3.6-2.2 6.8-5.5 8.8-3.3-2-5.5-5.2-5.5-8.8V4.5l5.5-2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+          <path d="M7.5 10.2l1.7 1.7 3.4-3.7" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
       ),
     },
@@ -166,10 +187,29 @@ export default function WorkspaceLayoutClient({
     if (league) {
       setAccentColor(league.primaryColor ?? "#14B8A6");
       setBgColor(league.secondaryColor ?? "#0D1F1E");
+      return;
     }
-  }, [league, setAccentColor, setBgColor]);
+
+    if (ctx.failure && !ctx.workspace) {
+      setAccentColor(DEFAULT_ACCENT);
+      setBgColor(DEFAULT_BG);
+    }
+  }, [ctx.failure, ctx.workspace, league, setAccentColor, setBgColor]);
 
   const initials = (league?.name ?? "").slice(0, 2).toUpperCase() || "LG";
+
+  // Replace the whole workspace chrome rather than rendering the denial inside
+  // it — the sidebar would otherwise sit there with an empty league identity,
+  // and every /leagues/[slug]/* route gets this for free.
+  if (ctx.failure && !ctx.workspace) {
+    return (
+      <LeagueAccessDenied
+        failure={ctx.failure}
+        detail={ctx.failure === "error" ? ctx.error : undefined}
+        onRetry={ctx.reload}
+      />
+    );
+  }
 
   return (
     <LeagueWorkspaceContext.Provider value={ctx}>

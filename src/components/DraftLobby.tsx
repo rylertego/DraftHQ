@@ -145,7 +145,12 @@ export default function DraftLobby({
   const draftYear = draft.scheduledAt
     ? new Date(draft.scheduledAt).getFullYear()
     : yearInName ?? new Date(draft.createdAt).getFullYear();
-  const backHref = `/teams?draftId=${draft.id}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`;
+  // Owners have no business in draft settings — Back sends them to the league
+  // dashboard they came from. Commissioners keep the settings shortcut.
+  const backHref =
+    !isCommissioner && leagueSlug
+      ? `/leagues/${leagueSlug}`
+      : `/teams?draftId=${draft.id}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`;
   const leagueDisplayLogo = leagueLogoUrl || "/branding/logo-Photoroom.png";
 
   // ── Online presence ────────────────────────────────────────────────────────

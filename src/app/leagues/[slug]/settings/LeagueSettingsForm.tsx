@@ -450,6 +450,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const connectedProvider = activeIntegration
     ? activeIntegration.charAt(0).toUpperCase() + activeIntegration.slice(1)
     : "None";
+  const showSleeperIntegration = !activeIntegration || activeIntegration === "sleeper";
+  const showUnavailableIntegrations = !activeIntegration;
 
   if (isLoading) {
     return (
@@ -464,40 +466,22 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       {toast && <Toast msg={toast.msg} type={toast.type} onDismiss={() => setToast(null)} />}
 
       <section className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-        <div className="relative grid gap-6 px-6 py-6 lg:grid-cols-[1fr_260px] lg:items-center">
+        <div className="relative px-6 py-6">
           <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primaryColor }} />
           <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League Command Center</p>
-              <CommandStatusBadge label={canManage ? "Commissioner Access" : "Read Only"} tone={canManage ? "complete" : "neutral"} />
-            </div>
+            <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primaryColor }}>League Command Center</p>
             <h1 className="mt-3 text-3xl font-black text-white sm:text-4xl">League Settings</h1>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
               Manage league identity, access, and connected history sources from one commissioner workspace.
             </p>
           </div>
-
-          <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Settings Status</p>
-            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
-              <div>
-                <p className="text-lg font-black text-white tabular-nums">{teamCount}</p>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">Teams</p>
-              </div>
-              <div>
-                <p className="text-lg font-black text-white tabular-nums">{connectedProvider}</p>
-                <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-slate-500">History</p>
-              </div>
-            </div>
-          </div>
         </div>
 
-        <div className="border-t border-slate-800/80 px-3 py-3 sm:px-5">
-          <div className="grid grid-cols-3 gap-2" role="tablist" aria-label="League settings sections">
+        <div className="border-t border-slate-800/80 px-6">
+          <div className="flex gap-6" role="tablist" aria-label="League settings sections">
             {(["general", "members", "integrations"] as const).map((t) => {
               const active = tab === t;
               const label = t === "general" ? "General" : t === "members" ? "Members" : "Integrations";
-              const detail = t === "general" ? "Identity" : t === "members" ? "Access" : "History";
               return (
                 <button
                   key={t}
@@ -505,13 +489,17 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                   role="tab"
                   aria-selected={active}
                   onClick={() => setTab(t)}
-                  className={`min-h-11 min-w-0 rounded-xl border px-3 py-2 text-left transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 sm:px-4 ${
-                    active ? "border-blue-400/40 bg-blue-500/12 text-white" : "border-slate-800 bg-slate-950/25 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                  className={`group relative py-4 text-sm font-black transition-colors focus-visible:outline-none ${
+                    active ? "text-white" : "text-slate-500 hover:text-slate-200"
                   }`}
-                  style={active ? { borderColor: primaryColor + "66", backgroundColor: primaryColor + "16" } : undefined}
                 >
-                  <span className="block text-sm font-black">{label}</span>
-                  <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{detail}</span>
+                  {label}
+                  <span
+                    className={`absolute inset-x-0 bottom-0 h-0.5 rounded-full transition-opacity ${
+                      active ? "opacity-100" : "opacity-0 group-hover:opacity-40 group-focus-visible:opacity-100"
+                    }`}
+                    style={{ backgroundColor: primaryColor }}
+                  />
                 </button>
               );
             })}
@@ -526,40 +514,37 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
           <CommandPanel
             eyebrow="League History"
             title="Connected Sources"
-            description="Connect supported fantasy platforms to import completed season history. Unsupported platforms stay visible without pretending they are available."
-            action={<CommandStatusBadge label={activeIntegration ? `${connectedProvider} Connected` : "No Active Integration"} tone={activeIntegration ? "complete" : "neutral"} />}
+            description={activeIntegration
+              ? `${connectedProvider} is connected for completed season history.`
+              : "Connect supported fantasy platforms to import completed season history."}
           >
             <div className="space-y-4">
-              <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="flex gap-3">
-                    {/* eslint-disable-next-line @next/next/no-img-element */}
-                    <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
-                    <div>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="text-lg font-black text-white">Sleeper</h3>
-                        <CommandStatusBadge label={activeIntegration === "sleeper" ? "Connected" : "Available"} tone={activeIntegration === "sleeper" ? "complete" : "ready"} />
+              {showSleeperIntegration && (
+                <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                    <div className="flex gap-3">
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+                      <div>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <h3 className="text-lg font-black text-white">Sleeper</h3>
+                          <CommandStatusBadge label={activeIntegration === "sleeper" ? "Connected" : "Available"} tone={activeIntegration === "sleeper" ? "complete" : "ready"} />
+                        </div>
+                        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
+                          Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
+                        </p>
+                        {sleeperLastSyncedAt && (
+                          <p className="mt-2 text-xs font-semibold text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
+                        )}
                       </div>
-                      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                        Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
-                      </p>
-                      {sleeperLastSyncedAt && (
-                        <p className="mt-2 text-xs font-semibold text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
-                      )}
                     </div>
+                    {activeIntegration === "sleeper" && canManage && (
+                      <CommandButton type="button" variant="secondary" onClick={handleDisconnect} disabled={isDisconnecting} className="sm:min-w-32">
+                        {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                      </CommandButton>
+                    )}
                   </div>
-                  {activeIntegration === "sleeper" && canManage && (
-                    <CommandButton type="button" variant="secondary" onClick={handleDisconnect} disabled={isDisconnecting} className="sm:min-w-32">
-                      {isDisconnecting ? "Disconnecting..." : "Disconnect"}
-                    </CommandButton>
-                  )}
-                </div>
 
-                {activeIntegration && activeIntegration !== "sleeper" ? (
-                  <p className="mt-4 rounded-xl border border-amber-400/30 bg-amber-500/10 px-4 py-3 text-sm text-amber-200">
-                    Disconnect your active integration before connecting Sleeper.
-                  </p>
-                ) : (
                   <form onSubmit={handleSleeperSync} className="mt-5 border-t border-slate-800/80 pt-5">
                     <label htmlFor="sleeper-league-id" className={commandLabelClass}>Sleeper League ID</label>
                     <div className="flex flex-col gap-3 sm:flex-row">
@@ -585,51 +570,51 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                     </div>
                     <p className={commandHelperClass}>Sync is manual and only runs when you press this button.</p>
                   </form>
-                )}
 
-                {sleeperResult && (
-                  <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/45 p-4 text-sm">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="font-bold text-white">{sleeperResult.seasonYear} season</p>
-                      <CommandStatusBadge
-                        label={`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
-                        tone={sleeperResult.unmappedTeams.length > 0 ? "warning" : "complete"}
-                      />
+                  {sleeperResult && (
+                    <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/45 p-4 text-sm">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-bold text-white">{sleeperResult.seasonYear} season</p>
+                        <CommandStatusBadge
+                          label={`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
+                          tone={sleeperResult.unmappedTeams.length > 0 ? "warning" : "complete"}
+                        />
+                      </div>
+                      <div className="mt-3 space-y-2 leading-6">
+                        {sleeperResult.unmappedTeams.length > 0 && (
+                          <p className="text-amber-200"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
+                        )}
+                        {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
+                          <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
+                        )}
+                        {sleeperResult.draftHqTeamNames?.length === 0 && (
+                          <p className="font-semibold text-red-300">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
+                        )}
+                        {sleeperResult.leagueTeamsError && (
+                          <p className="text-xs text-red-300"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
+                        )}
+                        {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
+                          <p className="text-xs text-slate-500">Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
+                        )}
+                      </div>
                     </div>
-                    <div className="mt-3 space-y-2 leading-6">
-                      {sleeperResult.unmappedTeams.length > 0 && (
-                        <p className="text-amber-200"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
-                      )}
-                      {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
-                        <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
-                      )}
-                      {sleeperResult.draftHqTeamNames?.length === 0 && (
-                        <p className="font-semibold text-red-300">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
-                      )}
-                      {sleeperResult.leagueTeamsError && (
-                        <p className="text-xs text-red-300"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
-                      )}
-                      {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
-                        <p className="text-xs text-slate-500">Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
-                      )}
-                    </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
+              )}
 
-              {([
+              {showUnavailableIntegrations && ([
                 { id: "espn", name: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
                 { id: "yahoo", name: "Yahoo", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
               ] as const).map((provider) => (
                 <div key={provider.id} className="rounded-xl border border-slate-800/80 bg-slate-950/25 p-4 opacity-80">
                   <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
                     <div className="flex gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
                       <div>
                         <div className="flex flex-wrap items-center gap-2">
                           <h3 className="text-lg font-black text-white">{provider.name}</h3>
-                          <CommandStatusBadge label={activeIntegration && activeIntegration !== provider.id ? "Locked" : "Coming Soon"} tone="neutral" />
+                          <CommandStatusBadge label="Coming Soon" tone="neutral" />
                         </div>
                         <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{provider.copy}</p>
                       </div>

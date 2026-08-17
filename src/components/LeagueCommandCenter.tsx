@@ -21,14 +21,6 @@ function formatDraftDate(value: string) {
   });
 }
 
-function formatShortDate(value: string) {
-  return new Date(value).toLocaleDateString(undefined, {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
 function formatPickClock(seconds: number) {
   if (seconds === 0) return "Off";
   const minutes = Math.floor(seconds / 60);
@@ -40,8 +32,8 @@ function draftLifecycleLabel(status: LeagueSeason["status"] | undefined, draftSt
   if (!status) return "No season";
   // Without a draft there is no draft status to report. Falling through to the
   // season's own status here is what made an un-created draft read as "active".
-  if (!draftStatus) return "Not created";
-  if (draftStatus === "setup") return "Pre-draft";
+  if (!draftStatus) return "Not Created";
+  if (draftStatus === "setup") return "Pre-Draft";
   if (draftStatus === "active") return "Live";
   if (draftStatus === "paused") return "Paused";
   if (draftStatus === "complete") return "Complete";
@@ -52,8 +44,8 @@ function statusTone(label: string): Tone {
   if (label === "Live" || label === "Drafting") return "live";
   if (label === "Paused") return "warning";
   if (label === "Complete") return "complete";
-  if (label === "No draft" || label === "No season" || label === "Not created") return "warning";
-  if (label === "Pre-draft") return "ready";
+  if (label === "No draft" || label === "No season" || label === "Not Created") return "warning";
+  if (label === "Pre-Draft") return "ready";
   return "neutral";
 }
 
@@ -107,11 +99,13 @@ function MetricTile({
   value,
   detail,
   tone = "neutral",
+  compact = false,
 }: {
   label: string;
   value: string;
   detail?: string;
   tone?: Tone;
+  compact?: boolean;
 }) {
   const toneClass: Record<Tone, string> = {
     neutral: "text-white",
@@ -123,10 +117,10 @@ function MetricTile({
   };
 
   return (
-    <div className="rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
+    <div className={`rounded-xl bg-slate-950/35 px-4 ring-1 ring-white/10 ${compact ? "py-2" : "py-3"}`}>
       <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className={`mt-1 text-xl font-black tabular-nums ${toneClass[tone]}`}>{value}</p>
-      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
+      <p className={`mt-1 font-black tabular-nums ${compact ? "text-lg" : "text-xl"} ${toneClass[tone]}`}>{value}</p>
+      {detail && <p className={`${compact ? "mt-0.5" : "mt-1"} truncate text-xs text-slate-500`}>{detail}</p>}
     </div>
   );
 }
@@ -150,17 +144,10 @@ function Countdown({
   scheduledAt,
   status,
   accentColor,
-  action,
-  unscheduledTitle = "Schedule the draft date",
-  unscheduledDetail = "Owners need a clear start time before draft night. Set the date before inviting everyone into the room.",
 }: {
   scheduledAt: string | null;
   status: DraftStatus;
   accentColor: string;
-  action?: React.ReactNode;
-  /** Owners can't schedule anything, so they get told what to expect instead. */
-  unscheduledTitle?: string;
-  unscheduledDetail?: string;
 }) {
   const [now, setNow] = useState<number | null>(null);
 
@@ -175,15 +162,7 @@ function Countdown({
     };
   }, []);
 
-  if (!scheduledAt) {
-    return (
-      <div className="rounded-xl border border-amber-400/25 bg-amber-500/10 px-4 py-4">
-        <p className="text-sm font-black text-amber-100">{unscheduledTitle}</p>
-        <p className="mt-1 text-sm leading-relaxed text-slate-400">{unscheduledDetail}</p>
-        {action && <div className="mt-4">{action}</div>}
-      </div>
-    );
-  }
+  if (!scheduledAt) return null;
 
   if (status === "complete") {
     return (
@@ -335,7 +314,6 @@ export default function LeagueCommandCenter({
   const draftCreated = Boolean(draft);
   const draftScheduled = Boolean(draft?.scheduledAt);
   const configureHref = draft ? `/teams?draftId=${draft.id}&tab=settings&leagueSlug=${slug}` : null;
-  const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
   const draftLabel = draftLifecycleLabel(currentSeason?.status, draft?.status ?? null);
   const draftTone = statusTone(draftLabel);
   const isOwnerView = !workspace.canManage;
@@ -375,7 +353,6 @@ export default function LeagueCommandCenter({
   const openItems = readinessItems.filter((item) => item.done === false).length;
   const completedItems = readinessItems.filter((item) => item.done === true).length;
   const readinessPercent = Math.round((completedItems / readinessItems.length) * 100);
-  const nextOpenItem = readinessItems.find((item) => item.done === false);
   const setupReady = openItems === 0 && !teamsLoading && !teamsError;
   const setupLabel = setupReady && draft?.status === "complete"
     ? "Draft Complete"
@@ -399,51 +376,22 @@ export default function LeagueCommandCenter({
             : !ownersReady
               ? "Draft setup is underway. Assign every team to an owner before draft night."
               : `Draft night is scheduled for ${scheduledDraftDate}.`;
-  const nextActionTitle = teamsError
-    ? "Resolve team snapshot"
-    : nextOpenItem?.label === "Draft created"
-      ? "Create draft"
-      : nextOpenItem?.label === "Draft date set"
-        ? "Schedule draft"
-        : nextOpenItem?.label === "Teams added"
-          ? "Review teams"
-          : nextOpenItem?.label === "Owners assigned"
-            ? "Assign owners"
-            : nextOpenItem?.label === "Draft room ready"
-              ? "Finish team setup"
-              : draft?.status === "complete"
-                ? "Review draft"
-                : draft
-                  ? "Enter draft room"
-                  : currentSeason
-                    ? "Create draft"
-                    : "Create season";
-  const nextActionDetail = teamsError
-    ? "The readiness panel cannot confirm teams until the team snapshot loads."
-    : nextOpenItem?.label === "Draft date set"
-      ? "Owners need the start time before they can confidently plan for draft night."
-      : nextOpenItem?.label === "Owners assigned"
-        ? `${expectedTeams - assignedOwners} owner seat${expectedTeams - assignedOwners === 1 ? "" : "s"} still need attention.`
-        : nextOpenItem?.detail ?? (setupReady ? "Everything required for the current draft setup is in a ready state." : "Complete the open setup items before draft night.");
-
   const lastCompletedSeason = workspace.seasons.find(
     (season) => season.status === "complete" && season.standings.length > 0
   );
   const champion = lastCompletedSeason?.standings.find(
     (standing) => standing.leagueTeamId === lastCompletedSeason.championTeamId
   ) ?? null;
-  const topStandings = lastCompletedSeason?.standings.slice(0, 5) ?? [];
-  const recentMembers = [...workspace.members]
-    .sort((a, b) => Date.parse(b.joinedAt) - Date.parse(a.joinedAt))
-    .slice(0, 5);
-  // The identity panel is the one place the whole league is on screen at once,
-  // so it shows every team rather than a truncated sample.
-  const recentTeams = activeTeams;
+  const leagueStandings = lastCompletedSeason?.standings ?? [];
+  const lastPlace = leagueStandings.length > 0
+    ? leagueStandings.reduce((worst, standing) => standing.finalRank > worst.finalRank ? standing : worst, leagueStandings[0])
+    : null;
+  const previousLeagueYear = currentSeason?.year ? currentSeason.year - 1 : lastCompletedSeason?.year;
 
   const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
   const teamSetupHref = `/leagues/${slug}/teams`;
-  const myTeamHref = `/leagues/${slug}/my-team`;
+  const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
   const ownerView = buildOwnerDashboardView({
     draftExists: draftCreated,
     draftStatus: draft?.status ?? null,
@@ -453,97 +401,6 @@ export default function LeagueCommandCenter({
     draftSlot: myDraftSlot,
     teamCount: expectedTeams,
   });
-  const ownerCtaHref = ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref;
-
-  const primaryAction = !currentSeason && workspace.canManage ? (
-    <Link href={`/leagues/${slug}/seasons/new`} className={primaryButtonClass}>Create Season</Link>
-  ) : currentSeason && !draft && workspace.canManage ? (
-    <button type="button" onClick={onConfigureDraft} className={primaryButtonClass}>Create Draft</button>
-  ) : workspace.canManage && draft && !draftScheduled ? (
-    <Link href={configureHref ?? teamSetupHref} className={primaryButtonClass}>Schedule Draft</Link>
-  ) : workspace.canManage && (!teamsReady || !ownersReady) ? (
-    <Link href={teamSetupHref} className={primaryButtonClass}>{teamsReady ? "Assign Owners" : "Review Teams"}</Link>
-  ) : roomHref ? (
-    <Link href={roomHref} className={primaryButtonClass}>{draft?.status === "complete" ? "Review Draft" : "Enter Draft Room"}</Link>
-  ) : null;
-  const secondaryAction = workspace.canManage && draft ? (
-    <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>Configure Draft</Link>
-  ) : workspace.canManage ? (
-    <Link href={teamSetupHref} className={secondaryButtonClass}>Manage Teams</Link>
-  ) : null;
-
-  const nextActionPanel = (
-    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Commissioner Action</p>
-      <p className="mt-2 text-xl font-black text-white">{nextActionTitle}</p>
-      <p className="mt-1 text-sm leading-6 text-slate-400">{nextActionDetail}</p>
-
-      <div className="mt-4 flex items-center gap-3">
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full transition-all"
-            style={{ width: `${readinessPercent}%`, backgroundColor: primary }}
-          />
-        </div>
-        <span className="text-xs font-black tabular-nums text-slate-300">{readinessPercent}%</span>
-      </div>
-
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
-        {primaryAction}
-        {secondaryAction}
-      </div>
-
-      {workspace.canManage && draft && (
-        <button
-          type="button"
-          onClick={onResetDraft}
-          className="mt-4 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
-        >
-          Reset draft
-        </button>
-      )}
-    </aside>
-  );
-
-  // Owners get their own team, their slot, and a way into the room — never a
-  // readiness percentage or a checklist of work only the commissioner can do.
-  const myTeamPanel = (
-    <aside className="rounded-2xl border border-white/10 bg-slate-950/50 p-4 backdrop-blur">
-      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Your Team</p>
-
-      <div className="mt-3 flex items-center gap-3">
-        <TeamMark
-          src={workspace.myTeam?.logoUrl}
-          name={ownerView.teamLabel}
-          className="h-14 w-14"
-          accentColor={primary}
-        />
-        <div className="min-w-0">
-          <p className="truncate text-lg font-black text-white">{ownerView.teamLabel}</p>
-          <p className={`mt-0.5 text-xs font-bold uppercase tracking-[0.14em] ${ownerView.teamAssigned ? "text-emerald-300" : "text-amber-300"}`}>
-            {ownerView.teamState}
-          </p>
-        </div>
-      </div>
-
-      <div className="mt-4 grid grid-cols-2 gap-3">
-        <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
-        <MetricTile label="Rounds" value={draft ? String(draft.rounds) : "--"} detail="Draft length" />
-      </div>
-
-      {ownerView.note && <p className="mt-3 text-sm leading-6 text-slate-400">{ownerView.note}</p>}
-
-      <div className="mt-5 flex flex-col gap-2 sm:flex-row lg:flex-col">
-        <Link href={ownerCtaHref} className={primaryButtonClass}>{ownerView.primaryCta.label}</Link>
-        {workspace.myTeam && (
-          <Link href={myTeamHref} className={secondaryButtonClass}>Edit My Team</Link>
-        )}
-      </div>
-    </aside>
-  );
-
-  const heroPanel = isOwnerView ? myTeamPanel : nextActionPanel;
-
   return (
     <div className="mx-auto flex w-full max-w-[1560px] flex-col gap-5">
       <section
@@ -560,7 +417,32 @@ export default function LeagueCommandCenter({
           className="pointer-events-none absolute inset-x-0 top-0 h-px"
           style={{ backgroundColor: primary }}
         />
-        <div className="relative grid gap-5 p-5 lg:grid-cols-[minmax(0,1fr)_360px] lg:p-6">
+        {workspace.canManage && draft && (
+          <button
+            type="button"
+            onClick={onResetDraft}
+            className="absolute right-5 top-5 z-10 text-xs font-semibold text-red-400/80 transition-colors hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950 lg:right-6 lg:top-6"
+          >
+            Reset draft
+          </button>
+        )}
+        {isOwnerView && workspace.myTeam && (
+          <div className="absolute right-5 top-5 z-10 lg:right-6 lg:top-6">
+            {workspace.myTeam.logoUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element -- Preserve transparent uploaded logo treatment without an image wrapper.
+              <img
+                src={workspace.myTeam.logoUrl}
+                alt={`${ownerView.teamLabel} logo`}
+                className="h-24 w-24 object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)]"
+              />
+            ) : (
+              <span className="block text-xl font-black uppercase" style={{ color: primary }}>
+                {ownerView.teamLabel.slice(0, 2)}
+              </span>
+            )}
+          </div>
+        )}
+        <div className="relative grid gap-5 p-5 lg:p-6">
           <div className="min-w-0">
             <div className="mb-5 flex items-center gap-3 lg:hidden">
               <TeamMark src={workspace.league.logoUrl} name={workspace.league.name} className="h-14 w-14" accentColor={primary} />
@@ -576,27 +458,63 @@ export default function LeagueCommandCenter({
                 {isOwnerView ? "Draft Night" : "League Command Center"}
               </p>
               <StatusBadge
-                label={isOwnerView ? ownerView.statusLabel : setupLabel}
-                tone={isOwnerView ? ownerView.statusTone : setupTone}
+                label={isOwnerView ? draftLabel : setupLabel}
+                tone={isOwnerView ? draftTone : setupTone}
               />
             </div>
-            <h1 id="league-dashboard-title" className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">
-              {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
-            </h1>
+            <div className="mt-3 flex flex-col gap-3 pr-24 sm:flex-row sm:items-center">
+              <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+                {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
+              </h1>
+              {workspace.canManage && (
+                draft ? (
+                  <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
+                    Configure Draft
+                  </Link>
+                ) : !currentSeason ? (
+                  <Link href={`/leagues/${slug}/seasons/new`} className={secondaryButtonClass}>
+                    Create Season
+                  </Link>
+                ) : null
+                // Season exists but no draft: the hero stays empty. Draft
+                // creation lives in the readiness panel rather than competing
+                // with the season title.
+              )}
+              {isOwnerView ? (
+                // Owners always get a way forward, but only into a room that is
+                // actually open to them — see roomOpenToOwners in
+                // ownerDashboard.ts. Otherwise this points at the team list, so
+                // the hero is never actionless for an owner.
+                <Link
+                  href={ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref}
+                  className={primaryButtonClass}
+                >
+                  {ownerView.primaryCta.label}
+                </Link>
+              ) : (
+                draftScheduled && roomHref && (
+                  <Link href={roomHref} className={primaryButtonClass}>
+                    Enter Draft Room
+                  </Link>
+                )
+              )}
+            </div>
             <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
               {isOwnerView ? ownerView.headline : setupSummary}
             </p>
 
-            <div className="mt-5 lg:hidden">{heroPanel}</div>
-
             <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {isOwnerView ? (
-                <>
-                  <MetricTile label="Draft Status" value={draftLabel} detail={draft?.name ?? "Season setup"} tone={draftTone} />
-                  <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
-                  <MetricTile label="Pick Clock" value={draft ? formatPickClock(draft.pickSeconds) : "--"} detail="Per pick" />
-                  <MetricTile label="League" value={String(workspace.members.length)} detail="Members" />
-                </>
+                draft ? (
+                  <>
+                    <MetricTile label="Draft Status" value={draftLabel} detail={draft.name} tone={draftTone} />
+                    <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
+                    <MetricTile label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per Pick" />
+                    <MetricTile label="League" value={String(workspace.members.length)} detail="Members" />
+                  </>
+                ) : (
+                  <MetricTile label="Draft Status" value={draftLabel} detail="Season setup" tone={draftTone} />
+                )
               ) : (
                 <>
                   <MetricTile label="Readiness" value={setupLabel} detail={draft?.name ?? "Season setup"} tone={setupTone} />
@@ -606,9 +524,39 @@ export default function LeagueCommandCenter({
                 </>
               )}
             </div>
+
+            {draft && (
+              <div className="mt-5 max-w-5xl rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
+                <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
+                      <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+                    </div>
+                    {workspace.canManage && !draft.scheduledAt && (
+                      <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
+                        Schedule Draft
+                      </Link>
+                    )}
+                  </div>
+                </div>
+                <div className={draft.scheduledAt ? "grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,0.75fr)] lg:items-start" : "grid gap-3 sm:grid-cols-3"}>
+                  {draft.scheduledAt && (
+                    <Countdown
+                      scheduledAt={draft.scheduledAt}
+                      status={draft.status}
+                      accentColor={primary}
+                    />
+                  )}
+                  <div className={draft.scheduledAt ? "grid gap-3 sm:grid-cols-3 lg:grid-cols-1 2xl:grid-cols-3" : "contents"}>
+                    <MetricTile compact label="Rounds" value={String(draft.rounds)} detail="Draft Length" />
+                    <MetricTile compact label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per Pick" />
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div className="hidden lg:block">{heroPanel}</div>
         </div>
 
         {teamsError && (
@@ -618,22 +566,8 @@ export default function LeagueCommandCenter({
         )}
       </section>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(320px,0.8fr)]">
-        <div className={`grid gap-5 ${isOwnerView ? "" : "lg:grid-cols-2"}`}>
-          {!isOwnerView && (
-            <SectionPanel
-              title="Draft Readiness"
-              eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
-              action={<StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />}
-            >
-              <div className="space-y-1">
-                {readinessItems.map((item) => (
-                  <ReadinessItem key={item.label} {...item} />
-                ))}
-              </div>
-            </SectionPanel>
-          )}
-
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.38fr)]">
+        {/*
           <SectionPanel title="Draft Countdown" eyebrow="Next event">
             <div className="space-y-4">
               <Countdown
@@ -659,80 +593,12 @@ export default function LeagueCommandCenter({
               </div>
             </div>
           </SectionPanel>
-        </div>
+        */}
 
-        <SectionPanel
-          title="League Identity"
-          eyebrow="Franchise snapshot"
-          action={<span className="text-xs font-semibold text-slate-500">{workspace.members.length} members</span>}
-        >
-          {recentTeams.length > 0 ? (
-            <div className="space-y-4">
-              <div className="flex flex-wrap gap-2">
-                {recentTeams.map((team) => (
-                  <TeamMark key={team.id} src={team.logoUrl} name={team.name} accentColor={primary} />
-                ))}
-              </div>
-              <div className="grid grid-cols-2 gap-3">
-                <MetricTile label="Active Teams" value={teamsLoading ? "--" : String(activeTeams.length)} detail={`${expectedTeams} expected`} />
-                <MetricTile label="Assigned" value={teamsLoading ? "--" : String(assignedOwners)} detail="Owner seats" />
-              </div>
-              {workspace.canManage && (
-                <Link
-                  href={`/leagues/${slug}/teams`}
-                  className="inline-flex rounded-xl border border-slate-700 bg-slate-950/45 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
-                >
-                  Review teams
-                </Link>
-              )}
-            </div>
-          ) : (
-            <EmptyState
-              title="No teams loaded yet"
-              detail="Franchise cards will appear here once teams are added to this league."
-              action={workspace.canManage ? (
-                <Link href={`/leagues/${slug}/teams`} className="text-sm font-bold" style={{ color: primary }}>
-                  Add teams
-                </Link>
-              ) : undefined}
-            />
-          )}
-        </SectionPanel>
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.4fr)_minmax(280px,0.7fr)]">
-        <SectionPanel title="League Activity" eyebrow="Recent updates">
-          {recentMembers.length === 0 ? (
-            <EmptyState title="No activity yet" detail="Member activity will appear as owners join and league history is imported." />
-          ) : (
-            <div className="space-y-3">
-              {recentMembers.map((member) => (
-                <div key={member.id} className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/35 px-3 py-2.5">
-                  {member.avatarUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={member.avatarUrl} alt="" className="h-9 w-9 shrink-0 rounded-full object-cover" />
-                  ) : (
-                    <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-slate-800 text-xs font-black text-slate-400">
-                      {(member.nickname || member.displayName).slice(0, 2).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-semibold text-slate-100">
-                      {member.nickname || member.displayName}
-                      <span className="font-normal text-slate-500"> joined the league</span>
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500">{formatShortDate(member.joinedAt)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </SectionPanel>
-
-        <SectionPanel title="Last Season Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
+        <SectionPanel title="League Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
           {lastCompletedSeason ? (
             <div className="overflow-hidden rounded-xl border border-slate-800">
-              {topStandings.map((standing) => (
+              {leagueStandings.map((standing) => (
                 <div key={standing.leagueTeamId} className="grid grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-3 border-b border-slate-800 bg-slate-950/30 px-3 py-3 last:border-0">
                   <span className={`text-center text-sm font-black tabular-nums ${standing.finalRank === 1 ? "text-amber-300" : "text-slate-500"}`}>
                     {standing.finalRank}
@@ -760,23 +626,63 @@ export default function LeagueCommandCenter({
           )}
         </SectionPanel>
 
-        <SectionPanel title="Champion" eyebrow="League history">
-          {champion && lastCompletedSeason ? (
-            <div className="flex flex-col items-center text-center">
-              <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-28 w-28" accentColor={primary} />
-              <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
-              <p className="mt-1 text-sm font-bold" style={{ color: primary }}>
-                {lastCompletedSeason.year} Champion
-              </p>
-              <p className="mt-1 text-sm text-slate-500">
-                {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
-              </p>
-            </div>
-          ) : (
-            <EmptyState title="No champion yet" detail="The champion spotlight will unlock after a completed season is connected." />
-          )}
-        </SectionPanel>
+        <div className="grid gap-5">
+          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Champion` : "Champion"} eyebrow="League history">
+            {champion && lastCompletedSeason ? (
+              <div className="flex min-h-64 flex-col items-center justify-center text-center">
+                <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
+                <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
+                </p>
+              </div>
+            ) : (
+              <EmptyState title="No champion yet" detail="The champion spotlight will unlock after a completed season is connected." />
+            )}
+          </SectionPanel>
+
+          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"} eyebrow="League history">
+            {lastPlace && champion && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
+              <div className="flex min-h-64 flex-col items-center justify-center text-center">
+                <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
+                <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
+                </p>
+              </div>
+            ) : (
+              <EmptyState title="No loser yet" detail="The last-place spotlight will unlock after standings are connected." />
+            )}
+          </SectionPanel>
+        </div>
       </div>
+
+      {!isOwnerView && (
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)]">
+          <SectionPanel
+            title="Draft Readiness"
+            eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
+            action={
+              // Draft creation lives here now that the hero stays empty before
+              // a draft exists. This is the only entry point to the create-draft
+              // modal, so it must not be dropped without relocating it.
+              workspace.canManage && !draft && currentSeason ? (
+                <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
+                  Create Draft
+                </button>
+              ) : (
+                <StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />
+              )
+            }
+          >
+            <div className="space-y-1">
+              {readinessItems.map((item) => (
+                <ReadinessItem key={item.label} {...item} />
+              ))}
+            </div>
+          </SectionPanel>
+        </div>
+      )}
     </div>
   );
 }
