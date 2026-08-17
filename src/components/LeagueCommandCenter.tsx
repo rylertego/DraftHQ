@@ -49,27 +49,6 @@ function statusTone(label: string): Tone {
   return "neutral";
 }
 
-function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
-  // Neutral by default. A live draft and a real error are the only states that
-  // earn colour here; everything else states itself in the label.
-  const neutral = "border-slate-700 bg-slate-800/70 text-slate-200";
-  const classes: Record<Tone, string> = {
-    neutral,
-    live: "border-teal-400/35 bg-teal-400/12 text-teal-200",
-    ready: neutral,
-    warning: neutral,
-    danger: "border-red-400/35 bg-red-500/12 text-red-200",
-    complete: neutral,
-  };
-
-  return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold uppercase tracking-[0.14em] ${classes[tone]}`}>
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
-      {label}
-    </span>
-  );
-}
-
 function SectionPanel({
   title,
   eyebrow,
@@ -228,35 +207,6 @@ function Countdown({
   );
 }
 
-function ReadinessItem({
-  label,
-  detail,
-  done,
-}: {
-  label: string;
-  detail: string;
-  done: boolean | null;
-}) {
-  const state =
-    done === null
-      ? { label: "Checking", className: "border-slate-700 bg-slate-800 text-slate-400" }
-      : done
-        ? { label: "Done", className: "border-emerald-400/25 bg-emerald-500/10 text-emerald-300" }
-        : { label: "Open", className: "border-amber-400/25 bg-amber-500/10 text-amber-300" };
-
-  return (
-    <div className="grid grid-cols-[1fr_auto] items-start gap-3 border-b border-slate-800/70 py-3 first:pt-0 last:border-0 last:pb-0">
-      <div className="min-w-0">
-        <p className="text-sm font-semibold text-slate-100">{label}</p>
-        <p className="mt-0.5 truncate text-xs text-slate-500">{detail}</p>
-      </div>
-      <span className={`rounded-full border px-2 py-1 text-[9px] font-black uppercase tracking-[0.14em] ${state.className}`}>
-        {state.label}
-      </span>
-    </div>
-  );
-}
-
 function EmptyState({
   title,
   detail,
@@ -358,18 +308,10 @@ export default function LeagueCommandCenter({
     },
   ];
 
+  // readinessItems is no longer rendered as a checklist, but it still answers
+  // "is setup finished", which drives the summary line below.
   const openItems = readinessItems.filter((item) => item.done === false).length;
-  const completedItems = readinessItems.filter((item) => item.done === true).length;
-  const readinessPercent = Math.round((completedItems / readinessItems.length) * 100);
   const setupReady = openItems === 0 && !teamsLoading && !teamsError;
-  const setupLabel = setupReady && draft?.status === "complete"
-    ? "Draft Complete"
-    : setupReady
-      ? "Ready"
-      : teamsError
-        ? "Needs Attention"
-        : `${readinessPercent}% Ready`;
-  const setupTone: Tone = setupReady ? "complete" : "warning";
   const scheduledDraftDate = draft?.scheduledAt ? formatDraftDate(draft.scheduledAt) : "";
   const setupSummary = setupReady && draft?.status === "complete"
     ? "The draft is complete. Review results and keep the league record current."
@@ -465,10 +407,8 @@ export default function LeagueCommandCenter({
               <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: primary }}>
                 {isOwnerView ? "Draft Night" : "League Command Center"}
               </p>
-              <StatusBadge
-                label={isOwnerView ? draftLabel : setupLabel}
-                tone={isOwnerView ? draftTone : setupTone}
-              />
+              {/* No status pill. The Draft Status tile below states the same
+                  thing in words, and the pill was repeating it two lines up. */}
             </div>
             <div className="mt-3 flex flex-col gap-3 pr-24 sm:flex-row sm:items-center">
               <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
@@ -483,10 +423,15 @@ export default function LeagueCommandCenter({
                   <Link href={`/leagues/${slug}/seasons/new`} className={secondaryButtonClass}>
                     Create Season
                   </Link>
-                ) : null
-                // Season exists but no draft: the hero stays empty. Draft
-                // creation lives in the readiness panel rather than competing
-                // with the season title.
+                ) : (
+                  // Back in the hero. It briefly lived in the Draft Readiness
+                  // panel, which sat below the fold and has now been removed —
+                  // leaving a commissioner who reset their draft with no way to
+                  // create a new one.
+                  <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
+                    Create Draft
+                  </button>
+                )
               )}
               {isOwnerView ? (
                 // Owners always get a way forward, but only into a room that is
@@ -525,7 +470,6 @@ export default function LeagueCommandCenter({
                 )
               ) : (
                 <>
-                  <MetricTile label="Readiness" value={setupLabel} detail={draft?.name ?? "Season setup"} tone={setupTone} />
                   <MetricTile label="Draft Status" value={draftLabel} detail={draft?.name ?? "Season setup"} tone={draftTone} />
                   <MetricTile label="Teams" value={teamsLoading ? "--" : `${activeTeams.length}/${expectedTeams}`} detail={teamsReady ? "Roster count ready" : "Match league size"} tone={teamsReady ? "complete" : "warning"} />
                   <MetricTile label="Owners" value={teamsLoading ? "--" : `${assignedOwners}/${activeTeams.length}`} detail={ownersReady ? "All assigned" : "Assignments needed"} tone={ownersReady ? "complete" : "warning"} />
@@ -665,35 +609,6 @@ export default function LeagueCommandCenter({
         </div>
       </div>
 
-      {!isOwnerView && (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)]">
-          <SectionPanel
-            title="Draft Readiness"
-            eyebrow={`${openItems} open item${openItems === 1 ? "" : "s"}`}
-            action={
-              // Draft creation lives here now that the hero stays empty before
-              // a draft exists. This is the only entry point to the create-draft
-              // modal, so it must not be dropped without relocating it.
-              workspace.canManage && !draft && currentSeason ? (
-                <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
-                  Create Draft
-                </button>
-              ) : (
-                // No badge here. The hero already carries the one status badge
-                // this surface is allowed, and "Needs Work" only restated the
-                // panel's own heading — the eyebrow already counts open items.
-                null
-              )
-            }
-          >
-            <div className="space-y-1">
-              {readinessItems.map((item) => (
-                <ReadinessItem key={item.label} {...item} />
-              ))}
-            </div>
-          </SectionPanel>
-        </div>
-      )}
     </div>
   );
 }
