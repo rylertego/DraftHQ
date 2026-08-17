@@ -61,6 +61,17 @@ function convert(svg, componentName) {
     const esc = id.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
     s = s.replace(new RegExp(`\\sid="${esc}"`, "g"), ` id={\`\${uid}-${id}\`}`);
     s = s.replace(new RegExp(`url\\(#${esc}\\)`, "g"), `url(#\${uid}-${id})`);
+    // Illustrator emits gradients that inherit their stops via
+    // xlink:href="#first-gradient". Namespacing the id without rewriting these
+    // leaves them pointing at an id that no longer exists, so the gradient has
+    // no stops and every shape using it paints nothing — the shapes do not
+    // error, they just silently vanish. Emitted as SVG2 `href`, which every
+    // target browser supports and React passes through without the xlink
+    // deprecation warning.
+    s = s.replace(
+      new RegExp(`\\s(?:xlink:href|href)="#${esc}"`, "g"),
+      ` href={\`#\${uid}-${id}\`}`
+    );
   }
 
   // url(...) now contains a template expression, so those attributes must

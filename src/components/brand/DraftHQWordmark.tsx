@@ -17,7 +17,7 @@ export default function DraftHQWordmark({ className = "h-24 w-auto", title = "Dr
           <stop offset="0" stopColor="var(--color-league-accent)"/>
           <stop offset="1" stopColor="var(--color-league-accent-border)"/>
         </linearGradient>
-        <linearGradient id={`${uid}-linear-gradient-2`} x1="1007.54" y1="156.17" x2="1007.54" y2="335.26" xlinkHref="#linear-gradient"/>
+        <linearGradient id={`${uid}-linear-gradient-2`} x1="1007.54" y1="156.17" x2="1007.54" y2="335.26" href={`#${uid}-linear-gradient`}/>
       </defs>
       <g>
         <path d="m239.1,159.26h-95.83l-35.3,169.06h99.32c21.45,0,39.96-15.05,44.34-36.04l19.54-93.56c4.25-20.35-11.29-39.46-32.07-39.46Zm-7.52,48.12l-15.29,73.22c-1.65,7.88-8.6,13.53-16.66,13.53h-46.09l21.12-101.17h45.2c7.6,0,13.27,6.98,11.72,14.41Z" fill="#fff"/>

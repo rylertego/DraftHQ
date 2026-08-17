@@ -17,19 +17,19 @@ export default function DraftHQLockup({ className = "h-24 w-auto", title = "Draf
           <stop offset="0" stopColor="var(--color-league-accent)"/>
           <stop offset="1" stopColor="var(--color-league-accent-border)"/>
         </linearGradient>
-        <linearGradient id={`${uid}-linear-gradient-2`} x1="1045.87" y1="192.57" x2="1045.87" y2="326.6" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-3`} x1="798.75" y1="374.33" x2="798.75" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-4`} x1="824.06" y1="374.33" x2="824.06" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-5`} x1="848.05" y1="374.33" x2="848.05" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-6`} x1="893.28" y1="374.33" x2="893.28" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-7`} x1="919.83" y1="374.33" x2="919.83" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-8`} x1="948.47" y1="374.33" x2="948.47" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-9`} x1="976.81" y1="374.33" x2="976.81" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-10`} x1="1005.65" y1="374.33" x2="1005.65" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-11`} x1="1031.73" y1="374.33" x2="1031.73" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-12`} x1="1058.88" y1="374.33" x2="1058.88" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-13`} x1="1079.53" y1="374.33" x2="1079.53" y2="396.06" xlinkHref="#linear-gradient"/>
-        <linearGradient id={`${uid}-linear-gradient-14`} x1="219.25" y1="168.23" x2="219.25" y2="435.7" xlinkHref="#linear-gradient"/>
+        <linearGradient id={`${uid}-linear-gradient-2`} x1="1045.87" y1="192.57" x2="1045.87" y2="326.6" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-3`} x1="798.75" y1="374.33" x2="798.75" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-4`} x1="824.06" y1="374.33" x2="824.06" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-5`} x1="848.05" y1="374.33" x2="848.05" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-6`} x1="893.28" y1="374.33" x2="893.28" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-7`} x1="919.83" y1="374.33" x2="919.83" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-8`} x1="948.47" y1="374.33" x2="948.47" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-9`} x1="976.81" y1="374.33" x2="976.81" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-10`} x1="1005.65" y1="374.33" x2="1005.65" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-11`} x1="1031.73" y1="374.33" x2="1031.73" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-12`} x1="1058.88" y1="374.33" x2="1058.88" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-13`} x1="1079.53" y1="374.33" x2="1079.53" y2="396.06" href={`#${uid}-linear-gradient`}/>
+        <linearGradient id={`${uid}-linear-gradient-14`} x1="219.25" y1="168.23" x2="219.25" y2="435.7" href={`#${uid}-linear-gradient`}/>
         <linearGradient id={`${uid}-linear-gradient-15`} x1="210.28" y1="92.47" x2="210.28" y2="190.58" gradientUnits="userSpaceOnUse">
           <stop offset=".03" stopColor="var(--color-league-accent)"/>
           <stop offset=".14" stopColor="color-mix(in srgb, var(--color-league-accent) 88%, var(--color-league-accent-border))"/>
