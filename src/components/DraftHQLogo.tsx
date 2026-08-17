@@ -1,19 +1,24 @@
-// The mark is now an SVG whose source cyan is #00E6F9 — hue ~185°, not the
-// ~174° teal these deltas were originally calibrated against. Every entry was
-// recomputed against the new source; leaving the old ones would have tinted
-// every league theme about 11° off, and the teal entry (formerly "no filter")
-// would have rendered cyan.
+// The mark's source cyan is now #22D3EE — the same value as
+// --color-product-accent — so the product accent needs no filter at all and
+// every other delta is measured from 188°.
+//
+// This map only exists because `<img src="…svg">` is opaque to the page: CSS
+// cannot reach inside it, so hue-rotate is the only lever. It is an
+// approximation (it rotates every hue proportionally, and cannot hit an
+// arbitrary target exactly) and it has to be recalibrated whenever the source
+// art changes. Inlining the SVG and using var(--color-league-accent) deletes
+// this whole mechanism — see docs/STATUS.md.
 const FILTER_MAP: Record<string, string> = {
-  "#22d3ee": "hue-rotate(3deg)",    // Cyan    — closest to source
-  "#14b8a6": "hue-rotate(349deg)",  // Teal
-  "#3b82f6": "hue-rotate(33deg)",   // Royal
-  "#10b981": "hue-rotate(336deg)",  // Emerald
-  "#a855f7": "hue-rotate(86deg)",   // Violet
-  "#ef4444": "hue-rotate(175deg)",  // Crimson
-  "#f59e0b": "hue-rotate(213deg)",  // Gold
-  "#f43f5e": "hue-rotate(165deg)",  // Rose
-  "#6366f1": "hue-rotate(54deg)",   // Indigo
-  "#fb923c": "hue-rotate(202deg)",  // Sunset
+  "#22d3ee": "",                    // Cyan    — source, no filter
+  "#14b8a6": "hue-rotate(345deg)",  // Teal
+  "#3b82f6": "hue-rotate(29deg)",   // Royal
+  "#10b981": "hue-rotate(332deg)",  // Emerald
+  "#a855f7": "hue-rotate(83deg)",   // Violet
+  "#ef4444": "hue-rotate(172deg)",  // Crimson
+  "#f59e0b": "hue-rotate(210deg)",  // Gold
+  "#f43f5e": "hue-rotate(162deg)",  // Rose
+  "#6366f1": "hue-rotate(51deg)",   // Indigo
+  "#fb923c": "hue-rotate(199deg)",  // Sunset
 };
 
 interface Props {

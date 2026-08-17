@@ -2,14 +2,14 @@
 <svg id="Layer_1" data-name="Layer 1" xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 1200 1200">
   <defs>
     <linearGradient id="linear-gradient" x1="621.02" y1="403.95" x2="621.02" y2="1030.31" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#00e6f9"/>
-      <stop offset="1" stop-color="#00889a"/>
+      <stop offset="0" stop-color="#22d3ee"/>
+      <stop offset="1" stop-color="#0c839c"/>
     </linearGradient>
     <linearGradient id="linear-gradient-2" x1="600" y1="226.54" x2="600" y2="456.31" gradientUnits="userSpaceOnUse">
-      <stop offset=".03" stop-color="#00e6f9"/>
-      <stop offset=".14" stop-color="#00daed"/>
-      <stop offset=".72" stop-color="#009fb1"/>
-      <stop offset="1" stop-color="#00889a"/>
+      <stop offset=".03" stop-color="#22d3ee"/>
+      <stop offset=".14" stop-color="#16d0ed"/>
+      <stop offset=".72" stop-color="#0e99b3"/>
+      <stop offset="1" stop-color="#0c839c"/>
     </linearGradient>
   </defs>
   <g>
