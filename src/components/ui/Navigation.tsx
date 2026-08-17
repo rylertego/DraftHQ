@@ -109,14 +109,20 @@ export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
 }
 
 type Placement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
-type TriggerIconName = "chevron-down" | "info" | "more-horizontal";
-type TriggerVisual =
-  | { triggerText: string; triggerIcon?: TriggerIconName }
-  | { triggerText?: never; triggerIcon: TriggerIconName };
+type TriggerIconName = "chevron-down" | "info" | "mail" | "more-horizontal";
+/** Unread count rendered on the trigger. Omitted or 0 renders nothing.
+ *  A number, not a node, so a badge cannot become a nested control. */
+type TriggerBadge = { badgeCount?: number };
+type TriggerVisual = TriggerBadge &
+  (
+    | { triggerText: string; triggerIcon?: TriggerIconName }
+    | { triggerText?: never; triggerIcon: TriggerIconName }
+  );
 
 type PrimitiveTriggerProps = {
   triggerText?: string;
   triggerIcon?: TriggerIconName;
+  badgeCount?: number;
   label: string;
   className: "ui-overlay-trigger" | "ui-tooltip-trigger";
   expanded?: boolean;
@@ -147,6 +153,15 @@ function SemanticTriggerIcon({ name }: { name: TriggerIconName }) {
     return <svg {...commonProps}><path d="m6 9 6 6 6-6" /></svg>;
   }
 
+  if (name === "mail") {
+    return (
+      <svg {...commonProps}>
+        <rect x="2" y="5" width="20" height="14" rx="2" />
+        <path d="m2 8 10 6 10-6" />
+      </svg>
+    );
+  }
+
   if (name === "info") {
     return (
       <svg {...commonProps}>
@@ -170,6 +185,7 @@ function PrimitiveTrigger({
   label,
   triggerText,
   triggerIcon,
+  badgeCount,
   className,
   expanded,
   controls,
@@ -196,6 +212,9 @@ function PrimitiveTrigger({
         </span>
       ) : null}
       {triggerText ? <span>{triggerText}</span> : null}
+      {badgeCount && badgeCount > 0 ? (
+        <span className="ui-overlay-trigger__badge">{badgeCount > 9 ? "9+" : badgeCount}</span>
+      ) : null}
     </button>
   );
 }
@@ -331,6 +350,7 @@ export type MenuProps = MenuBaseProps & TriggerVisual;
 export function Menu({
   triggerText,
   triggerIcon,
+  badgeCount,
   label,
   items,
   placement = "bottom-end",
@@ -376,6 +396,7 @@ export function Menu({
         label={label}
         triggerText={triggerText}
         triggerIcon={triggerIcon}
+        badgeCount={badgeCount}
         popup="menu"
         expanded={isOpen}
         onClick={() => setOpen(!isOpen)}
@@ -431,6 +452,7 @@ export type PopoverProps = PopoverBaseProps & TriggerVisual;
 export function Popover({
   triggerText,
   triggerIcon,
+  badgeCount,
   triggerLabel,
   children,
   label,
@@ -466,6 +488,7 @@ export function Popover({
         label={triggerLabel}
         triggerText={triggerText}
         triggerIcon={triggerIcon}
+        badgeCount={badgeCount}
         popup={interactive ? "dialog" : undefined}
         expanded={isOpen}
         controls={isOpen ? id : undefined}
