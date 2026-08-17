@@ -712,13 +712,10 @@ function TeamRosterRow({
               Assign
             </button>
           )}
-          <button
-            type="button"
-            onClick={() => onEdit(team)}
-            className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/65 px-4 py-2 text-sm font-bold text-slate-200 transition-colors hover:bg-slate-800"
-          >
-            Edit
-          </button>
+          {/* No standalone Edit button: "Edit team" is already the first item
+              in the kebab menu, so a dedicated button duplicated it. Assign
+              stays because it is the one action that needs to be obvious on an
+              unassigned row. */}
           <KebabMenu items={menuItems} />
         </div>
       )}

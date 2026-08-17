@@ -1,6 +1,6 @@
 import { Resend } from "resend";
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
-import { normalizeEmail } from "@/lib/email";
+import { normalizeEmail, TRANSACTIONAL_FROM } from "@/lib/email";
 import { leagueInviteEmail } from "@/lib/emailTemplates";
 
 interface RouteContext {
@@ -172,12 +172,20 @@ export async function POST(request: Request, { params }: RouteContext) {
 
   if (existingMember && !leagueTeamId) return Response.json({ error: "That person is already a member of this league." }, { status: 409 });
 
+  // Reuse a revoked invitation as well as a pending one. Revoking sets
+  // status = 'revoked' rather than deleting the row, so matching only on
+  // 'pending' meant every invite → revoke → re-invite cycle inserted another
+  // row and left a pile of records for the same person. Reusing keeps one row
+  // per invitee carrying the current state, without discarding the history of
+  // who invited them and when.
   const { data: existingInvitation } = await supabaseAdmin
     .from("league_invitations")
     .select("id")
     .eq("league_id", leagueId)
     .eq("invited_user_id", targetUserId)
-    .eq("status", "pending")
+    .in("status", ["pending", "revoked"])
+    .order("invited_at", { ascending: false })
+    .limit(1)
     .maybeSingle();
 
   const invitationValues = {
@@ -229,7 +237,7 @@ export async function POST(request: Request, { params }: RouteContext) {
 
       const resend = new Resend(apiKey);
       const { error: emailError } = await resend.emails.send({
-        from: "DraftHQ <onboarding@resend.dev>",
+        from: TRANSACTIONAL_FROM,
         to: email,
         subject,
         html,

@@ -17,9 +17,32 @@ function input(overrides: Partial<OwnerDashboardInput> = {}): OwnerDashboardInpu
 describe("buildOwnerDashboardView", () => {
   it("always gives the owner a way forward, even mid-setup", () => {
     // The commissioner dashboard fell through to `null` here, leaving owners
-    // with a readiness checklist and no button at all.
+    // with a readiness checklist and no button at all. There must always be a
+    // button — but see below for where it points.
     const view = buildOwnerDashboardView(input({ hasTeam: false, draftSlot: null, formattedDraftDate: null }));
+    expect(view.primaryCta.label.length).toBeGreaterThan(0);
+  });
+
+  it("keeps owners out of a draft room that is still being set up", () => {
+    // A draft row exists but is unscheduled: the commissioner is mid-setup.
+    // Owners should not be able to wander into that room.
+    const view = buildOwnerDashboardView(input({ draftStatus: "setup", formattedDraftDate: null }));
+    expect(view.primaryCta).toEqual({ label: "View League Teams", target: "teams" });
+  });
+
+  it("opens the room once the draft is scheduled", () => {
+    const view = buildOwnerDashboardView(input({ draftStatus: "setup" }));
     expect(view.primaryCta).toEqual({ label: "Enter Draft Room", target: "room" });
+  });
+
+  it("opens the room for a draft already underway even without a date", () => {
+    // A live draft is unambiguously real, scheduled or not.
+    for (const status of ["active", "paused"] as const) {
+      const view = buildOwnerDashboardView(input({ draftStatus: status, formattedDraftDate: null }));
+      expect(view.primaryCta).toEqual({ label: "Join Draft Room", target: "room" });
+    }
+    const done = buildOwnerDashboardView(input({ draftStatus: "complete", formattedDraftDate: null }));
+    expect(done.primaryCta).toEqual({ label: "Review Draft", target: "room" });
   });
 
   it("points at the team list when no draft exists yet", () => {
