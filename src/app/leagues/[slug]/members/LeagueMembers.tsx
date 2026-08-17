@@ -209,12 +209,11 @@ function MemberCard({
   }, [menuOpen]);
 
   return (
-    // Each row is its own grid, so an `auto` last column sizes per row: 0px
-    // where there is no action, ~110px on the row with Edit profile. That
-    // dragged the role column left on one row and right on the others, and the
-    // list read as misaligned. A fixed track makes every row share the same
-    // geometry whether or not it has an action.
-    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_180px_132px] sm:items-center">
+    // Name takes the slack, role sizes to its own text, and the last track is a
+    // fixed 2.5rem for the kebab. Each row is its own grid, so a variable last
+    // column would let the role wander row to row — the fixed track keeps every
+    // label's right edge on the same line, hard against the menu.
+    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_2.5rem] sm:items-center">
       {member.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={member.avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover sm:absolute sm:left-4" />
