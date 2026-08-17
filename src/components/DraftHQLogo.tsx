@@ -51,7 +51,11 @@ export default function DraftHQLogo({ accentColor, className = "h-24 w-auto" }: 
     // nav's h-24 and is only slightly generous at the draft room's h-8.
     <span className={`inline-flex items-center gap-2 ${className}`} style={style}>
       <DraftHQMark className="h-[76%] w-auto" title="" />
-      <DraftHQWordmark className="h-[29%] w-auto" title="DraftHQ" />
+      {/* The lockup does not centre these on each other: its wordmark sits
+          12.5 units (3.26% of mark height) below the mark's centre, which
+          items-center was flattening out. Expressed against the wordmark's own
+          height so it holds at any size. */}
+      <DraftHQWordmark className="h-[29%] w-auto translate-y-[8.5%]" title="DraftHQ" />
     </span>
   );
 }
