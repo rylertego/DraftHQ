@@ -80,12 +80,12 @@ export default function ResetPasswordPage() {
               <p className="text-sm text-red-400">
                 This reset link is invalid or has expired.
               </p>
-              <Link href="/forgot-password" className="mt-3 inline-block text-sm text-teal-400 hover:text-teal-300">
+              <Link href="/forgot-password" className="mt-3 inline-block text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]">
                 Request a new link →
               </Link>
             </div>
           ) : message ? (
-            <p className="text-center text-sm font-medium text-teal-300">{message}</p>
+            <p className="text-center text-sm font-medium text-[color:var(--color-product-accent)]">{message}</p>
           ) : (
             <form className="space-y-5" onSubmit={(e) => void handleSubmit(e)}>
               <div>
@@ -122,7 +122,7 @@ export default function ResetPasswordPage() {
               <button
                 type="submit"
                 disabled={!isReady || isSubmitting}
-                className="w-full rounded-xl bg-teal-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                className="w-full rounded-xl bg-[var(--color-product-accent)] px-4 py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
               >
                 {isSubmitting ? "Saving..." : "Save New Password"}
               </button>

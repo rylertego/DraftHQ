@@ -132,8 +132,8 @@
   --surface-elevated: var(--color-surface-2);
   --border: var(--color-border-subtle);
   --border-strong: var(--color-border-strong);
-  --primary: #14B8A6;
-  --primary-dark: #0D9488;
+  --primary: var(--color-product-accent);
+  --primary-dark: var(--color-product-accent-hover);
   --foreground: var(--color-text-primary);
   --muted: var(--color-text-muted);
   --league-accent: var(--color-league-accent);

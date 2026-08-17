@@ -42,9 +42,9 @@ export default function ForgotPasswordPage() {
 
         <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
           {message ? (
-            <div className="rounded-xl border border-teal-800 bg-teal-950/30 px-4 py-5 text-center">
-              <p className="text-sm font-medium text-teal-300">{message}</p>
-              <Link href="/login" className="mt-3 inline-block text-sm text-teal-400 hover:text-teal-300">
+            <div className="rounded-xl border border-[color:var(--color-success-border)] bg-[color-mix(in_srgb,var(--color-success-muted)_45%,transparent)] px-4 py-5 text-center">
+              <p className="text-sm font-medium text-[color:var(--color-product-accent)]">{message}</p>
+              <Link href="/login" className="mt-3 inline-block text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]">
                 Back to login →
               </Link>
             </div>
@@ -67,7 +67,7 @@ export default function ForgotPasswordPage() {
               <button
                 type="submit"
                 disabled={isSubmitting}
-                className="w-full rounded-xl bg-teal-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                className="w-full rounded-xl bg-[var(--color-product-accent)] px-4 py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
               >
                 {isSubmitting ? "Sending..." : "Send Reset Link"}
               </button>
@@ -77,7 +77,7 @@ export default function ForgotPasswordPage() {
           {!message && (
             <p className="mt-6 text-center text-sm text-slate-500">
               Remembered it?{" "}
-              <Link className="text-teal-400 hover:text-teal-300 font-medium" href="/login">
+              <Link className="text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)] font-medium" href="/login">
                 Log in
               </Link>
             </p>

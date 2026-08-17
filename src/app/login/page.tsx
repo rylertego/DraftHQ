@@ -62,7 +62,7 @@ export default function LoginPage() {
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="login-password">
                   Password
                 </label>
-                <Link href="/forgot-password" className="text-xs text-teal-400 hover:text-teal-300">
+                <Link href="/forgot-password" className="text-xs text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]">
                   Forgot password?
                 </Link>
               </div>
@@ -79,7 +79,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full rounded-xl bg-teal-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+              className="w-full rounded-xl bg-[var(--color-product-accent)] px-4 py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
             >
               {isSubmitting ? "Logging in..." : "Log In"}
             </button>
@@ -87,7 +87,7 @@ export default function LoginPage() {
 
           <p className="mt-6 text-center text-sm text-slate-500">
             New here?{" "}
-            <Link className="text-teal-400 hover:text-teal-300 font-medium" href="/signup">
+            <Link className="text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)] font-medium" href="/signup">
               Create an account
             </Link>
           </p>

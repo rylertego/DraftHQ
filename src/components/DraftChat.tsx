@@ -117,7 +117,7 @@ export default function DraftChat({
       {/* Header */}
       <div className="flex shrink-0 items-center justify-between border-b border-white/8 bg-slate-900/80 px-4 py-2.5">
         <div className="flex items-center gap-2">
-          <span className="h-2 w-2 rounded-full bg-teal-400" />
+          <span className="h-2 w-2 rounded-full bg-[var(--color-league-accent-hover)]" />
           <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-200">Draft Chat</span>
         </div>
         <button type="button" aria-label="Close chat"
@@ -158,11 +158,11 @@ export default function DraftChat({
               }
               return (
                 <div key={msg.id} className="flex items-start gap-2 py-0.5">
-                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-teal-900/60 text-[10px] font-black text-teal-300">
+                  <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--color-league-accent-muted)_60%,transparent)] text-[10px] font-black text-[color:var(--color-league-accent)]">
                     {msg.displayName.charAt(0).toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <span className="text-[11px] font-bold text-teal-400">{msg.displayName}</span>
+                    <span className="text-[11px] font-bold text-[color:var(--color-league-accent)]">{msg.displayName}</span>
                     <p className="break-words text-sm leading-snug text-slate-200">{msg.content}</p>
                   </div>
                 </div>
@@ -185,14 +185,14 @@ export default function DraftChat({
                 <div className="flex gap-2">
                   <input ref={inputRef} type="text" maxLength={500}
                     placeholder={isAnnounce ? "Commissioner announcement..." : "Type a message..."}
-                    className="min-w-0 flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-teal-500/60 focus:outline-none"
+                    className="min-w-0 flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-[color-mix(in_srgb,var(--color-league-accent-border)_60%,transparent)] focus:outline-none"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isSending}
                   />
                   <button type="button" disabled={!input.trim() || isSending} onClick={() => void handleSend()}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-teal-500 text-slate-950 hover:bg-teal-400 disabled:opacity-30 transition-colors"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-league-accent)] text-slate-950 hover:bg-[var(--color-league-accent-hover)] disabled:opacity-30 transition-colors"
                     aria-label="Send">
                     <svg viewBox="0 0 14 14" fill="currentColor" className="h-4 w-4">
                       <path d="M7 1v12M7 1L3 5M7 1l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>

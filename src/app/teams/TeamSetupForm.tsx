@@ -709,7 +709,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             ) : (
               <>
                 {draft.status === "active" && (
-                  <span className="rounded-md border border-teal-500/40 bg-teal-500/10 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-teal-400">
+                  <span className="rounded-md border border-[color-mix(in_srgb,var(--color-league-accent-border)_40%,transparent)] bg-[color-mix(in_srgb,var(--color-league-accent)_10%,transparent)] px-3 py-1 text-xs font-semibold uppercase tracking-wide text-[color:var(--color-league-accent)]">
                     ● Live
                   </span>
                 )}
@@ -1274,7 +1274,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                   );
                                   saveRosterPositions(next);
                                 }}
-                                className="h-4 w-4 rounded accent-teal-500"
+                                className="h-4 w-4 rounded accent-[var(--color-league-accent)]"
                               />
                             </td>
                             <td className="py-3 px-3 text-center">
@@ -1385,7 +1385,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                 })
                                 .catch((err) => setError(err instanceof Error ? err.message : "Unable to save."));
                             }}
-                            className="h-4 w-4 rounded accent-teal-500 disabled:opacity-50"
+                            className="h-4 w-4 rounded accent-[var(--color-league-accent)] disabled:opacity-50"
                           />
                           <span className="text-sm text-white">Use Landmines</span>
                         </label>
@@ -1584,7 +1584,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       const isExpanded = expandedTeamId === team.id;
                       const isCommissionerTeam = owner?.role === "commissioner";
                       const isSelf = owner?.userId === setup.currentUserId;
-                      const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","#14b8a6","#f59e0b"];
+                      const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","var(--color-league-accent)","#f59e0b"];
                       const avatarColor = avatarColors[index % avatarColors.length];
                       const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
 
@@ -1729,7 +1729,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           disabled={!isCommissioner}
                                           checked={team.autodraft ?? false}
                                           onChange={(e) => updateTeamField(team.id, "autodraft", e.target.checked)}
-                                          className="h-4 w-4 rounded accent-teal-500 disabled:opacity-40"
+                                          className="h-4 w-4 rounded accent-[var(--color-league-accent)] disabled:opacity-40"
                                         />
                                         <span className="text-sm text-slate-300">Auto-pick when on clock</span>
                                       </label>
@@ -2284,7 +2284,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               flashSaved();
                             } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
                           }}
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
+                          className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-[var(--color-league-accent)]"
                         />
                         <div>
                           <p className="text-sm font-semibold text-white">Use &ldquo;Pick is in&hellip;&rdquo; feature</p>
@@ -2321,7 +2321,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             )}
                             {pickIsInSfxUrl ? (
                               <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
-                                <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-teal-400">
+                                <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-[color:var(--color-league-accent)]">
                                   <rect x="0" y="4" width="2" height="6" rx="1" fill="currentColor"/>
                                   <rect x="3" y="1" width="2" height="12" rx="1" fill="currentColor"/>
                                   <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
@@ -2393,7 +2393,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         )}
                         {draftStartAudioUrl ? (
                           <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
-                            <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-teal-400">
+                            <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-[color:var(--color-league-accent)]">
                               <rect x="0" y="4" width="2" height="6" rx="1" fill="currentColor"/>
                               <rect x="3" y="1" width="2" height="12" rx="1" fill="currentColor"/>
                               <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
@@ -2454,7 +2454,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       { value: "restart" as const, label: "Restart each turn", detail: "Every turn starts a walk-up song from the beginning." },
                       { value: "resume" as const, label: "Resume across turns", detail: "Each team's song continues from where it left off on their previous pick. When a song ends, the next one in their list starts." },
                     ]).map((opt) => (
-                      <label key={opt.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 has-[:checked]:border-teal-500/50">
+                      <label key={opt.value} className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 has-[:checked]:border-[color-mix(in_srgb,var(--color-league-accent-border)_50%,transparent)]">
                         <input
                           type="radio"
                           name="walkUpMusicMode"
@@ -2501,7 +2501,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           flashSaved();
                         } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
                       }}
-                      className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
+                      className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-[var(--color-league-accent)]"
                     />
                     <span className="text-sm font-semibold text-white">Show end of round slide</span>
                   </label>
@@ -2548,7 +2548,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               flashSaved();
                             } catch (err) { setError(err instanceof Error ? err.message : "Unable to save."); }
                           }}
-                          className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-teal-500"
+                          className="h-4 w-4 rounded border-slate-600 bg-slate-800 accent-[var(--color-league-accent)]"
                         />
                         <div>
                           <p className="text-sm text-white">Pause clock while showing the slide</p>
@@ -2612,7 +2612,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           {url ? (
                             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2">
                               {/* waveform icon */}
-                              <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-teal-400">
+                              <svg viewBox="0 0 20 14" fill="none" className="h-3.5 w-3.5 shrink-0 text-[color:var(--color-league-accent)]">
                                 <rect x="0" y="4" width="2" height="6" rx="1" fill="currentColor"/>
                                 <rect x="3" y="1" width="2" height="12" rx="1" fill="currentColor"/>
                                 <rect x="6" y="3" width="2" height="8" rx="1" fill="currentColor"/>
@@ -2793,7 +2793,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           setIsSavingAudio(false);
                         }
                       }}
-                      className="mt-4 rounded-lg bg-teal-600 px-4 py-2 text-sm font-bold text-white hover:bg-teal-500 disabled:opacity-50 transition-colors">
+                      className="mt-4 rounded-lg bg-[var(--color-league-accent-hover)] px-4 py-2 text-sm font-bold text-white hover:bg-[var(--color-league-accent)] disabled:opacity-50 transition-colors">
                       {isSavingAudio ? "Saving…" : "Save Reactions"}
                     </button>
                   )}

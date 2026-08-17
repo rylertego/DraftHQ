@@ -95,7 +95,7 @@ function MetricTile({
   // a live draft, and genuine errors.
   const toneClass: Record<Tone, string> = {
     neutral: "text-white",
-    live: "text-teal-200",
+    live: "text-[color:var(--color-league-accent-hover)]",
     ready: "text-white",
     warning: "text-white",
     danger: "text-red-200",

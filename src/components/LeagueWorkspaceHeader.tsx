@@ -14,7 +14,7 @@ interface LeagueWorkspaceHeaderProps {
 export default function LeagueWorkspaceHeader({ league, canManage }: LeagueWorkspaceHeaderProps) {
   const basePath = `/leagues/${league.slug}`;
   const pathname = usePathname();
-  const primary = league.primaryColor ?? "#14B8A6";
+  const primary = league.primaryColor ?? "var(--color-league-accent)";
   const secondary = league.secondaryColor ?? "#0D1F1E";
   const { setAccentColor, setBgColor } = useLeagueTheme();
 

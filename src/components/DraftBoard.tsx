@@ -57,7 +57,7 @@ export default function DraftBoard({
   onEditPick,
 }: DraftBoardProps) {
   const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
-  const accent = accentColor ?? "#14b8a6";
+  const accent = accentColor ?? "var(--color-league-accent)";
   const accentGlow = `color-mix(in srgb, ${accent} 18%, transparent)`;
   const accentBadgeBorder = `color-mix(in srgb, ${accent} 34%, transparent)`;
   const accentBadgeBg = `color-mix(in srgb, ${accent} 10%, transparent)`;
@@ -222,7 +222,7 @@ export default function DraftBoard({
                           const actualName = teamMap.get(pick.teamId);
                           if (!actualName || actualName === expectedName) return null;
                           return (
-                            <span className="absolute bottom-1 right-1 rounded-sm bg-teal-500 px-1 py-px text-[8px] font-black uppercase leading-none text-black">
+                            <span className="absolute bottom-1 right-1 rounded-sm bg-[var(--color-league-accent)] px-1 py-px text-[8px] font-black uppercase leading-none text-black">
                               {actualName}
                             </span>
                           );
@@ -254,7 +254,7 @@ export default function DraftBoard({
           <button
             type="button"
             onClick={() => { onEditPick(popupPick.pick); setPopupPick(null); }}
-            className="w-full bg-slate-800 px-3 py-2 text-left text-xs font-black uppercase tracking-wider text-teal-400 hover:bg-slate-700 transition-colors"
+            className="w-full bg-slate-800 px-3 py-2 text-left text-xs font-black uppercase tracking-wider text-[color:var(--color-league-accent)] hover:bg-slate-700 transition-colors"
           >
             Edit Pick
           </button>

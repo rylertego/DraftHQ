@@ -181,8 +181,8 @@ export default function WorkspaceLayoutClient({
 
   useEffect(() => {
     if (league) {
-      setAccentColor(league.primaryColor ?? "#14B8A6");
-      setBgColor(league.secondaryColor ?? "#0D1F1E");
+      setAccentColor(league.primaryColor ?? DEFAULT_ACCENT);
+      setBgColor(league.secondaryColor ?? DEFAULT_BG);
       return;
     }
 

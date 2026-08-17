@@ -112,7 +112,32 @@ it is Turbopack's persistent cache. Stop the server, then
 `Remove-Item -Recurse -Force .next`, then restart. Worth doing after any large
 merge rather than trusting a restart.
 
-### Accent migration — the next concrete task (2026-08-16)
+### Accent migration — DONE (2026-08-17)
+
+All 150 sites migrated. `grep -roE 'teal-[0-9]{2,3}' src/` returns **0**, and the
+only old-brand hex left is the "Teal" swatch in `LeagueSettingsForm`'s
+`COLOR_PAIRS` — a colour a commissioner can deliberately pick, not brand drift.
+Cyan `#22D3EE` is already in that palette too.
+
+Done by `scripts/migrate-accent.mjs`, kept in the repo as the record of which
+file got which scope. Translucent shades became `color-mix(... , transparent)`
+because Tailwind arbitrary values cannot carry a `/opacity` suffix on a `var()`;
+all ten generated rules were confirmed present in the built CSS.
+
+Three things the sweep found that a blind replace would have broken:
+
+- The four confirmation banners were success styling that merely matched the old
+  accent. They now use `--color-success-*`. Making them cyan would have turned
+  every "Saved!" into a brand element.
+- `globals.css` still had `--primary: #14B8A6` as a legacy alias, with two live
+  usages. It now points at the product accent.
+- `WorkspaceLayoutClient` fell back to `"#14B8A6"` when a league had no colour
+  set, so themeless leagues rendered old-brand teal. Now `DEFAULT_ACCENT`.
+
+`emailTemplates.ts` deliberately keeps inline hex — mail clients have no CSS
+variables — so only its value changed, to `#22D3EE`.
+
+### Original scope notes (kept for context)
 
 The brand moved from teal `#14BBA6` to cyan `#22D3EE`. All seven branding
 PNGs were hue-rotated to match (`7f02477`) and the landing page was migrated

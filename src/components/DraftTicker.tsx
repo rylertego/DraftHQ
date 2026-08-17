@@ -55,7 +55,7 @@ export default function DraftTicker({
   unread,
   isChatOpen,
   onChatToggle,
-  accentColor = "#14b8a6",
+  accentColor = "var(--color-league-accent)",
   mode = "ticker",
   boardView,
   onBoardViewChange,

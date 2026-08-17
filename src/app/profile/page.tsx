@@ -217,12 +217,12 @@ export default function ProfilePage() {
           </div>
 
           {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-          {message && <p className="rounded-lg border border-teal-800 bg-teal-950/30 px-3 py-2 text-sm text-teal-300">{message}</p>}
+          {message && <p className="rounded-lg border border-[color:var(--color-success-border)] bg-[color-mix(in_srgb,var(--color-success-muted)_45%,transparent)] px-3 py-2 text-sm text-[color:var(--color-success-border)]">{message}</p>}
 
           <button
             type="submit"
             disabled={isSaving || isUploadingAvatar}
-            className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+            className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
           >
             {isSaving ? "Saving..." : "Save Profile"}
           </button>
@@ -277,13 +277,13 @@ export default function ProfilePage() {
           </div>
 
           {passwordError && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{passwordError}</p>}
-          {passwordMessage && <p className="rounded-lg border border-teal-800 bg-teal-950/30 px-3 py-2 text-sm text-teal-300">{passwordMessage}</p>}
+          {passwordMessage && <p className="rounded-lg border border-[color:var(--color-success-border)] bg-[color-mix(in_srgb,var(--color-success-muted)_45%,transparent)] px-3 py-2 text-sm text-[color:var(--color-success-border)]">{passwordMessage}</p>}
 
           <div className="flex items-center justify-between">
             <button
               type="submit"
               disabled={isChangingPassword}
-              className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+              className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
             >
               {isChangingPassword ? "Saving..." : "Change Password"}
             </button>
@@ -291,7 +291,7 @@ export default function ProfilePage() {
               type="button"
               disabled={isSendingReset}
               onClick={() => void handleForgotPassword()}
-              className="text-sm text-teal-400 hover:text-teal-300 disabled:opacity-50"
+              className="text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)] disabled:opacity-50"
             >
               {isSendingReset ? "Sending..." : "Forgot Password?"}
             </button>

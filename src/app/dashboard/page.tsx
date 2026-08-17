@@ -36,12 +36,12 @@ function draftStatusLabel(season: LeagueSeason): { label: string; dot: string } 
   if (ds === "active") return { label: "Draft live now", dot: "bg-green-400 animate-pulse" };
   if (ds === "paused") return { label: "Draft paused", dot: "bg-yellow-400" };
   if (ds === "complete" || season.status === "complete") return { label: "Season complete", dot: "bg-slate-600" };
-  if (season.status === "drafting") return { label: "Draft scheduled", dot: "bg-teal-400" };
-  if (season.status === "active") return { label: "In season", dot: "bg-teal-400" };
+  if (season.status === "drafting") return { label: "Draft scheduled", dot: "bg-[var(--color-product-accent-hover)]" };
+  if (season.status === "active") return { label: "In season", dot: "bg-[var(--color-product-accent-hover)]" };
   if (season.draft?.scheduledAt) {
     const d = new Date(season.draft.scheduledAt);
     const label = `Draft On: ${d.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" })}`;
-    return { label, dot: "bg-teal-500" };
+    return { label, dot: "bg-[var(--color-product-accent)]" };
   }
   return { label: "Upcoming", dot: "bg-slate-700" };
 }
@@ -137,7 +137,7 @@ function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: Season
 
       {/* Content */}
       <div className="min-w-0 flex-1">
-        <p className="text-lg font-bold text-white group-hover:text-teal-300 transition-colors truncate">
+        <p className="text-lg font-bold text-white group-hover:text-[color:var(--color-product-accent-hover)] transition-colors truncate">
           {league.name}
         </p>
         <div className="mt-2 flex flex-wrap items-center gap-x-5 gap-y-1 text-sm text-slate-500">
@@ -171,7 +171,7 @@ function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: Season
               something; "Member" is the default state and just added a second
               role tag to every row. */}
           {workspace.canManage && (
-            <span className="flex items-center gap-1.5 font-semibold text-teal-400">
+            <span className="flex items-center gap-1.5 font-semibold text-[color:var(--color-product-accent)]">
               <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
                 <path d="M8 2l1.5 3H13l-2.75 2 1 3.5L8 8.75 4.75 10.5l1-3.5L3 5h3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
               </svg>
@@ -204,7 +204,7 @@ function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: Season
           <LeagueRowMenu onDelete={onDeleteClick} leagueSlug={league.slug} />
         )}
         {!onDeleteClick && (
-          <svg className="h-4 w-4 text-slate-700 group-hover:text-teal-500 transition-colors" viewBox="0 0 16 16" fill="none">
+          <svg className="h-4 w-4 text-slate-700 group-hover:text-[color:var(--color-product-accent)] transition-colors" viewBox="0 0 16 16" fill="none">
             <path d="M6 4l4 4-4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
         )}
@@ -344,7 +344,7 @@ export default function DashboardPage() {
                   <h2 className="text-xl font-bold text-white">Leagues</h2>
                   <Link
                     href="/leagues/new"
-                    className="rounded-xl bg-teal-500 px-4 py-2 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
+                    className="rounded-xl bg-[var(--color-product-accent)] px-4 py-2 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] transition-colors"
                   >
                     + Create League
                   </Link>
@@ -355,7 +355,7 @@ export default function DashboardPage() {
                     <p className="font-semibold text-white">You don&apos;t have any leagues yet.</p>
                     <p className="mt-1 text-sm text-slate-500">
                       Create a new league or{" "}
-                      <Link href="/join" className="text-teal-400 underline hover:text-teal-300">
+                      <Link href="/join" className="text-[color:var(--color-product-accent)] underline hover:text-[color:var(--color-product-accent-hover)]">
                         join one with an invite
                       </Link>
                       .
@@ -363,7 +363,7 @@ export default function DashboardPage() {
                     <div className="mt-5 flex items-center justify-center gap-3">
                       <Link
                         href="/leagues/new"
-                        className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
+                        className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] transition-colors"
                       >
                         Create League
                       </Link>
@@ -401,9 +401,9 @@ export default function DashboardPage() {
               <div className="mt-3 space-y-2">
                 <Link
                   href="/leagues/new"
-                  className="flex w-full items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-teal-600 hover:bg-teal-950/20 hover:text-white transition-colors"
+                  className="flex w-full items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-[color:var(--color-product-accent-border)] hover:bg-[color-mix(in_srgb,var(--color-product-accent-muted)_20%,transparent)] hover:text-white transition-colors"
                 >
-                  <svg className="h-4 w-4 text-teal-400" viewBox="0 0 16 16" fill="none">
+                  <svg className="h-4 w-4 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none">
                     <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
                     <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>
@@ -411,9 +411,9 @@ export default function DashboardPage() {
                 </Link>
                 <Link
                   href="/create"
-                  className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-teal-600 hover:bg-teal-950/20 hover:text-white transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-[color:var(--color-product-accent-border)] hover:bg-[color-mix(in_srgb,var(--color-product-accent-muted)_20%,transparent)] hover:text-white transition-colors"
                 >
-                  <svg className="h-4 w-4 text-teal-400" viewBox="0 0 16 16" fill="none">
+                  <svg className="h-4 w-4 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none">
                     <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
                     <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>
@@ -421,9 +421,9 @@ export default function DashboardPage() {
                 </Link>
                 <Link
                   href="/join"
-                  className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-teal-600 hover:bg-teal-950/20 hover:text-white transition-colors"
+                  className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-[color:var(--color-product-accent-border)] hover:bg-[color-mix(in_srgb,var(--color-product-accent-muted)_20%,transparent)] hover:text-white transition-colors"
                 >
-                  <svg className="h-4 w-4 text-teal-400" viewBox="0 0 16 16" fill="none">
+                  <svg className="h-4 w-4 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none">
                     <path d="M2 8h9M8 5l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
                     <path d="M12 3h1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
                   </svg>

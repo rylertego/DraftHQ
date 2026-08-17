@@ -185,7 +185,7 @@ export default function DraftGradesBoard({
   report: DraftGradeReport;
   accentColor: string | null;
 }) {
-  const accent = accentColor ?? "#14b8a6";
+  const accent = accentColor ?? "var(--color-league-accent)";
 
   return (
     <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">

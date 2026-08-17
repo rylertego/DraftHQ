@@ -78,7 +78,7 @@ export default function CreateDraftPage() {
             Create an account or log in to create and manage a draft. Owners can join without an account.
           </p>
           <div className="flex gap-3">
-            <Link href="/signup" className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors">
+            <Link href="/signup" className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] transition-colors">
               Create Account
             </Link>
             <Link href="/login" className="rounded-xl border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
@@ -102,7 +102,7 @@ export default function CreateDraftPage() {
                 <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="draft-league">
                   League (optional)
                 </label>
-                <Link className="text-xs font-medium text-teal-400 hover:text-teal-300" href="/leagues/new">
+                <Link className="text-xs font-medium text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]" href="/leagues/new">
                   + Create a league
                 </Link>
               </div>
@@ -142,11 +142,11 @@ export default function CreateDraftPage() {
               <button
                 onClick={handleCreateDraft}
                 disabled={isCreating}
-                className="rounded-xl bg-teal-500 px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+                className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
               >
                 {isCreating ? "Creating..." : "Create Draft"}
               </button>
-              <Link className="text-sm text-teal-400 hover:text-teal-300" href="/join">
+              <Link className="text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]" href="/join">
                 Have a code? Join →
               </Link>
             </div>

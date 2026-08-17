@@ -21,7 +21,7 @@ interface DraftOrderRaceProps {
   onClose: () => void;
 }
 
-const AVATAR_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899", "#6366f1", "#14b8a6", "#f59e0b"];
+const AVATAR_COLORS = ["#ef4444", "#f97316", "#eab308", "#22c55e", "#06b6d4", "#8b5cf6", "#ec4899", "#6366f1", "var(--color-league-accent)", "#f59e0b"];
 
 // Field geometry (percent of container width)
 const PLAY_START = 7; // goal line the racers start behind

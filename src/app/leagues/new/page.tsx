@@ -106,7 +106,7 @@ export default function NewLeaguePage() {
           <button
             type="submit"
             disabled={isCreating}
-            className="w-full rounded-xl bg-teal-500 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+            className="w-full rounded-xl bg-[var(--color-product-accent)] py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
           >
             {isCreating ? "Creating..." : "Create League"}
           </button>

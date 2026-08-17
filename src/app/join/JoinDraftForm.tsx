@@ -124,7 +124,7 @@ export default function JoinDraftForm({ initialJoinCode = "" }: JoinDraftFormPro
                 <p className="font-bold text-white">{preview.draftName}</p>
                 <p className="text-sm text-slate-400">{preview.teamCount} teams · {preview.rounds} rounds</p>
                 {preview.invitedTeamName && (
-                  <p className="mt-2 text-sm font-medium text-teal-400">
+                  <p className="mt-2 text-sm font-medium text-[color:var(--color-product-accent)]">
                     Invited to manage <span className="font-bold text-white">{preview.invitedTeamName}</span>.
                     {!signedInEmail && (
                       <span className="mt-1 block font-normal text-yellow-400">
@@ -139,7 +139,7 @@ export default function JoinDraftForm({ initialJoinCode = "" }: JoinDraftFormPro
                   </p>
                 )}
                 {preview.alreadyJoined && (
-                  <p className="mt-2 text-sm font-medium text-teal-400">You&apos;re already in this draft.</p>
+                  <p className="mt-2 text-sm font-medium text-[color:var(--color-product-accent)]">You&apos;re already in this draft.</p>
                 )}
                 {isDraftComplete && (
                   <p className="mt-2 text-sm text-yellow-400">This draft is complete.</p>
@@ -166,7 +166,7 @@ export default function JoinDraftForm({ initialJoinCode = "" }: JoinDraftFormPro
             <button
               type="submit"
               disabled={isJoining || isDraftComplete || !!previewError}
-              className="w-full rounded-xl bg-teal-500 px-4 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 disabled:opacity-50 transition-colors"
+              className="w-full rounded-xl bg-[var(--color-product-accent)] px-4 py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
             >
               {isJoining ? "Joining..." : preview?.alreadyJoined ? "Rejoin Draft" : "Join Draft"}
             </button>

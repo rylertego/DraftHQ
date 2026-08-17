@@ -70,7 +70,7 @@ function computeDraftDuration(picks: DraftPick[]): string | null {
 
 // ── Draft Complete modal ───────────────────────────────────────────────────
 
-const CONFETTI_COLORS = ["#14b8a6", "#f59e0b", "#6366f1", "#ef4444", "#10b981", "#f97316"];
+const CONFETTI_COLORS = ["var(--color-league-accent)", "#f59e0b", "#6366f1", "#ef4444", "#10b981", "#f97316"];
 
 function DraftCompleteModal({
   draft,
@@ -92,7 +92,7 @@ function DraftCompleteModal({
   onClose: () => void;
 }) {
   const duration = computeDraftDuration(picks);
-  const accent = accentColor ?? "#14b8a6";
+  const accent = accentColor ?? "var(--color-league-accent)";
   const myPicks = myTeamId
     ? [...picks]
         .filter((p) => p.teamId === myTeamId)
@@ -317,7 +317,7 @@ function TvModeOverlay({
   onExit: () => void;
 }) {
   const [showAudio, setShowAudio] = useState(false);
-  const accent = accentColor ?? "#14b8a6";
+  const accent = accentColor ?? "var(--color-league-accent)";
   const sorted = [...picks].sort((a, b) => a.overallPickNumber - b.overallPickNumber);
   const lastPick = sorted.length > 0 ? sorted[sorted.length - 1] : null;
   const tickerBoardView: "draft" | "players" | "roster" | "rounds" =
@@ -421,7 +421,7 @@ function TvModeOverlay({
                       <input
                         type="range" min={0} max={100} value={tvMasterVolume}
                         disabled={tvMuted}
-                        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-teal-500 disabled:opacity-30"
+                        className="h-1 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-[var(--color-league-accent)] disabled:opacity-30"
                         onInput={(e) => onTvVolumeChange(Number(e.currentTarget.value))}
                       />
                     </div>
@@ -429,7 +429,7 @@ function TvModeOverlay({
                       type="button"
                       onClick={() => onTvMuteChange(!tvMuted)}
                       className={`w-full rounded-lg py-2 text-sm font-bold transition-colors ${
-                        tvMuted ? "bg-teal-500/20 text-teal-400 hover:bg-teal-500/30" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"
+                        tvMuted ? "bg-[color-mix(in_srgb,var(--color-league-accent)_20%,transparent)] text-[color:var(--color-league-accent)] hover:bg-[color-mix(in_srgb,var(--color-league-accent)_30%,transparent)]" : "bg-white/[0.06] text-slate-300 hover:bg-white/10"
                       }`}
                     >
                       {tvMuted ? "Unmute" : "Mute All"}
@@ -2176,7 +2176,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                       </select>
                       <button type="button"
                         disabled={clockEditMin === 0 && clockEditSec === 0}
-                        className="rounded bg-teal-600 px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white hover:bg-teal-500 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                        className="rounded bg-[var(--color-league-accent-hover)] px-2.5 py-1 text-xs font-black uppercase tracking-wider text-white hover:bg-[var(--color-league-accent)] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                         onClick={() => {
                           const secs = clockEditMin * 60 + clockEditSec;
                           setShowClockEdit(false);
@@ -2215,7 +2215,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                         disabled={!canUse}
                         onClick={() => void handleExtendClock()}
                         className={`h-2.5 w-8 rounded-full transition-all ${used ? "bg-white/10" : canUse ? "cursor-pointer opacity-100 hover:opacity-80" : "opacity-30"}`}
-                        style={!used ? { backgroundColor: primaryColor ?? "#14b8a6" } : undefined}
+                        style={!used ? { backgroundColor: primaryColor ?? "var(--color-league-accent)" } : undefined}
                       />
                     );
                   })}
@@ -2411,7 +2411,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               className="w-32 sm:w-64 rounded-lg border bg-white/5 py-1.5 pr-8 text-xs placeholder:text-slate-400 focus:outline-none focus:w-48 sm:focus:w-80 transition-all"
               style={{
                 paddingLeft: "32px",
-                borderColor: stagedPlayer && !playerSearch ? "#14b8a6" : "rgba(255,255,255,0.08)",
+                borderColor: stagedPlayer && !playerSearch ? "var(--color-league-accent)" : "rgba(255,255,255,0.08)",
                 color: stagedPlayer && !playerSearch ? "#5eead4" : "#e2e8f0",
               }}
               onChange={(e) => setPlayerSearch(e.target.value)}
@@ -2465,8 +2465,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button type="button"
               className="rounded-lg px-4 py-1.5 text-xs font-black uppercase tracking-wider transition-all hover:opacity-90"
               style={stagedPlayer
-                ? { backgroundColor: "#14b8a6", color: "#0f172a", boxShadow: "0 0 14px #14b8a660" }
-                : (accentStyle.backgroundColor ? { ...accentStyle, opacity: 0.65 } : { backgroundColor: "#14b8a6", color: "#0f172a", opacity: 0.65 })
+                ? { backgroundColor: "var(--color-league-accent)", color: "#0f172a", boxShadow: "0 0 14px var(--color-league-accent)60" }
+                : (accentStyle.backgroundColor ? { ...accentStyle, opacity: 0.65 } : { backgroundColor: "var(--color-league-accent)", color: "#0f172a", opacity: 0.65 })
               }
               onClick={() => {
                 setActionError("");
@@ -2506,7 +2506,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                       <path d="M8 2L4.5 5.5H2a.5.5 0 0 0-.5.5v4a.5.5 0 0 0 .5.5h2.5L8 14V2zm3.354 1.146a6 6 0 0 1 0 9.708l-1.06-1.06a4.5 4.5 0 0 0 0-7.588l1.06-1.06z"/>
                     </svg>
                     <input type="range" min={0} max={100} value={musicVolume}
-                      className="h-1 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-teal-500"
+                      className="h-1 w-full cursor-pointer appearance-none rounded-full bg-slate-700 accent-[var(--color-league-accent)]"
                       title="Walk-up music volume"
                       onInput={(e) => {
                         const v = Number(e.currentTarget.value);
@@ -2694,7 +2694,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       {canMakePick && (
         <div className="shrink-0 border-t border-white/5 bg-slate-950/95 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur sm:hidden">
           <button type="button" className="w-full rounded-xl py-3 text-sm font-black uppercase tracking-wider text-slate-950 transition-opacity hover:opacity-90"
-            style={accentStyle.backgroundColor ? accentStyle : { backgroundColor: "#14b8a6", color: "#0f172a" }}
+            style={accentStyle.backgroundColor ? accentStyle : { backgroundColor: "var(--color-league-accent)", color: "#0f172a" }}
             onClick={() => { setActionError(""); setShowPickModal(true); }}>
             Draft Player — {teamOnClock?.name}
           </button>
@@ -2760,7 +2760,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               </svg>
               Add to Queue
               {queue.includes(cardMenu.playerId) && (
-                <span className="ml-auto text-[10px] font-black text-teal-400">✓</span>
+                <span className="ml-auto text-[10px] font-black text-[color:var(--color-league-accent)]">✓</span>
               )}
             </button>
             <button type="button"
@@ -2779,13 +2779,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             </button>
             {canMakePick && !isMakingPick && (
               <button type="button"
-                className="flex w-full items-center gap-3 px-4 py-3 text-sm font-black text-white hover:bg-teal-500/20 transition-colors border-t border-white/5"
+                className="flex w-full items-center gap-3 px-4 py-3 text-sm font-black text-white hover:bg-[color-mix(in_srgb,var(--color-league-accent)_20%,transparent)] transition-colors border-t border-white/5"
                 onClick={() => {
                   setActionError("");
                   void handleMakePick(cardMenu.playerId);
                   setCardMenu(null);
                 }}>
-                <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 shrink-0 text-teal-400">
+                <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4 shrink-0 text-[color:var(--color-league-accent)]">
                   <path d="M3 8l4 4 6-7" stroke="currentColor" fill="none" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
                 Draft Player
@@ -3099,7 +3099,7 @@ function SettingsToggleRow({
         <p className="text-[11px] text-slate-600">{description}</p>
       </div>
       {/* Toggle pill */}
-      <div className={`relative mt-0.5 flex h-6 w-10 shrink-0 items-center rounded-full transition-colors ${value ? "bg-teal-500" : "bg-slate-700"}`}>
+      <div className={`relative mt-0.5 flex h-6 w-10 shrink-0 items-center rounded-full transition-colors ${value ? "bg-[var(--color-league-accent)]" : "bg-slate-700"}`}>
         <span className={`absolute h-4 w-4 rounded-full bg-white shadow transition-transform ${value ? "translate-x-5" : "translate-x-1"}`} />
       </div>
     </button>
@@ -3391,7 +3391,7 @@ function EditPickModal({
         <div className="border-b border-white/8 bg-black/40 px-6 py-4">
           <h2 className="font-black text-white">
             Edit Pick{" "}
-            <span className="text-teal-400">Round {pick.round} | Pick {pick.pickNumber}</span>
+            <span className="text-[color:var(--color-league-accent)]">Round {pick.round} | Pick {pick.pickNumber}</span>
           </h2>
         </div>
 
@@ -3402,7 +3402,7 @@ function EditPickModal({
             <select
               value={teamId}
               onChange={(e) => setTeamId(e.target.value)}
-              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white focus:border-teal-500 focus:outline-none"
+              className="w-full rounded-lg border border-white/10 bg-slate-900 px-3 py-2 text-sm text-white focus:border-[color:var(--color-league-accent-border)] focus:outline-none"
             >
               {teams.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -3462,7 +3462,7 @@ function EditPickModal({
             Cancel
           </button>
           <button type="button" onClick={handleSubmit} disabled={isSaving || !selectedPlayerId}
-            className="rounded-lg bg-teal-500 px-5 py-2 text-sm font-black uppercase tracking-wider text-black hover:bg-teal-400 disabled:opacity-50 transition-colors">
+            className="rounded-lg bg-[var(--color-league-accent)] px-5 py-2 text-sm font-black uppercase tracking-wider text-black hover:bg-[var(--color-league-accent-hover)] disabled:opacity-50 transition-colors">
             {isSaving ? "Saving…" : "Submit Pick Update"}
           </button>
         </div>
@@ -3541,7 +3541,7 @@ function RoundRecapModal({
         <div className="flex items-center justify-between border-b border-white/8 px-6 py-4">
           <h2 className="text-lg font-black uppercase tracking-wider text-white">
             End of Round{" "}
-            <span className="mx-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-teal-500 text-sm font-black text-black">{round}</span>
+            <span className="mx-1 inline-flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-league-accent)] text-sm font-black text-black">{round}</span>
             {" "}Recap
           </h2>
           <button type="button" onClick={onResume}
@@ -3604,7 +3604,7 @@ function RoundRecapModal({
         <div className="flex items-center justify-between border-t border-white/8 bg-black/40 px-6 py-3">
           <label className="flex items-center gap-2 cursor-pointer text-sm text-slate-400 select-none">
             <input type="checkbox" checked={suppressRecap} onChange={onToggleSuppress}
-              className="h-4 w-4 rounded accent-teal-500" />
+              className="h-4 w-4 rounded accent-[var(--color-league-accent)]" />
             Turn off &ldquo;End of Round Break&rdquo; for remainder of draft
           </label>
           <button type="button" onClick={onResume}
@@ -3905,7 +3905,7 @@ function RoundSummaryView({
                           value={editSearch}
                           onChange={(e) => setEditSearch(e.target.value)}
                           placeholder="Search player…"
-                          className="w-full rounded-lg border border-teal-500/40 bg-slate-800 px-3 py-1.5 text-sm text-white placeholder-slate-600 outline-none focus:border-teal-500"
+                          className="w-full rounded-lg border border-[color-mix(in_srgb,var(--color-league-accent-border)_40%,transparent)] bg-slate-800 px-3 py-1.5 text-sm text-white placeholder-slate-600 outline-none focus:border-[color:var(--color-league-accent-border)]"
                         />
                         {editResults.length > 0 && (
                           <div className="absolute top-full left-0 z-50 mt-1 w-72 overflow-hidden rounded-xl border border-white/10 bg-slate-900 shadow-2xl">
@@ -3958,7 +3958,7 @@ function RoundSummaryView({
                           <button
                             type="button"
                             onClick={() => { setEditingSlot(slot.overallPickNumber); setEditSearch(""); setEditError(""); }}
-                            className="rounded-lg border border-teal-500/30 bg-teal-500/10 px-3 py-1 text-xs font-black text-teal-400 transition-colors hover:bg-teal-500/20"
+                            className="rounded-lg border border-[color-mix(in_srgb,var(--color-league-accent-border)_30%,transparent)] bg-[color-mix(in_srgb,var(--color-league-accent)_10%,transparent)] px-3 py-1 text-xs font-black text-[color:var(--color-league-accent)] transition-colors hover:bg-[color-mix(in_srgb,var(--color-league-accent)_20%,transparent)]"
                           >
                             Edit
                           </button>

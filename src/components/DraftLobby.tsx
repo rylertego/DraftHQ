@@ -555,7 +555,7 @@ export default function DraftLobby({
               disabled={lobbyMuted}
               aria-label="Lobby music volume"
               onInput={(e) => setLobbyVolume(Number(e.currentTarget.value))}
-              className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-slate-700 accent-teal-500 disabled:opacity-30"
+              className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-slate-700 accent-[var(--color-league-accent)] disabled:opacity-30"
             />
           </div>
 

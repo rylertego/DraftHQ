@@ -27,7 +27,7 @@ interface DraftAwardsCeremonyProps {
   onClose: () => void;
 }
 
-const CONFETTI_COLORS = ["#14b8a6", "#f59e0b", "#6366f1", "#ef4444", "#10b981", "#f97316"];
+const CONFETTI_COLORS = ["var(--color-league-accent)", "#f59e0b", "#6366f1", "#ef4444", "#10b981", "#f97316"];
 const DEFAULT_AWARDS_TRACK = "/sounds/awards.mp3";
 
 const TEASE_MS = 3_400;
@@ -123,7 +123,7 @@ export default function DraftAwardsCeremony({
   leagueLogoUrl,
   onClose,
 }: DraftAwardsCeremonyProps) {
-  const accent = accentColor ?? "#14b8a6";
+  const accent = accentColor ?? "var(--color-league-accent)";
   const playerRef = useRef<WalkUpPlayerHandle>(null);
   const allAwards = useMemo(() => computeDraftAwards(picks, teams, rankMap), [picks, teams, rankMap]);
   // One award per screen — each gets its own tease and reveal.
