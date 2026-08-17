@@ -9,6 +9,7 @@ import {
   updateMyProfile,
   uploadProfileAvatar,
 } from "@/lib/profileApi";
+import DeleteAccountPanel from "@/components/DeleteAccountPanel";
 
 export default function ProfilePage() {
   const router = useRouter();
@@ -297,6 +298,8 @@ export default function ProfilePage() {
           </div>
         </form>
       </div>
+
+      <DeleteAccountPanel />
     </main>
   );
 }

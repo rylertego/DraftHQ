@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { LinkButton } from "@/components/ui/Action";
 
 /** Landing = marketing. A signed-in user has already bought in, so send them
  *  to the dashboard instead of pitching the product to them again. */
@@ -45,12 +46,12 @@ export default function HomePage() {
       <div className="mx-auto w-full max-w-5xl">
         {/* Hero */}
         <div className="mb-12 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-teal-400 mb-4">
+          <p className="text-xs font-bold uppercase tracking-[0.3em] text-[color:var(--color-product-accent)] mb-4">
             Fantasy Draft Platform
           </p>
           <h1 className="text-5xl font-extrabold tracking-tight text-white sm:text-7xl">
             Draft Together.<br />
-            <span className="text-teal-400">Win Forever.</span>
+            <span className="text-[color:var(--color-product-accent)]">Win Forever.</span>
           </h1>
           <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
             DraftHQ keeps every owner, pick, timer, and team in sync — across phones and laptops — in real time.
@@ -59,18 +60,17 @@ export default function HomePage() {
 
         {/* Cards */}
         <div className="grid gap-5 sm:grid-cols-2">
-          <section className="rounded-2xl border border-teal-800/50 bg-teal-950/20 p-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-teal-500 mb-3">Owners</p>
+          <section className="rounded-2xl border border-[color:var(--color-product-accent-border)] bg-[var(--color-surface-2)] p-8">
+            <p className="text-xs font-bold uppercase tracking-widest text-[color:var(--color-product-accent)] mb-3">Owners</p>
             <h2 className="text-2xl font-bold text-white">Joining a draft?</h2>
             <p className="mt-3 text-sm leading-6 text-slate-400">
               Open your invitation link or enter the join code from your commissioner.
             </p>
-            <Link
-              href="/join"
-              className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl bg-teal-500 px-5 py-3 text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
-            >
-              Join a Draft
-            </Link>
+            <div className="mt-6">
+              <LinkButton href="/join" variant="primary" scope="product" fullWidth>
+                Join a Draft
+              </LinkButton>
+            </div>
           </section>
 
           <section className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
@@ -80,18 +80,12 @@ export default function HomePage() {
               Log in to create, configure, and control your draft.
             </p>
             <div className="mt-6 grid grid-cols-2 gap-3">
-              <Link
-                href="/login"
-                className="rounded-xl border border-slate-600 bg-slate-800 px-4 py-3 text-center text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-              >
+              <LinkButton href="/login" variant="secondary" scope="product" fullWidth>
                 Log In
-              </Link>
-              <Link
-                href="/login"
-                className="rounded-xl bg-teal-500 px-4 py-3 text-center text-sm font-bold text-slate-950 hover:bg-teal-400 transition-colors"
-              >
+              </LinkButton>
+              <LinkButton href="/login" variant="primary" scope="product" fullWidth>
                 Create League
-              </Link>
+              </LinkButton>
             </div>
           </section>
         </div>
