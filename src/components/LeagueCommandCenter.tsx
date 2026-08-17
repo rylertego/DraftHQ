@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { useLeagueTheme } from "@/context/LeagueThemeContext";
+import { DEFAULT_ACCENT, useLeagueTheme } from "@/context/LeagueThemeContext";
+import { deriveAccentTokens } from "@/lib/uiColor";
 import { getLeagueTeamDraftSlot, getLeagueTeams } from "@/lib/leagueApi";
 import { buildOwnerDashboardView } from "@/lib/ownerDashboard";
 import type { LeagueSeason, LeagueTeam, LeagueWorkspace } from "@/types/league";
@@ -338,7 +339,14 @@ export default function LeagueCommandCenter({
     : null;
   const previousLeagueYear = currentSeason?.year ? currentSeason.year - 1 : lastCompletedSeason?.year;
 
-  const primaryButtonClass = "inline-flex items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950";
+  // Primary actions inside a league wear the league's own accent, not the
+  // product blue this used to hardcode. The foreground is derived rather than
+  // assumed: accents are user-chosen, so a pale one needs dark ink and a dark
+  // one needs light. Hardcoding text-white is how a league that picks yellow
+  // ends up with an unreadable button.
+  const accent = deriveAccentTokens(primary, DEFAULT_ACCENT);
+  const primaryButtonClass = "inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-black transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950";
+  const primaryButtonStyle = { backgroundColor: accent.base, color: accent.foreground };
   const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
   const teamSetupHref = `/leagues/${slug}/teams`;
   const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
@@ -441,12 +449,13 @@ export default function LeagueCommandCenter({
                 <Link
                   href={ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref}
                   className={primaryButtonClass}
+                  style={primaryButtonStyle}
                 >
                   {ownerView.primaryCta.label}
                 </Link>
               ) : (
                 draftScheduled && roomHref && (
-                  <Link href={roomHref} className={primaryButtonClass}>
+                  <Link href={roomHref} className={primaryButtonClass} style={primaryButtonStyle}>
                     Enter Draft Room
                   </Link>
                 )
