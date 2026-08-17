@@ -18,11 +18,12 @@ _`main` is at the owner-experience merge; visual-system work is on
 
 ---
 
-## Read this first: two agents are working in this repo
+## Read this first
 
-Claude and Codex have both been committing to **`feature/owner-team-experience`**,
-and all commits carry the same git identity (`Tyler`), so authorship cannot be
-read from `git log`. The commit-message style separates them:
+**Only one agent is active now.** Codex ran out of weekly quota mid-task on
+2026-08-13 and has not returned; everything since is Claude's. Both agents'
+commits carry the same git identity (`Tyler`), so authorship cannot be read
+from `git log`. The commit-message style separates them:
 
 | Style | Author | Example |
 | --- | --- | --- |
@@ -140,12 +141,48 @@ blast-radius change currently unverified.
 
 ## Current state
 
-**`main`** received the 44-commit design-system merge on 2026-08-12
-(`4ac380a`, `--no-ff` so it reverts as one unit; rollback tag
-`pre-design-system`). **The real mock draft that was supposed to gate that merge
-has still not been run.** It remains the single largest piece of unverified risk.
+**Everything is merged to `main` and pushed.** There is no long-lived feature
+branch any more: `feature/owner-team-experience` and
+`feature/global-visual-system-execution` are both in, and the worktree at
+`.worktrees/global-visual-system` is stale. Work on short branches off `main`.
 
-**`feature/owner-team-experience`** is the active branch, 39 commits ahead.
+Rollback tags, newest last: `pre-design-system`, `pre-owner-experience`,
+`pre-visual-system`. Each large merge used `--no-ff`, so
+`git revert -m 1 <sha>` undoes one wholesale.
+
+**The real mock draft has still not been run.** It was the gate on the
+design-system merge, which shipped anyway, so it now gates live code rather
+than a branch. It remains the single largest piece of unverified risk.
+
+### The dashboard pass (2026-08-16)
+
+A long back-and-forth reshaped `LeagueCommandCenter`, which lost roughly 200
+lines while gaining the owner view. The principles, because they will be
+re-litigated otherwise:
+
+- **Status is words, not colour.** Colour is reserved for destructive/error,
+  live draft, the league accent, and identity/role.
+- **One solid accent button per surface**, hollow neutral for the rest. If
+  several are solid, none is primary.
+- **Primary buttons use the league accent**, derived through
+  `deriveAccentTokens` so the foreground stays readable for any league colour.
+  Hardcoding `text-white` breaks whoever picks yellow.
+- **A badge marks an exception.** If every row has one it is a column.
+- **No grey eyebrow above a white heading** — it was a second, quieter title.
+  The year folds in: "2025 League Standings".
+- **Both roles render the same shapes** and differ only in permissions.
+
+Gone entirely: readiness percentages, the readiness checklist panel, status
+pills that repeated the tile below them, and narrated summary lines telling a
+commissioner to do what the adjacent button does.
+
+> **`ownerName` is where owner truth lives for imported leagues.** A champion
+> card read `ownerDisplayName` (the linked DraftHQ account) and rendered blank
+> for almost every team, because Sleeper-imported owners have not signed up.
+> The names were in `ownerName` the whole time. The League page showing
+> "Unassigned" means *no linked account*, not *no owner* — do not read it as
+> confirmation the data is absent. **Any other surface showing owners probably
+> has the same gap.**
 
 **Verification gate:**
 
@@ -206,6 +243,33 @@ Migrations `20260812000000_owner_team_profile_defaults.sql` and
 `update_my_league_team` function all exist in project `kogyejhzzggrkekbcppm`.
 
 ### Done by Claude
+
+**Member settings and Leave League** (`0200425`). Members had no settings at all
+— the nav entry was gated on `canManage` — and no way to exit a league, because
+`league_members` DELETE is commissioner-only. Migration
+`20260816000000_leave_league.sql` adds a security-definer RPC rather than a
+broader RLS policy, so the exit stays narrow: it deletes exactly the caller's own
+row, releases any league team they held so the franchise returns to unassigned,
+and refuses for the league owner, who would otherwise orphan the league.
+`SettingsRouter` picks the view by role. **Migration confirmed deployed by the
+user.**
+
+**Invitation reuse** (`4599282`). Revoking sets `status = 'revoked'` rather than
+deleting, but the re-invite lookup matched only `'pending'`, so invite → revoke →
+re-invite piled up a new row each cycle. It now matches either and takes the most
+recent. Same commit removed the duplicate Edit button on the teams page.
+
+**Members list** (`9b32bb5`, `df83456`, `3955a95`). Ordered by authority —
+commissioner, co-commissioners, members — with display name as a stable tiebreak;
+the API returns join order, which read as arbitrary. Role is a right-aligned
+column with uniform treatment, not a pill on some rows and bare text on others.
+The self "Edit profile" button and its modal are gone (172 lines): My Team
+already owns that job.
+
+> Alignment there was broken by each row being **its own grid**, so a trailing
+> `auto` column sized per row — 0px without an action, ~110px with one — and
+> dragged the role column around. Grid columns only align within one grid. A
+> fixed track fixed it. This is invisible in source and only shows in a browser.
 
 **Lobby Back button** (`a75319c`). `DraftLobby`'s `backHref` was hardcoded to
 `/teams?tab=settings` for everyone. The lobby is exactly where owners land from
@@ -346,10 +410,15 @@ Probed directly against project `kogyejhzzggrkekbcppm`.
 **The real mock draft has never been run.** It gates the `main` merge, the
 grading fixes, the owner dashboard, and the My Team page. Nothing below replaces it.
 
-**The owner save path is unverified end to end.** Codex's `update_my_league_team`
-RPC is deployed and the code is correct on inspection, but nobody has signed in as
-a non-commissioner owner and saved a team. Given the original bug was a *silent*
-write failure, "it looked like it worked" is not evidence here — check the row.
+~~**The owner save path is unverified end to end.**~~ **Verified 2026-08-16.**
+Signed in as a real non-commissioner owner, typed into Short Name, saved, and
+confirmed the row changed in the database, then reverted it. The silent-write
+bug is genuinely dead.
+
+**Leave League is untested.** The RPC is deployed and the screen renders, but
+nobody has actually left a league. Worth checking three things when someone does:
+the `league_members` row disappears, their team returns to unassigned, and the
+league owner attempting it is refused.
 
 **Commissioners must re-upload their league logo once.** The `league-assets`
 bucket never existed, so uploads silently fell back to a 256px base64 data URL in

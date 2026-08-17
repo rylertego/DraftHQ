@@ -41,6 +41,26 @@ stalled. Steps below are left unticked until every slice lands:
 
 **Baseline at last commit:** typecheck clean, 215 tests, production build clean.
 
+### Done ahead of the plan (2026-08-16)
+
+The league dashboard (Task 10's surface) was reworked directly, driven by the
+user rather than by this plan, so Task 10 will find much of its work already
+done. It does **not** use the `ui/` primitives yet — it still uses local classes
+plus `deriveAccentTokens` for the accent — so the primitive migration is still
+owed. What is already settled there, and should not be re-litigated:
+
+- Status in words, not colour; colour reserved for destructive/error, live
+  draft, league accent, identity/role
+- One solid league-accent button per surface, hollow neutral for the rest
+- No grey eyebrow above a white heading — the year folds into the heading
+- Both roles render the same shapes, differing only in permissions
+
+`LeagueMembers` was likewise reordered and de-badged (Task 13's surface).
+
+> **Do not "restore" readiness percentages, status pills, or eyebrow prefixes**
+> when migrating these routes to primitives. They were removed deliberately and
+> at length.
+
 ---
 
 
