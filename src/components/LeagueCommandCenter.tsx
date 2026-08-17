@@ -294,6 +294,13 @@ export default function LeagueCommandCenter({
   const lastCompletedSeason = workspace.seasons.find(
     (season) => season.status === "complete" && season.standings.length > 0
   );
+  // Standings carry the team but not who runs it, so resolve the owner from the
+  // league team list. Undefined while teams are still loading, or when the
+  // franchise has no owner assigned — both render as no line rather than a
+  // placeholder.
+  const ownerNameFor = (leagueTeamId: string) =>
+    teams.find((team) => team.id === leagueTeamId)?.ownerDisplayName ?? null;
+
   const champion = lastCompletedSeason?.standings.find(
     (standing) => standing.leagueTeamId === lastCompletedSeason.championTeamId
   ) ?? null;
@@ -454,11 +461,6 @@ export default function LeagueCommandCenter({
                 the old summary narrated the state back at them ("create this
                 season's draft so commissioners can configure the room"), which
                 said nothing the Create Draft button beside it did not. */}
-            {isOwnerView && (
-              <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-400">
-                {ownerView.headline}
-              </p>
-            )}
 
             {draft && (
               <div className="mt-5 max-w-5xl rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
@@ -577,6 +579,9 @@ export default function LeagueCommandCenter({
               <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{champion.teamName}</p>
+                {ownerNameFor(champion.leagueTeamId) && (
+                  <p className="mt-1 text-sm font-semibold text-slate-300">{ownerNameFor(champion.leagueTeamId)}</p>
+                )}
                 <p className="mt-1 text-sm text-slate-500">
                   {champion.wins}-{champion.losses}{champion.ties ? `-${champion.ties}` : ""}
                 </p>
@@ -591,6 +596,9 @@ export default function LeagueCommandCenter({
               <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
                 <p className="mt-4 text-xl font-black text-white">{lastPlace.teamName}</p>
+                {ownerNameFor(lastPlace.leagueTeamId) && (
+                  <p className="mt-1 text-sm font-semibold text-slate-300">{ownerNameFor(lastPlace.leagueTeamId)}</p>
+                )}
                 <p className="mt-1 text-sm text-slate-500">
                   {lastPlace.wins}-{lastPlace.losses}{lastPlace.ties ? `-${lastPlace.ties}` : ""}
                 </p>
