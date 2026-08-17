@@ -364,7 +364,12 @@ function MemberCard({
   }, [menuOpen]);
 
   return (
-    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_180px_auto] sm:items-center">
+    // Each row is its own grid, so an `auto` last column sizes per row: 0px
+    // where there is no action, ~110px on the row with Edit profile. That
+    // dragged the role column left on one row and right on the others, and the
+    // list read as misaligned. A fixed track makes every row share the same
+    // geometry whether or not it has an action.
+    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1.35fr)_180px_132px] sm:items-center">
       {member.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={member.avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover sm:absolute sm:left-4" />
@@ -381,16 +386,18 @@ function MemberCard({
         {member.bio && <p className="mt-1 truncate text-xs text-slate-500">{member.bio}</p>}
       </div>
 
+      {/* Role reads as a column, because that is what it is — every row has
+          one. Badges are for exceptions, and a pill on some rows next to bare
+          text on others made the column look broken. Uniform treatment, with
+          colour still distinguishing elevated roles from ordinary membership. */}
       <div className="pl-14 sm:pl-0">
-        {/* Badge budget: only roles above `member` are marked. Ordinary
-            membership is the default state — pilling every row made the badge
-            a column pretending to be an exception. Plain members read as
-            members by the absence of a badge. */}
-        {isElevated ? (
-          <CommandStatusBadge label={ROLE_LABELS[member.role] ?? member.role} tone="complete" />
-        ) : (
-          <span className="text-xs font-medium text-slate-400">{ROLE_LABELS[member.role] ?? member.role}</span>
-        )}
+        <span
+          className={`text-xs font-bold uppercase tracking-[0.14em] ${
+            isElevated ? "text-emerald-300" : "text-slate-400"
+          }`}
+        >
+          {ROLE_LABELS[member.role] ?? member.role}
+        </span>
       </div>
 
       <div className="flex items-center gap-2 pl-14 sm:justify-end sm:pl-0">
