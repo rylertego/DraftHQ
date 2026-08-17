@@ -40,9 +40,18 @@ export default function DraftHQLogo({ accentColor, className = "h-24 w-auto" }: 
   }
 
   return (
-    <span className={`inline-flex items-center gap-2.5 ${className}`} style={style}>
-      <DraftHQMark className="h-full w-auto" title="" />
-      <DraftHQWordmark className="h-[38%] w-auto" title="DraftHQ" />
+    // Proportions are taken from the official lockup, measured off the artwork:
+    // within its 504-unit box the mark is 384 tall (76%) and the wordmark 145
+    // (29%), with a gap of 43 units. Sizing the mark to the full container
+    // instead — the obvious reading of "h-24" — makes the shield about a third
+    // larger than the lockup ever drew it.
+    // The gap is a fixed 8px rather than proportional: CSS percentage gaps
+    // resolve against the container's width, which is content-derived here, so
+    // a percentage would be circular. 8px matches the lockup's ratio at the
+    // nav's h-24 and is only slightly generous at the draft room's h-8.
+    <span className={`inline-flex items-center gap-2 ${className}`} style={style}>
+      <DraftHQMark className="h-[76%] w-auto" title="" />
+      <DraftHQWordmark className="h-[29%] w-auto" title="DraftHQ" />
     </span>
   );
 }
