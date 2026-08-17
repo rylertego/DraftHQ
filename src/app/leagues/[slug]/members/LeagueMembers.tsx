@@ -382,7 +382,15 @@ function MemberCard({
       </div>
 
       <div className="pl-14 sm:pl-0">
-        <CommandStatusBadge label={ROLE_LABELS[member.role] ?? member.role} tone={isElevated ? "complete" : "neutral"} />
+        {/* Badge budget: only roles above `member` are marked. Ordinary
+            membership is the default state — pilling every row made the badge
+            a column pretending to be an exception. Plain members read as
+            members by the absence of a badge. */}
+        {isElevated ? (
+          <CommandStatusBadge label={ROLE_LABELS[member.role] ?? member.role} tone="neutral" />
+        ) : (
+          <span className="text-xs font-medium text-slate-400">{ROLE_LABELS[member.role] ?? member.role}</span>
+        )}
       </div>
 
       <div className="flex items-center gap-2 pl-14 sm:justify-end sm:pl-0">

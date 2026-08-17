@@ -50,13 +50,16 @@ function statusTone(label: string): Tone {
 }
 
 function StatusBadge({ label, tone = "neutral" }: { label: string; tone?: Tone }) {
+  // Neutral by default. A live draft and a real error are the only states that
+  // earn colour here; everything else states itself in the label.
+  const neutral = "border-slate-700 bg-slate-800/70 text-slate-200";
   const classes: Record<Tone, string> = {
-    neutral: "border-slate-700 bg-slate-800/70 text-slate-300",
+    neutral,
     live: "border-teal-400/35 bg-teal-400/12 text-teal-200",
-    ready: "border-blue-400/35 bg-blue-500/12 text-blue-200",
-    warning: "border-amber-400/35 bg-amber-500/12 text-amber-200",
+    ready: neutral,
+    warning: neutral,
     danger: "border-red-400/35 bg-red-500/12 text-red-200",
-    complete: "border-emerald-400/35 bg-emerald-500/12 text-emerald-200",
+    complete: neutral,
   };
 
   return (
@@ -107,13 +110,18 @@ function MetricTile({
   tone?: Tone;
   compact?: boolean;
 }) {
+  // Status renders in plain foreground text. Readiness, counts, and lifecycle
+  // labels say what is true in words — tinting all of them amber/green meant
+  // nearly every number on the dashboard was coloured, and the colour stopped
+  // carrying information. Colour survives only where the spec reserves it:
+  // a live draft, and genuine errors.
   const toneClass: Record<Tone, string> = {
     neutral: "text-white",
     live: "text-teal-200",
-    ready: "text-blue-200",
-    warning: "text-amber-200",
+    ready: "text-white",
+    warning: "text-white",
     danger: "text-red-200",
-    complete: "text-emerald-200",
+    complete: "text-white",
   };
 
   return (
@@ -671,7 +679,10 @@ export default function LeagueCommandCenter({
                   Create Draft
                 </button>
               ) : (
-                <StatusBadge label={openItems === 0 ? "Ready" : "Needs Work"} tone={openItems === 0 ? "complete" : "warning"} />
+                // No badge here. The hero already carries the one status badge
+                // this surface is allowed, and "Needs Work" only restated the
+                // panel's own heading — the eyebrow already counts open items.
+                null
               )
             }
           >
