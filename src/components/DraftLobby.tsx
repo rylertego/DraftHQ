@@ -58,7 +58,7 @@ function getPreDraftNoteItems(notes?: string) {
 }
 
 function TeamLogo({ team, fallback, className }: { team: Team; fallback?: string; className: string }) {
-  const src = team.logoUrl || fallback || "/branding/logo-Photoroom.png";
+  const src = team.logoUrl || fallback || "/branding/mark.svg";
   return (
     // eslint-disable-next-line @next/next/no-img-element
     <img src={src} alt={`${team.name} logo`} className={`${className} object-contain`} />
@@ -151,7 +151,7 @@ export default function DraftLobby({
     !isCommissioner && leagueSlug
       ? `/leagues/${leagueSlug}`
       : `/teams?draftId=${draft.id}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`;
-  const leagueDisplayLogo = leagueLogoUrl || "/branding/logo-Photoroom.png";
+  const leagueDisplayLogo = leagueLogoUrl || "/branding/mark.svg";
 
   // ── Online presence ────────────────────────────────────────────────────────
   // Cross-reference onlineUserIds with participants to compute per-team status.

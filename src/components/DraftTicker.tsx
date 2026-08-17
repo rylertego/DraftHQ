@@ -93,7 +93,7 @@ export default function DraftTicker({
       <span key={key} ref={ref} className="flex items-center">
         {/* League intro */}
         <span className="flex items-center gap-3 px-10">
-          <img src="/branding/logo-Photoroom.png" alt="DraftHQ" className="h-7 w-auto" />
+          <img src="/branding/mark.svg" alt="DraftHQ" className="h-7 w-auto" />
           <span className="text-sm font-semibold text-slate-300">
             Welcome to this year&apos;s {leagueName ?? draftName} Draft!
           </span>
