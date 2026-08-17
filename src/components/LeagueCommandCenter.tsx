@@ -422,21 +422,31 @@ export default function LeagueCommandCenter({
               <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
                 {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
               </h1>
+              {/* The primary action looks the same for everyone: one solid
+                  accent button per surface. Create Season and Create Draft are
+                  the only thing to do in their states, so they are primary.
+                  Configure Draft stays secondary because once a draft exists,
+                  Enter Draft Room is the primary action beside it. */}
               {workspace.canManage && (
                 draft ? (
                   <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
                     Configure Draft
                   </Link>
                 ) : !currentSeason ? (
-                  <Link href={`/leagues/${slug}/seasons/new`} className={secondaryButtonClass}>
+                  <Link
+                    href={`/leagues/${slug}/seasons/new`}
+                    className={primaryButtonClass}
+                    style={primaryButtonStyle}
+                  >
                     Create Season
                   </Link>
                 ) : (
-                  // Back in the hero. It briefly lived in the Draft Readiness
-                  // panel, which sat below the fold and has now been removed —
-                  // leaving a commissioner who reset their draft with no way to
-                  // create a new one.
-                  <button type="button" onClick={onConfigureDraft} className={secondaryButtonClass}>
+                  <button
+                    type="button"
+                    onClick={onConfigureDraft}
+                    className={primaryButtonClass}
+                    style={primaryButtonStyle}
+                  >
                     Create Draft
                   </button>
                 )
