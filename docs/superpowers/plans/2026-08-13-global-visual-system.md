@@ -61,6 +61,13 @@ owed. What is already settled there, and should not be re-litigated:
 > when migrating these routes to primitives. They were removed deliberately and
 > at length.
 
+**Draft Settings** (`/teams`, Tasks 16–17) had its own `N% Ready` badge removed
+too (`6448e13`), so it does not contradict the dashboard while it waits its
+turn. Everything else there is still unmigrated and visibly inconsistent by
+design: its own hero, tab treatment, button classes, and a sticky bar pinned at
+`top-[113px]` against `AccountNav`'s height. That literal is the thing to
+convert to a shared layout variable during Task 16.
+
 ---
 
 

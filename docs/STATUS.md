@@ -8,9 +8,9 @@
 > and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
 > whose checkboxes are the progress ledger for the visual-system work.
 
-_Last updated: 2026-08-13._
-_`main` is at the owner-experience merge; visual-system work is on
-`feature/global-visual-system-execution` in `.worktrees/global-visual-system`._
+_Last updated: 2026-08-16._
+_Everything is merged to `main`. No long-lived feature branch; work on short
+branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
 > **Note on the previous doc's filename:** `STATUS-2026-08-06.md` is misdated. Its
 > content was written on **2026-08-12**. The facts in it are correct; only the
@@ -30,22 +30,18 @@ from `git log`. The commit-message style separates them:
 | Sentence case, descriptive | Claude | `Show a real screen when a league is not yours to see` |
 | lowercase imperative, short | Codex | `tighten league teams table layout` |
 
-Of the 39 commits on this branch, **2 are Claude's and 37 are Codex's.** Several
-Codex commits deliberately refine Claude's work (`align league access cta with
-app theme`, `polish owner dashboard copy`) — that is fine and worked well.
-
-**The hazard is concurrent edits to the same files.** It has not caused a
-conflict yet, but both agents independently started on the My Team page within
-the same session. Codex got there first and did it properly (see below). Before
-starting work, check `git log` and the working tree — the other agent may already
-be inside the file you are about to open.
+**If a second agent ever runs again, the hazard is concurrent edits to the same
+files.** It never produced a conflict, but both agents independently started on
+the My Team page in one session, and several fixes here were regressions caused
+by one agent restructuring what the other had just shipped. Check `git log` and
+the working tree before opening a file.
 
 **Codex's own planning artifacts are in the repo** and are the authority on the
 visual-system work:
 
 - `docs/superpowers/specs/2026-08-13-global-visual-system-design.md` (546 lines)
 - `docs/superpowers/plans/2026-08-13-global-visual-system.md` (1094 lines,
-  120 checkbox tasks across 9 phases, all currently unchecked)
+  120 checkbox tasks across 9 phases; Tasks 1-6 are checked, see its Progress block)
 
 Claude cannot see Codex's session, reasoning, or subagents — only what Codex
 writes to disk or git. The reverse is presumably also true. **Anything one agent
@@ -130,12 +126,10 @@ retokenised, that literal must become a shared layout variable or the bar will
 silently misalign — it will still *pin*, just behind or below the header, which
 looks like "sticky is broken" rather than "the offset is stale".
 
-**Browser QA for Task 6 is outstanding.** `preview_start` resolves
-`.claude/launch.json` from the primary working directory and cannot set a cwd, so
-it will not serve the worktree while port 3000 runs the main checkout. Someone
-needs a second dev server from `.worktrees/global-visual-system` before the phase
-gate can close. `AccountNav` renders on every page, so this is the highest
-blast-radius change currently unverified.
+**Browser QA for Task 6 is done** — see above. It only became possible once the
+work was on `main`: `preview_start` resolves `.claude/launch.json` from the
+primary working directory and cannot set a cwd, so it will not serve a worktree
+while port 3000 runs the main checkout. Verify from `main`, not from a worktree.
 
 ---
 
@@ -176,13 +170,21 @@ Gone entirely: readiness percentages, the readiness checklist panel, status
 pills that repeated the tile below them, and narrated summary lines telling a
 commissioner to do what the adjacent button does.
 
-> **`ownerName` is where owner truth lives for imported leagues.** A champion
-> card read `ownerDisplayName` (the linked DraftHQ account) and rendered blank
-> for almost every team, because Sleeper-imported owners have not signed up.
-> The names were in `ownerName` the whole time. The League page showing
-> "Unassigned" means *no linked account*, not *no owner* — do not read it as
-> confirmation the data is absent. **Any other surface showing owners probably
-> has the same gap.**
+> **`ownerName` is where owner truth lives for imported leagues.**
+> `ownerDisplayName` is only set when the person has a linked DraftHQ account.
+> Sleeper imports fill `ownerName`, and in a league nobody has signed up for
+> yet that is the only name there is.
+>
+> Found twice, in the same day. The champion card rendered blank for almost
+> every team (`c060b00`). The **League teams page reported 7 of 10 teams as
+> "Unassigned" when all ten have owners** (`30c48a3`) — and because that page
+> was read as evidence the data was missing, it made the champion bug look
+> like correct behaviour. Two wrong surfaces confirming each other.
+>
+> **Sleeper import is the main onboarding path, so every imported league looks
+> like this.** When adding any owner display: read `ownerDisplayName ??
+> ownerName`, and keep `ownerUserId` for *permissions* only — "has a linked
+> account" and "has an owner" are different questions.
 
 **Verification gate:**
 
@@ -415,10 +417,24 @@ Signed in as a real non-commissioner owner, typed into Short Name, saved, and
 confirmed the row changed in the database, then reverted it. The silent-write
 bug is genuinely dead.
 
-**Leave League is untested.** The RPC is deployed and the screen renders, but
-nobody has actually left a league. Worth checking three things when someone does:
-the `league_members` row disappears, their team returns to unassigned, and the
-league owner attempting it is refused.
+**Leave League is partly verified.** A real member left a league on production
+and the site behaved: they lost league access, and the draft room refused them.
+**Both migrations are deployed** — `20260816000000_leave_league.sql` and the
+follow-up `20260816010000_leave_league_full_cleanup.sql`.
+
+Two things still unconfirmed, both cheap and worth doing as commissioner:
+
+- **The members list shows 2 people**, not 3.
+- **Trap Queens reads Unassigned** on the League page. This is the part of the
+  RPC most likely to have silently no-opped, and it matters: an unreleased team
+  cannot be handed to a replacement owner.
+
+> The draft-room denial did **not** prove participant cleanup works. That user
+> had never joined the draft, so `can_view_draft` failed on both branches for
+> the ordinary reason. The follow-up migration clears `draft_participants` and
+> `league_team_seasons.owner_user_id` anyway, because the hole is real for
+> anyone who *has* been in a draft — but it has not been exercised. To test
+> properly: join a draft, then leave the league, then reopen the lobby link.
 
 **Commissioners must re-upload their league logo once.** The `league-assets`
 bucket never existed, so uploads silently fell back to a 256px base64 data URL in
