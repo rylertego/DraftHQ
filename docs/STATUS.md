@@ -112,6 +112,57 @@ it is Turbopack's persistent cache. Stop the server, then
 `Remove-Item -Recurse -Force .next`, then restart. Worth doing after any large
 merge rather than trusting a restart.
 
+### Accent migration — the next concrete task (2026-08-16)
+
+The brand moved from teal `#14BBA6` to cyan `#22D3EE`. All seven branding
+PNGs were hue-rotated to match (`7f02477`) and the landing page was migrated
+(`c756138`). **127 hardcoded `teal-*` Tailwind classes remain across 16 files.**
+They must all go, but not all to the same place — this is the part that makes
+it more than find-and-replace:
+
+**→ `--color-product-accent` (app chrome, auth, account):**
+
+| File | Count |
+|---|---|
+| `src/app/dashboard/page.tsx` | 15 |
+| `src/app/teams/TeamSetupForm.tsx` | 12 |
+| `src/app/signup/page.tsx` | 5 |
+| `src/app/profile/page.tsx` | 5 |
+| `src/app/forgot-password/page.tsx` | 5 |
+| `src/app/create/page.tsx` | 4 |
+| `src/app/reset-password/page.tsx` | 3 |
+| `src/app/login/page.tsx` | 3 |
+| `src/app/join/JoinDraftForm.tsx` | 3 |
+| `src/app/leagues/new/page.tsx` | 1 |
+| `src/app/privacy/page.tsx` | 1 |
+
+**→ `--color-league-accent` (inside a league, must honour its chosen accent):**
+
+| File | Count |
+|---|---|
+| `src/app/draft/DraftRoom.tsx` | 15 |
+| `src/components/DraftChat.tsx` | 5 |
+| `src/components/DraftBoard.tsx` | 2 |
+| `src/components/LeagueCommandCenter.tsx` | 1 |
+| `src/components/DraftLobby.tsx` | 1 |
+
+**The rule:** anything rendered inside a league — draft room, board, chat,
+lobby, command centre — takes the league's selected accent, so a league that
+picked its own colour keeps it. Everything outside a league takes the product
+accent. `--color-league-accent` already falls back to
+`--color-product-accent` in `globals.css`, so leagues with no custom accent
+land on cyan automatically; do not hardcode cyan in league surfaces or you
+break the ones that chose a colour.
+
+**Watch for:** `LinkButton`/`Button` deliberately reject `className` — use
+`variant`, `scope`, and `fullWidth`, and put spacing on a wrapper. `scope="league"`
+is the league-accent switch. Migrating buttons to the primitives is preferable
+to swapping the colour literal in place.
+
+**Not a blind sed.** Some `teal-*` uses are semantic success/confirmation
+styling (e.g. the green-ish confirmation banners on Profile), not brand accent.
+Those should become a success token, not the brand cyan. Check each one.
+
 ### Two things that will bite whoever continues
 
 **Primitives omit `className`, `style`, and `color`.** That is the Task 4

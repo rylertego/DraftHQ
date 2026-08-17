@@ -156,7 +156,7 @@ export default function PrivacyPage() {
         <Section title="Contact">
           <p>
             Questions, or requests to delete your data:{" "}
-            <a className="font-semibold text-teal-400 hover:text-teal-300" href="mailto:privacy@drafthq.net">
+            <a className="font-semibold text-[color:var(--color-product-accent)] hover:opacity-80 transition-opacity" href="mailto:privacy@drafthq.net">
               privacy@drafthq.net
             </a>
           </p>
