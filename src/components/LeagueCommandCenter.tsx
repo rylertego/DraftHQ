@@ -353,30 +353,8 @@ export default function LeagueCommandCenter({
           className="pointer-events-none absolute inset-x-0 top-0 h-px"
           style={{ backgroundColor: primary }}
         />
-        {/* Commissioners own a team too — the logo is about the viewer's
-            franchise, not their role, so it is no longer gated on isOwnerView. */}
-        {/* The logo sits in a fixed-width slot, centred both ways against the
-            card. The image is w-auto rather than square: team logos are rarely
-            1:1, and forcing a square box letterboxed them so the artwork sat
-            off-centre in the space it appeared to occupy. */}
-        {workspace.myTeam && (
-          <div className="absolute right-9 top-1/2 z-10 flex w-32 -translate-y-1/2 justify-center lg:right-14 lg:w-44">
-            {workspace.myTeam.logoUrl ? (
-              // eslint-disable-next-line @next/next/no-img-element -- Preserve transparent uploaded logo treatment without an image wrapper.
-              <img
-                src={workspace.myTeam.logoUrl}
-                alt={`${workspace.myTeam.name} logo`}
-                className="h-28 w-auto max-w-full object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)] lg:h-40"
-              />
-            ) : (
-              <span className="block text-xl font-black uppercase" style={{ color: primary }}>
-                {workspace.myTeam.name.slice(0, 2)}
-              </span>
-            )}
-          </div>
-        )}
-        <div className="relative grid gap-5 p-5 lg:p-6">
-          <div className="min-w-0">
+        <div className="relative flex items-center gap-5 p-5 lg:gap-6 lg:p-6">
+          <div className="min-w-0 flex-1">
             <div className="mb-5 flex items-center gap-3 lg:hidden">
               <TeamMark src={workspace.league.logoUrl} name={workspace.league.name} className="h-14 w-14" accentColor={primary} />
               <div className="min-w-0">
@@ -401,7 +379,7 @@ export default function LeagueCommandCenter({
                 {draftLabel}
               </span>
             </div>
-            <div className="mt-3 flex flex-col gap-3 pr-24 sm:flex-row sm:items-center">
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
               <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
                 {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
               </h1>
@@ -515,6 +493,30 @@ export default function LeagueCommandCenter({
             )}
           </div>
 
+          {/* Commissioners own a team too — the logo is about the viewer's
+              franchise, not their role, so it is not gated on isOwnerView.
+
+              It is a flex sibling rather than absolutely positioned. Out of
+              flow it had nothing to push against, so as the card narrowed the
+              action row and countdown ran underneath it. The previous guard was
+              a pr-24 gutter on the title row, which only held at the one width
+              it was measured at. */}
+          {workspace.myTeam && (
+            <div className="hidden w-28 shrink-0 justify-center sm:flex lg:w-40">
+              {workspace.myTeam.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element -- Preserve transparent uploaded logo treatment without an image wrapper.
+                <img
+                  src={workspace.myTeam.logoUrl}
+                  alt={`${workspace.myTeam.name} logo`}
+                  className="h-24 w-auto max-w-full object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)] lg:h-36"
+                />
+              ) : (
+                <span className="block text-xl font-black uppercase" style={{ color: primary }}>
+                  {workspace.myTeam.name.slice(0, 2)}
+                </span>
+              )}
+            </div>
+          )}
         </div>
 
         {teamsError && (
