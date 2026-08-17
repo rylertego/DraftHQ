@@ -355,14 +355,18 @@ export default function LeagueCommandCenter({
         />
         {/* Commissioners own a team too — the logo is about the viewer's
             franchise, not their role, so it is no longer gated on isOwnerView. */}
+        {/* The logo sits in a fixed-width slot and is centred inside it. The
+            image is w-auto rather than square: team logos are rarely 1:1, and
+            forcing a square box letterboxed them so the artwork sat off-centre
+            in the space it appeared to occupy. */}
         {workspace.myTeam && (
-          <div className="absolute right-5 top-5 z-10 lg:right-6 lg:top-6">
+          <div className="absolute right-9 top-5 z-10 flex w-32 justify-center lg:right-14 lg:top-6 lg:w-44">
             {workspace.myTeam.logoUrl ? (
               // eslint-disable-next-line @next/next/no-img-element -- Preserve transparent uploaded logo treatment without an image wrapper.
               <img
                 src={workspace.myTeam.logoUrl}
                 alt={`${workspace.myTeam.name} logo`}
-                className="h-28 w-28 object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)] lg:h-40 lg:w-40"
+                className="h-28 w-auto max-w-full object-contain drop-shadow-[0_16px_30px_rgba(0,0,0,0.42)] lg:h-40"
               />
             ) : (
               <span className="block text-xl font-black uppercase" style={{ color: primary }}>
