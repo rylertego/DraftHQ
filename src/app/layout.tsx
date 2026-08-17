@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Sora } from "next/font/google";
 import AccountNav from "@/components/AccountNav";
+import SiteFooter from "@/components/SiteFooter";
 import { LeagueThemeProvider } from "@/context/LeagueThemeContext";
 import "./globals.css";
 
@@ -21,6 +22,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
         <LeagueThemeProvider>
           <AccountNav />
           {children}
+          <SiteFooter />
         </LeagueThemeProvider>
       </body>
     </html>
