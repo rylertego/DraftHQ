@@ -379,7 +379,11 @@ export default function LeagueCommandCenter({
                 {draftLabel}
               </span>
             </div>
-            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:items-center">
+            {/* flex-wrap matters here: without it this row cannot break, so the
+                buttons overflow the content column and spill over the team logo
+                beside it. Putting the logo in flow fixed the container; this
+                fixes the row inside it. */}
+            <div className="mt-3 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
                 {currentSeason?.name ?? `${new Date().getFullYear()} Season`}
               </h1>
