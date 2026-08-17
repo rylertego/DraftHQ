@@ -542,7 +542,7 @@ export default function LeagueCommandCenter({
                       <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
                     </div>
                     {workspace.canManage && !draft.scheduledAt && (
-                      <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-200 focus:ring-offset-2 focus:ring-offset-slate-950">
+                      <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
                         Schedule Draft
                       </Link>
                     )}
@@ -589,7 +589,7 @@ export default function LeagueCommandCenter({
                       : "This season's draft hasn't been opened yet. Check back — the countdown lands here first.")
                   : undefined}
                 action={workspace.canManage && draft ? (
-                  <Link href={configureHref ?? teamSetupHref} className="inline-flex rounded-xl bg-amber-300 px-4 py-2.5 text-sm font-black text-slate-950 transition-colors hover:bg-amber-200">
+                  <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
                     Schedule Draft
                   </Link>
                 ) : undefined}
