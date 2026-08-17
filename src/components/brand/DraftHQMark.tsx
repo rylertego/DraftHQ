@@ -11,7 +11,7 @@ interface Props {
 export default function DraftHQMark({ className = "h-24 w-auto", title = "DraftHQ" }: Props) {
   const uid = useId().replace(/:/g, "");
   return (
-    <svg className={className} role="img" aria-label={title} id={`${uid}-Layer_1`} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 1200">
+    <svg className={className} role="img" aria-label={title} id={`${uid}-Layer_1`} xmlns="http://www.w3.org/2000/svg" viewBox="320.4 149.7 559.1 900.5">
       <defs>
         <linearGradient id={`${uid}-linear-gradient`} x1="621.02" y1="403.95" x2="621.02" y2="1030.31" gradientUnits="userSpaceOnUse">
           <stop offset="0" stopColor="var(--color-league-accent)"/>

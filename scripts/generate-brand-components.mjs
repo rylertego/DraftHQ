@@ -30,6 +30,16 @@ const COLOR_MAP = {
   "#0c839c": DEEP,
 };
 
+// The exported viewBoxes carry a lot of empty margin — the shield fills only
+// 47% of its box width, the wordmark 38% of its box height. That padding makes
+// visual spacing impossible to control when composing the two: the gap you set
+// is not the gap you see. These are the measured artwork bounds (getBBox in the
+// browser), so the box is the art. Re-measure if new art lands.
+const TIGHT_VIEWBOX = {
+  mark: "320.4 149.7 559.1 900.5",
+  wordmark: "108 155.3 984.1 193.4",
+};
+
 const ATTR_MAP = {
   "stop-color": "stopColor",
   "stop-opacity": "stopOpacity",
@@ -47,7 +57,7 @@ const ATTR_MAP = {
   "xlink:href": "xlinkHref",
 };
 
-function convert(svg, componentName) {
+function convert(svg, componentName, key) {
   let s = svg
     .replace(/<\?xml[^>]*\?>\s*/g, "")
     .replace(/<!--[\s\S]*?-->/g, "")
@@ -95,6 +105,11 @@ function convert(svg, componentName) {
   s = s.replace(/\sdataName="[^"]*"/g, "");
   s = s.replace(/\sxmlnsXlink="[^"]*"/g, "");
 
+  const tight = TIGHT_VIEWBOX[key];
+  if (tight) {
+    s = s.replace(/viewBox="[^"]*"/, `viewBox="${tight}"`);
+  }
+
   // Let the caller size and label it.
   s = s.replace(
     /^<svg\s/,
@@ -130,6 +145,6 @@ const FILES = [
 
 for (const [file, name] of FILES) {
   const svg = readFileSync(`public/branding/${file}.svg`, "utf8");
-  writeFileSync(`src/components/brand/${name}.tsx`, convert(svg, name));
+  writeFileSync(`src/components/brand/${name}.tsx`, convert(svg, name, file));
   console.log("generated", name);
 }
