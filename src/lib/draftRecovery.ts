@@ -38,7 +38,10 @@ export function getDraftRecoveryError(error: unknown) {
     code === "42501" ||
     /jwt|session|permission|not authorized/i.test(message)
   ) {
-    return "This session can no longer access the draft. Reopen your invitation or join link, then try again.";
+    // Reads as a plain fact rather than a fault. The most common causes are
+    // deliberate — leaving a league, or being removed — and "this session can
+    // no longer access the draft" made an expected outcome look like a bug.
+    return "You no longer have access to this draft. If that's unexpected, ask your commissioner for a new invitation or join link.";
   }
 
   return message || "Unable to refresh the draft room.";
