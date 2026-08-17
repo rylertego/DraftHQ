@@ -1,4 +1,4 @@
-import LeagueSettingsForm from "./LeagueSettingsForm";
+import SettingsRouter from "./SettingsRouter";
 
 interface LeagueSettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -8,5 +8,5 @@ export default async function LeagueSettingsPage({
   params,
 }: LeagueSettingsPageProps) {
   const { slug } = await params;
-  return <LeagueSettingsForm slug={slug} />;
+  return <SettingsRouter slug={slug} />;
 }

@@ -8,7 +8,7 @@ import { LeagueWorkspaceContext } from "@/context/LeagueWorkspaceContext";
 import { DEFAULT_ACCENT, DEFAULT_BG, useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useEffect } from "react";
 
-function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
+function SidebarNav({ slug }: { slug: string }) {
   const pathname = usePathname();
   const { accentColor: primary } = useLeagueTheme();
   const base = `/leagues/${slug}`;
@@ -46,20 +46,18 @@ function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
         </svg>
       ),
     },
-    ...(canManage
-      ? [
-          {
-            href: `${base}/settings`,
-            label: "Settings",
-            icon: (
-              <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
-                <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            ),
-          },
-        ]
-      : []),
+    // Settings is role-aware: commissioners configure the league, members get
+    // a membership screen whose only action is leaving. Both need the entry.
+    {
+      href: `${base}/settings`,
+      label: "Settings",
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+          <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -97,7 +95,7 @@ function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
   );
 }
 
-function BottomMobileNav({ slug, canManage }: { slug: string; canManage: boolean }) {
+function BottomMobileNav({ slug }: { slug: string }) {
   const pathname = usePathname();
   const { accentColor: primary } = useLeagueTheme();
   const base = `/leagues/${slug}`;
@@ -135,20 +133,18 @@ function BottomMobileNav({ slug, canManage }: { slug: string; canManage: boolean
         </svg>
       ),
     },
-    ...(canManage
-      ? [
-          {
-            href: `${base}/settings`,
-            label: "Settings",
-            icon: (
-              <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
-                <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
-                <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-              </svg>
-            ),
-          },
-        ]
-      : []),
+    // Settings is role-aware: commissioners configure the league, members get
+    // a membership screen whose only action is leaving. Both need the entry.
+    {
+      href: `${base}/settings`,
+      label: "Settings",
+      icon: (
+        <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
+          <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5" />
+          <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.2 4.2l1.4 1.4M14.4 14.4l1.4 1.4M4.2 15.8l1.4-1.4M14.4 5.6l1.4-1.4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        </svg>
+      ),
+    },
   ];
 
   return (
@@ -279,7 +275,7 @@ export default function WorkspaceLayoutClient({
             {/* ── Nav ── */}
             <div className="flex-1 overflow-y-auto p-3 pt-4">
               {ctx.workspace && (
-                <SidebarNav slug={slug} canManage={ctx.workspace.canManage} />
+                <SidebarNav slug={slug} />
               )}
             </div>
 
@@ -294,7 +290,7 @@ export default function WorkspaceLayoutClient({
 
       {/* ── Bottom nav (mobile) ──────────────────────────────────────────── */}
       {ctx.workspace && (
-        <BottomMobileNav slug={slug} canManage={ctx.workspace.canManage} />
+        <BottomMobileNav slug={slug} />
       )}
     </LeagueWorkspaceContext.Provider>
   );

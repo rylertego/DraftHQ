@@ -1115,3 +1115,18 @@ export async function disconnectLeagueIntegration(leagueId: string): Promise<voi
   });
   if (error) throw error;
 }
+
+/**
+ * Remove yourself from a league.
+ *
+ * Backed by a security-definer RPC: league_members DELETE is commissioner-only,
+ * which is right for removing other people but left members unable to exit on
+ * their own. The RPC deletes exactly the caller's own row, releases any team
+ * they held, and refuses for the league owner — who must transfer ownership
+ * first or the league would be orphaned.
+ */
+export async function leaveLeague(leagueId: string): Promise<void> {
+  await requirePersistentUser();
+  const { error } = await supabase.rpc("leave_league", { p_league_id: leagueId });
+  if (error) throw error;
+}
