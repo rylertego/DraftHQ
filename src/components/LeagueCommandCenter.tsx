@@ -50,15 +50,16 @@ function statusTone(label: string): Tone {
   return "neutral";
 }
 
+/** One white heading per panel. The grey eyebrow above it was a second,
+ *  quieter title saying roughly the same thing — "2025 Final Table" over
+ *  "League Standings" — so the year now folds into the heading itself. */
 function SectionPanel({
   title,
-  eyebrow,
   children,
   className = "",
   action,
 }: {
   title: string;
-  eyebrow?: string;
   children: React.ReactNode;
   className?: string;
   action?: React.ReactNode;
@@ -66,10 +67,7 @@ function SectionPanel({
   return (
     <section className={`rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)] ${className}`}>
       <div className="flex items-start justify-between gap-4 border-b border-slate-800/80 px-5 py-4">
-        <div>
-          {eyebrow && <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">{eyebrow}</p>}
-          <h2 className="mt-1 text-base font-bold text-white">{title}</h2>
-        </div>
+        <h2 className="text-base font-bold text-white">{title}</h2>
         {action}
       </div>
       <div className="p-5">{children}</div>
@@ -266,10 +264,7 @@ export default function LeagueCommandCenter({
   const [currentSeason] = workspace.seasons;
   const draft = currentSeason?.draft;
   const activeTeams = teams.filter((team) => !team.archivedAt);
-  const assignedOwners = activeTeams.filter((team) => team.ownerUserId).length;
   const expectedTeams = draft?.teamCount ?? workspace.league.teamCount;
-  const teamsReady = activeTeams.length === expectedTeams;
-  const ownersReady = activeTeams.length > 0 && assignedOwners === activeTeams.length;
   const draftCreated = Boolean(draft);
   const draftScheduled = Boolean(draft?.scheduledAt);
   const configureHref = draft ? `/teams?draftId=${draft.id}&tab=settings&leagueSlug=${slug}` : null;
@@ -382,12 +377,20 @@ export default function LeagueCommandCenter({
                 </p>
               </div>
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-3">
               <p className="text-[11px] font-black uppercase tracking-[0.2em]" style={{ color: primary }}>
                 {isOwnerView ? "Draft Night" : "League Command Center"}
               </p>
-              {/* No status pill. The Draft Status tile below states the same
-                  thing in words, and the pill was repeating it two lines up. */}
+              {/* Draft state as a dot and a word, beside the eyebrow. It used
+                  to be a tile in a row of four; this is the same information
+                  at the size it deserves. Same for both roles. */}
+              <span className="inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.14em] text-slate-300">
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ backgroundColor: draftTone === "live" ? "#5eead4" : "#94a3b8" }}
+                />
+                {draftLabel}
+              </span>
             </div>
             <div className="mt-3 flex flex-col gap-3 pr-24 sm:flex-row sm:items-center">
               <h1 id="league-dashboard-title" className="text-3xl font-black tracking-tight text-white sm:text-4xl">
@@ -453,34 +456,12 @@ export default function LeagueCommandCenter({
               </p>
             )}
 
-            <div className="mt-6 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              {isOwnerView ? (
-                draft ? (
-                  <>
-                    <MetricTile label="Draft Status" value={draftLabel} detail={draft.name} tone={draftTone} />
-                    <MetricTile label="Your Pick" value={ownerView.slotLabel} detail="Draft slot" tone={myDraftSlot === null ? "warning" : "neutral"} />
-                    <MetricTile label="Pick Clock" value={formatPickClock(draft.pickSeconds)} detail="Per Pick" />
-                    <MetricTile label="League" value={String(workspace.members.length)} detail="Members" />
-                  </>
-                ) : (
-                  <MetricTile label="Draft Status" value={draftLabel} detail="Season setup" tone={draftTone} />
-                )
-              ) : (
-                <>
-                  <MetricTile label="Draft Status" value={draftLabel} detail={draft?.name ?? "Season setup"} tone={draftTone} />
-                  <MetricTile label="Teams" value={teamsLoading ? "--" : `${activeTeams.length}/${expectedTeams}`} detail={teamsReady ? "Roster count ready" : "Match league size"} tone={teamsReady ? "complete" : "warning"} />
-                  <MetricTile label="Owners" value={teamsLoading ? "--" : `${assignedOwners}/${activeTeams.length}`} detail={ownersReady ? "All assigned" : "Assignments needed"} tone={ownersReady ? "complete" : "warning"} />
-                </>
-              )}
-            </div>
-
             {draft && (
               <div className="mt-5 max-w-5xl rounded-xl border border-slate-800/90 bg-slate-950/35 p-3">
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-3">
                   <div className="flex flex-wrap items-center gap-3">
                     <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Next Event</p>
-                      <h2 className="mt-1 text-base font-bold text-white">Draft Countdown</h2>
+                      <h2 className="text-base font-bold text-white">Draft Countdown</h2>
                     </div>
                     {workspace.canManage && !draft.scheduledAt && (
                       <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
@@ -517,7 +498,7 @@ export default function LeagueCommandCenter({
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(280px,0.38fr)]">
         {/*
-          <SectionPanel title="Draft Countdown" eyebrow="Next event">
+          <SectionPanel title="Draft Countdown">
             <div className="space-y-4">
               <Countdown
                 scheduledAt={draft?.scheduledAt ?? null}
@@ -544,7 +525,7 @@ export default function LeagueCommandCenter({
           </SectionPanel>
         */}
 
-        <SectionPanel title="League Standings" eyebrow={lastCompletedSeason ? `${lastCompletedSeason.year} final table` : "Final table"}>
+        <SectionPanel title={lastCompletedSeason ? `${lastCompletedSeason.year} League Standings` : "League Standings"}>
           {lastCompletedSeason ? (
             <div className="overflow-hidden rounded-xl border border-slate-800">
               {leagueStandings.map((standing) => (
@@ -576,7 +557,7 @@ export default function LeagueCommandCenter({
         </SectionPanel>
 
         <div className="grid gap-5">
-          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Champion` : "Champion"} eyebrow="League history">
+          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Champion` : "Champion"}>
             {champion && lastCompletedSeason ? (
               <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={champion.teamLogoUrl} name={champion.teamName} className="h-36 w-36" accentColor={primary} />
@@ -590,7 +571,7 @@ export default function LeagueCommandCenter({
             )}
           </SectionPanel>
 
-          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"} eyebrow="League history">
+          <SectionPanel title={previousLeagueYear ? `${previousLeagueYear} Loser` : "Loser"}>
             {lastPlace && champion && lastPlace.leagueTeamId !== champion.leagueTeamId ? (
               <div className="flex min-h-64 flex-col items-center justify-center text-center">
                 <TeamMark src={lastPlace.teamLogoUrl} name={lastPlace.teamName} className="h-36 w-36" accentColor={primary} />
