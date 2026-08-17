@@ -14,7 +14,10 @@ import {
 import { isLeagueFocusRoute } from "@/lib/leagueTheme";
 import { deriveAccentTokens } from "@/lib/uiColor";
 
-const DEFAULT_ACCENT = "#14B8A6";
+// The product accent. This is the fallback for un-themed pages and for leagues
+// that never picked a colour, so it must track the brand: while it was the old
+// teal it fed DraftHQLogo's FILTER_MAP and rotated the cyan mark back to teal.
+const DEFAULT_ACCENT = "#22D3EE";
 const DEFAULT_BG     = "#020617";
 const PRODUCT_ACCENT = "#22d3ee";
 
