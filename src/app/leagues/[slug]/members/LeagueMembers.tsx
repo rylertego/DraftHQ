@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useRef, useState } from "react";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import {
@@ -10,8 +10,6 @@ import {
   revokeLeagueInvitation,
   setLeagueMemberRole,
   transferLeagueOwnership,
-  updateLeagueMemberProfile,
-  uploadLeagueMemberAvatar,
 } from "@/lib/leagueApi";
 import type { PendingLeagueInvitation } from "@/lib/leagueApi";
 import { supabase } from "@/lib/supabase";
@@ -164,157 +162,6 @@ function TransferOwnershipModal({ member, leagueId, onClose, onTransferred }: { 
   );
 }
 
-// ── Edit league member profile modal ─────────────────────────────────────────
-
-function EditMemberProfileModal({
-  member,
-  leagueId,
-  onClose,
-  onSaved,
-}: {
-  member: LeagueMember;
-  leagueId: string;
-  onClose: () => void;
-  onSaved: () => void;
-}) {
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const [nickname, setNickname] = useState(member.nickname ?? "");
-  const [avatarUrl, setAvatarUrl] = useState<string | null>(member.avatarUrl);
-  const [bio, setBio] = useState(member.bio ?? "");
-  const [saving, setSaving] = useState(false);
-  const [uploadingAvatar, setUploadingAvatar] = useState(false);
-  const [error, setError] = useState("");
-
-  async function handleAvatarChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image must be 5 MB or smaller.");
-      return;
-    }
-    setUploadingAvatar(true);
-    setError("");
-    try {
-      const url = await uploadLeagueMemberAvatar(leagueId, file);
-      setAvatarUrl(url);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to upload image.");
-    } finally {
-      setUploadingAvatar(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-    }
-  }
-
-  async function handleSubmit(e: FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError("");
-    try {
-      await updateLeagueMemberProfile(leagueId, {
-        nickname,
-        avatarUrl: avatarUrl ?? "",
-        bio,
-      });
-      onSaved();
-      onClose();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to save profile.");
-      setSaving(false);
-    }
-  }
-
-  const initials = (nickname || member.displayName).charAt(0).toUpperCase();
-
-  return (
-    <CommandModal
-      eyebrow="League Profile"
-      title="Edit League Profile"
-      description="This profile is only visible within this league."
-      badge={<CommandStatusBadge label="Personal" tone="ready" />}
-      onClose={saving || uploadingAvatar ? undefined : onClose}
-      footer={(
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <CommandButton type="button" onClick={onClose} disabled={saving} className="sm:min-w-28">Cancel</CommandButton>
-          <CommandButton type="submit" form="edit-member-profile-form" variant="primary" disabled={saving || uploadingAvatar} className="sm:min-w-36" style={{ backgroundColor: primary, color: secondary }}>
-            {saving ? "Saving..." : "Save Profile"}
-          </CommandButton>
-        </div>
-      )}
-    >
-        <form id="edit-member-profile-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
-
-          {/* Avatar */}
-          <div className="flex items-center gap-4">
-            <div className="shrink-0">
-              {avatarUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img src={avatarUrl} alt="" className="h-16 w-16 rounded-full border border-slate-700 object-cover" />
-              ) : (
-                <div className="flex h-16 w-16 items-center justify-center rounded-full border border-slate-700 text-xl font-bold" style={{ backgroundColor: primary + "22", color: primary }}>
-                  {initials}
-                </div>
-              )}
-            </div>
-            <div className="space-y-1.5">
-              <label className="inline-flex min-h-10 cursor-pointer items-center rounded-xl border border-slate-700/80 bg-slate-900/70 px-3 py-2 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800">
-                {uploadingAvatar ? "Uploading..." : "Upload photo"}
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  className="sr-only"
-                  disabled={uploadingAvatar}
-                  onChange={(e) => void handleAvatarChange(e)}
-                />
-              </label>
-              {avatarUrl && (
-                <button type="button" className="block text-xs font-bold text-slate-500 transition-colors hover:text-red-300" onClick={() => setAvatarUrl(null)}>
-                  Remove photo
-                </button>
-              )}
-            </div>
-          </div>
-
-          {/* Nickname */}
-          <div>
-            <label className={commandLabelClass}>
-              League Nickname
-            </label>
-            <input
-              type="text"
-              maxLength={50}
-              placeholder={member.displayName}
-              className={commandInputClass}
-              value={nickname}
-              onChange={(e) => setNickname(e.target.value)}
-            />
-            <p className={commandHelperClass}>Leave blank to use your display name.</p>
-          </div>
-
-          {/* Bio */}
-          <div>
-            <label className={commandLabelClass}>
-              Bio / Trash Talk
-            </label>
-            <textarea
-              maxLength={280}
-              rows={3}
-              className={`${commandInputClass} resize-none`}
-              placeholder="Your league persona..."
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-            />
-            <p className="mt-1 text-right text-xs text-slate-500">{bio.length}/280</p>
-          </div>
-
-          {error && <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
-        </form>
-    </CommandModal>
-  );
-}
-
 const ROLE_LABELS: Record<string, string> = {
   commissioner: "Commissioner",
   "co-commissioner": "Co-Commissioner",
@@ -329,7 +176,6 @@ function MemberCard({
   isMainCommissioner,
   isSelf,
   onRemove,
-  onEditProfile,
   onSetRole,
   onTransferOwnership,
 }: {
@@ -338,7 +184,6 @@ function MemberCard({
   isMainCommissioner: boolean;
   isSelf: boolean;
   onRemove: () => void;
-  onEditProfile: () => void;
   onSetRole: (role: "co-commissioner" | "member") => void;
   onTransferOwnership: () => void;
 }) {
@@ -390,7 +235,7 @@ function MemberCard({
           one. Badges are for exceptions, and a pill on some rows next to bare
           text on others made the column look broken. Uniform treatment, with
           colour still distinguishing elevated roles from ordinary membership. */}
-      <div className="pl-14 sm:pl-0">
+      <div className="pl-14 sm:pl-0 sm:text-right">
         <span
           className={`text-xs font-bold uppercase tracking-[0.14em] ${
             isElevated ? "text-emerald-300" : "text-slate-400"
@@ -401,15 +246,9 @@ function MemberCard({
       </div>
 
       <div className="flex items-center gap-2 pl-14 sm:justify-end sm:pl-0">
-        {isSelf && (
-          <button
-            type="button"
-            onClick={onEditProfile}
-            className="inline-flex min-h-9 items-center rounded-xl border border-slate-700/80 px-3 py-1.5 text-xs font-bold text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 hover:text-white"
-          >
-            Edit profile
-          </button>
-        )}
+        {/* No "Edit profile" here. My Team owns the member's own profile, and
+            a second entry point that opened a different modal was duplicate
+            surface for the same job. */}
         {showMenu && (
           <div className="relative" ref={menuRef}>
             <button type="button" onClick={() => setMenuOpen((o) => !o)}
@@ -466,7 +305,6 @@ export default function LeagueMembers({ slug, embedded = false }: { slug: string
   const [showInvite, setShowInvite] = useState(false);
   const [removingMember, setRemovingMember] = useState<LeagueMember | null>(null);
   const [transferringMember, setTransferringMember] = useState<LeagueMember | null>(null);
-  const [editingProfile, setEditingProfile] = useState<LeagueMember | null>(null);
   const [roleError, setRoleError] = useState("");
   const [toastEmail, setToastEmail] = useState<string | null>(null);
   const [pendingInvites, setPendingInvites] = useState<PendingLeagueInvitation[]>([]);
@@ -521,6 +359,17 @@ export default function LeagueMembers({ slug, embedded = false }: { slug: string
 
   const isMainCommissioner = workspace.league.ownerUserId === currentUserId;
 
+  // Authority order: commissioner, then co-commissioners, then members. The API
+  // returns join order, which put whoever signed up first at the top and made
+  // the list read as arbitrary. Ties fall back to display name so the order is
+  // stable rather than dependent on however the rows arrived.
+  const ROLE_RANK: Record<string, number> = { commissioner: 0, "co-commissioner": 1, member: 2 };
+  const orderedMembers = [...workspace.members].sort((a, b) => {
+    const rank = (ROLE_RANK[a.role] ?? 99) - (ROLE_RANK[b.role] ?? 99);
+    if (rank !== 0) return rank;
+    return (a.nickname || a.displayName).localeCompare(b.nickname || b.displayName);
+  });
+
   const elevatedCount = workspace.members.filter((member) => member.role === "commissioner" || member.role === "co-commissioner").length;
   const memberCount = workspace.members.length;
 
@@ -559,7 +408,7 @@ export default function LeagueMembers({ slug, embedded = false }: { slug: string
         )}
 
         <div className="overflow-visible rounded-xl border border-slate-800 bg-slate-950/30">
-          {workspace.members.map((member) => (
+          {orderedMembers.map((member) => (
             <MemberCard
               key={member.id}
               member={member}
@@ -567,7 +416,6 @@ export default function LeagueMembers({ slug, embedded = false }: { slug: string
               isMainCommissioner={isMainCommissioner}
               isSelf={member.userId === currentUserId}
               onRemove={() => setRemovingMember(member)}
-              onEditProfile={() => setEditingProfile(member)}
               onSetRole={(role) => void handleSetRole(member, role)}
               onTransferOwnership={() => setTransferringMember(member)}
             />
@@ -621,9 +469,6 @@ export default function LeagueMembers({ slug, embedded = false }: { slug: string
       )}
       {transferringMember && (
         <TransferOwnershipModal member={transferringMember} leagueId={workspace.league.id} onClose={() => setTransferringMember(null)} onTransferred={reload} />
-      )}
-      {editingProfile && (
-        <EditMemberProfileModal member={editingProfile} leagueId={workspace.league.id} onClose={() => setEditingProfile(null)} onSaved={reload} />
       )}
     </div>
   );
