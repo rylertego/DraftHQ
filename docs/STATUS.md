@@ -163,6 +163,44 @@ to swapping the colour literal in place.
 styling (e.g. the green-ish confirmation banners on Profile), not brand accent.
 Those should become a success token, not the brand cyan. Check each one.
 
+**Second population: 25 hardcoded hex literals** (`#14b8a6`, `#14bba6`,
+`#2dd4bf`, `#0d9488`) that the class sweep will not catch — 8 in
+`DraftRoom.tsx` alone (confetti, staged-player border, pick button), plus
+`DraftAwardsCeremony`, `LeagueWorkspaceHeader`, `DraftTicker`, `DraftOrderRace`,
+`DraftGradesBoard`, `DraftBoard`, `TeamSetupForm`. **150 sites in total.**
+`emailTemplates.ts` (3) is the exception: inline hex is correct there, since
+mail clients do not support CSS variables — update the value, keep the literal.
+
+**How this class of bug hides.** `DEFAULT_ACCENT` in `LeagueThemeContext` was
+still the old teal and was rotating the new cyan logo *back* to teal
+(`32c1401`). It survived because under the old filter map the teal entry was a
+no-op — a stale default and a correct one produced identical pixels. Any
+hardcoded brand colour is invisible until the brand moves. Assume more of these
+exist; grep for hex, not just classes.
+
+### Inline the SVGs and delete FILTER_MAP (do this before the sweep)
+
+`DraftHQLogo` recolours the mark per league accent with `hue-rotate`, and that
+exists purely because `<img src="…svg">` is opaque to the parent document — CSS
+cannot reach inside it. The filters are approximations: they rotate *every*
+hue proportionally, cannot hit an arbitrary target exactly, and need
+recalibrating whenever the source art changes (as they did in `d357aa6`).
+
+Now that real vector source exists, inline the SVGs as React components and
+replace their fills with `var(--color-league-accent)`. That gives exact accent
+colours instead of approximations, works for any colour rather than the ten
+enumerated ones, and **deletes `FILTER_MAP` entirely** along with the
+recalibration hazard.
+
+One wrinkle: the mark is a gradient (`#00E6F9` → `#00889A`), not a flat fill,
+so the stops need deriving from the accent. `deriveAccentTokens` already
+produces `base`/`hover`/`muted` and can feed them; `color-mix()` is the
+alternative. Keep `<img>` for email — inline SVG is not safe there.
+
+**Open colour drift:** the new SVGs are `#00E6F9`; `--color-product-accent` is
+`#22D3EE`. Close but not identical, and the SVG is more saturated. Pick one and
+move the other, or the logo and the buttons stay subtly different cyans.
+
 ### Two things that will bite whoever continues
 
 **Primitives omit `className`, `style`, and `color`.** That is the Task 4
