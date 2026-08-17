@@ -1,7 +1,16 @@
 # DraftHQ — Status & Handoff
 
-_Last updated: 2026-08-13. Branch: `feature/owner-team-experience`._
-_Supersedes `docs/STATUS-2026-08-06.md`._
+> **This is the living status doc. Update it at task boundaries, not per commit.**
+> Dated STATUS files are history only; this filename never changes so there is
+> never a question about which one is current.
+>
+> Companions: [`deployment-runbook.md`](deployment-runbook.md) for infrastructure,
+> and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
+> whose checkboxes are the progress ledger for the visual-system work.
+
+_Last updated: 2026-08-13._
+_`main` is at the owner-experience merge; visual-system work is on
+`feature/global-visual-system-execution` in `.worktrees/global-visual-system`._
 
 > **Note on the previous doc's filename:** `STATUS-2026-08-06.md` is misdated. Its
 > content was written on **2026-08-12**. The facts in it are correct; only the
