@@ -387,7 +387,7 @@ function MemberCard({
             a column pretending to be an exception. Plain members read as
             members by the absence of a badge. */}
         {isElevated ? (
-          <CommandStatusBadge label={ROLE_LABELS[member.role] ?? member.role} tone="neutral" />
+          <CommandStatusBadge label={ROLE_LABELS[member.role] ?? member.role} tone="complete" />
         ) : (
           <span className="text-xs font-medium text-slate-400">{ROLE_LABELS[member.role] ?? member.role}</span>
         )}

@@ -112,11 +112,19 @@ Status must be legible from **the words and the arrangement**, not the hue:
 - Rank and group by state where layout allows, so "needs attention" is found by
   position rather than by scanning for colour.
 
-Colour is reserved for three things and stays meaningful because of it:
+Colour is reserved for four things and stays meaningful because of it:
 
 1. **Destructive** actions and genuine error states — red.
 2. **Live** draft state — the one moment a colour should pull the eye.
 3. The **league accent**, on the surfaces already enumerated above.
+4. **Identity and role** — commissioner, co-commissioner, team owner.
+
+**Amended again 2026-08-13:** this rule is about *operational status*, not
+identity. Roles may carry colour; the first pass of this amendment stripped it
+from them too, which was an over-correction. Role colour marks *who someone is*
+and does not change from moment to moment, so it never becomes the wallpaper
+that tinted status did. The lever for roles is the badge budget below —
+**fewer of them**, not greyer ones.
 
 This is also the accessible default: status that depends on hue alone fails for
 colour-blind users and in TV-mode glare, both of which apply here.

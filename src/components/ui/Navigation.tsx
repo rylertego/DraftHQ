@@ -206,12 +206,15 @@ function PrimitiveTrigger({
       aria-describedby={describedBy}
       {...events}
     >
+      {/* Label first, affordance after. A chevron is a disclosure hint and
+          conventionally trails what it discloses; leading it reads as a stray
+          glyph in front of the text. Icon-only triggers are unaffected. */}
+      {triggerText ? <span>{triggerText}</span> : null}
       {triggerIcon ? (
         <span className="ui-overlay-trigger__icon" aria-hidden="true">
           <SemanticTriggerIcon name={triggerIcon} />
         </span>
       ) : null}
-      {triggerText ? <span>{triggerText}</span> : null}
       {badgeCount && badgeCount > 0 ? (
         <span className="ui-overlay-trigger__badge">{badgeCount > 9 ? "9+" : badgeCount}</span>
       ) : null}

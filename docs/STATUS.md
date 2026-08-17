@@ -54,12 +54,16 @@ needs the other to know has to land in a file.**
 
 ## Visual system execution — where it actually is
 
-**The work is in a separate worktree.** `.worktrees/global-visual-system` on
-branch `feature/global-visual-system-execution`. Looking only at the main
-checkout makes it appear the plan was never started — no `src/components/ui/`,
-no `docs/ui-audit/`, every plan checkbox unchecked. That is wrong. **Check
-`git worktree list` first.** The plan's checkboxes are never ticked; commit
-history is the real progress record.
+**It is all on `main` now.** The visual-system branch was merged, so
+`.worktrees/global-visual-system` is no longer where work happens — continue on
+branches off `main`. That worktree existed to isolate from a second agent that
+is no longer running.
+
+Progress lives in the plan's checkboxes and its Progress block, which are now
+maintained. Historically they were not, and a session concluded the plan had
+never been started because it read the main checkout while the work sat in a
+worktree. If something looks missing, run `git worktree list` before concluding
+anything.
 
 Completed and independently reviewed (13 commits):
 
@@ -75,15 +79,41 @@ Each went implement → independent review → fix rounds. Task 2 caught a contr
 bug before it reached CSS; Task 3 caught semantic accent inheriting legacy teal;
 Task 5 needed three rounds on overlay focus behaviour.
 
-**Task 6 (global chrome) is half done.** Slices 1–2 landed:
+**Task 6 (global chrome) is done.**
 
 - `14328ec` — `LeagueAccessDenied` → PageShell/Panel/EmptyState/InlineNotice
 - `cdc4ae3` — `AccountNav` → shared `Menu` + LinkButtons
+- `f4fc6d2` — `LeagueInvitationInbox`, plus `mail` and `badgeCount` added to the
+  overlay trigger contract. The inbox could not be expressed otherwise: its
+  trigger is an icon carrying an unread count, and `TriggerVisual` was a closed
+  three-icon contract. `badgeCount` is a number, not a node, so the
+  closed-trigger guarantee still holds.
+- `layout.tsx` **needs no migration.** It is `html`/`body`/providers/`AccountNav`
+  with no visual surface of its own. The earlier stalled agents produced only
+  line-ending changes there, which is consistent with that. Do not manufacture a
+  diff for it.
 
-Remaining: `LeagueInvitationInbox`, and `layout.tsx` — which the earlier stalled
-agents never actually migrated despite appearing in their diff. That diff was
-discarded (unattributable and incomplete); it is preserved as
-`task6-stalled-agents.patch` in the session scratchpad if anyone wants it.
+Browser QA has run against the real app: the account menu opens, renders
+Profile / Dashboard / Log Out, and dismisses on Escape with `aria-expanded`
+returning to `false`. The invitation trigger renders its badge.
+
+### Colour and badge policy (spec amended, then corrected)
+
+Status — readiness, counts, lifecycle labels — renders in plain foreground text.
+Colour is reserved for destructive/error, live draft state, the league accent,
+and **identity/role**.
+
+The first pass of that amendment also stripped colour from roles. That was an
+over-correction and is reverted: role colour marks *who someone is*, does not
+change moment to moment, and never becomes wallpaper the way tinted status did.
+The lever for roles is the **badge budget — fewer of them, not greyer ones**.
+
+**Trap that cost an hour:** after the merge the dev server served a stale CSS
+bundle across three restarts — byte-identical hash, missing every `ui-*` rule,
+making the primitives look broken. Source and `.next/static` were both correct;
+it is Turbopack's persistent cache. Stop the server, then
+`Remove-Item -Recurse -Force .next`, then restart. Worth doing after any large
+merge rather than trusting a restart.
 
 ### Two things that will bite whoever continues
 

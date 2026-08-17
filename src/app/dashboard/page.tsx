@@ -167,12 +167,17 @@ function LeagueRow({ workspace, season, onDeleteClick, isFirst, isLast }: Season
               {draft.rounds} rounds
             </span>
           )}
-          <span className={`flex items-center gap-1.5 font-semibold ${workspace.canManage ? "text-teal-400" : "text-slate-400"}`}>
-            <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
-              <path d="M8 2l1.5 3H13l-2.75 2 1 3.5L8 8.75 4.75 10.5l1-3.5L3 5h3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
-            </svg>
-            {role}
-          </span>
+          {/* Badge budget: only mark the exception. "Commissioner" says
+              something; "Member" is the default state and just added a second
+              role tag to every row. */}
+          {workspace.canManage && (
+            <span className="flex items-center gap-1.5 font-semibold text-teal-400">
+              <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">
+                <path d="M8 2l1.5 3H13l-2.75 2 1 3.5L8 8.75 4.75 10.5l1-3.5L3 5h3.5z" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round" />
+              </svg>
+              {role}
+            </span>
+          )}
           {myTeam && (
             <Link
               href={`/leagues/${league.slug}/my-team`}

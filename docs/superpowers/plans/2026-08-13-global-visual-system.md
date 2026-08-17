@@ -5,19 +5,19 @@
 > **Keep this block and the checkboxes current as tasks complete.** They were
 > not maintained for the first five tasks, and the result was a session that
 > read the main checkout, saw unchecked boxes and no `src/components/ui/`, and
-> concluded the plan had never been started — when Tasks 1–5 were done. The
-> work is in a **linked worktree**, so `git worktree list` is the first thing to
-> check. Commit history is the fallback record; these boxes should be the
-> primary one.
+> concluded the plan had never been started — when Tasks 1–5 were done in a
+> linked worktree. Commit history is the fallback record; these boxes should be
+> the primary one.
 
-**Branch:** `feature/global-visual-system-execution` at
-`.worktrees/global-visual-system`. **Not** in the main checkout.
+**Everything is on `main`.** The visual-system branch has been merged; continue
+on branches off `main`. The `.worktrees/global-visual-system` worktree existed
+to isolate from a second agent that is no longer running, and is now stale.
 
 | Phase | Tasks | State |
 | --- | --- | --- |
 | 0 — Baseline Contract | 1 | ✅ Complete |
 | 1 — Shared Foundation | 2, 3, 4, 5 | ✅ Complete |
-| 2 — Global Product Surfaces | 6 | ⏳ In progress — see below |
+| 2 — Global Product Surfaces | 6 | ✅ Complete |
 | 2 — Global Product Surfaces | 7, 8 | ⬜ Not started |
 | 3–8 | 9–… | ⬜ Not started |
 
@@ -27,12 +27,17 @@ stalled. Steps below are left unticked until every slice lands:
 - ✅ Slice 1 — `LeagueAccessDenied` (`14328ec`)
 - ✅ Slice 2 — `AccountNav` (`cdc4ae3`)
 - ✅ Slice 3 — `LeagueInvitationInbox` + `mail`/`badgeCount` trigger extension (`f4fc6d2`)
-- ⬜ Slice 4 — `layout.tsx` (the earlier stalled diff never actually touched it)
-- ⬜ Browser QA — the phase gate. `preview_start` resolves `.claude/launch.json`
-  from the primary working directory and cannot set a cwd, so it will not serve
-  this worktree while port 3000 runs the main checkout. A second dev server is
-  needed. `AccountNav` renders on every page, so this is the highest
-  blast-radius change currently unverified.
+- ✅ Slice 4 — `layout.tsx` needs no migration: html/body/providers/AccountNav,
+  no visual surface of its own. The stalled diff only had line-ending changes.
+- ✅ Browser QA — run against `main` in a signed-in session. Account menu opens,
+  renders Profile / Dashboard / Log Out, and dismisses on Escape with
+  `aria-expanded` returning to `false`. Invitation trigger renders its badge.
+
+> **If primitives look unstyled, suspect the dev server before the code.** After
+> the merge it served a stale CSS bundle across three restarts — byte-identical
+> hash, missing every `ui-*` rule. Source and `.next/static` were both correct;
+> it is Turbopack's persistent cache. Stop the server, then
+> `Remove-Item -Recurse -Force .next`, then restart.
 
 **Baseline at last commit:** typecheck clean, 215 tests, production build clean.
 
@@ -52,8 +57,9 @@ stalled. Steps below are left unticked until every slice lands:
 - **Status is not conveyed by colour** (spec amended 2026-08-13). Readiness
   percentages, counts like "3/10 owners", lifecycle labels, and checklist items
   render in standard foreground text. Colour is reserved for destructive/error,
-  live draft state, and the league accent. Every route migration must strip
-  semantic tinting from status text rather than port it forward.
+  live draft state, the league accent, and identity/role. Every route migration
+  must strip semantic tinting from *status* text rather than port it forward.
+  Roles keep their colour — the lever there is the badge budget, fewer of them.
 - **Badge budget** (spec amended 2026-08-13). A badge marks an *exception*. If
   every row in a list has one, render a column instead. `RoleBadge` only on the
   members list for roles above `member`, and on draft-night surfaces where
