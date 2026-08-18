@@ -167,7 +167,7 @@ export default function ProfilePage() {
               </Button>
             }
           >
-            <div className="flex items-center gap-[var(--space-4)]">
+            <div className="flex items-start gap-[var(--space-4)]">
               <Avatar name={displayName || initials} src={avatarUrl} size="large" />
               <div className="flex min-w-0 flex-col items-start gap-[var(--space-2)]">
                 <FileUpload
@@ -194,7 +194,7 @@ export default function ProfilePage() {
               />
             </Field>
 
-            <Field label="Bio" controlId="profile-bio" description={`${bio.length}/280`}>
+            <Field label="Bio" controlId="profile-bio">
               <Textarea
                 maxLength={280}
                 rows={3}
@@ -203,6 +203,9 @@ export default function ProfilePage() {
                 onChange={(e) => setBio(e.target.value)}
               />
             </Field>
+            <p className="-mt-[var(--space-2)] text-right text-xs tabular-nums text-[color:var(--color-text-muted)]">
+              {bio.length}/280
+            </p>
 
             {error && <Alert status="danger">{error}</Alert>}
             {message && <Alert status="success">{message}</Alert>}

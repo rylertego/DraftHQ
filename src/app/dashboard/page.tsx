@@ -18,6 +18,7 @@ import {
   Section,
   Skeleton,
 } from "@/components/ui";
+import DraftHQMark from "@/components/brand/DraftHQMark";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -298,6 +299,23 @@ function DeleteLeagueModal({
   );
 }
 
+// A nav row, not a button: these are destinations, and three identical centred
+// buttons said nothing about which was which. The icon carries the accent so
+// the panel has some colour without the whole row being tinted.
+function QuickAction({ href, label, children }: { href: string; label: string; children: React.ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className="flex items-center gap-[var(--space-3)] rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-3)] py-[var(--space-2)] text-sm font-medium text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-product-accent-border)] hover:bg-[var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
+    >
+      <svg className="h-4 w-4 shrink-0 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+        {children}
+      </svg>
+      {label}
+    </Link>
+  );
+}
+
 // ── Page ──────────────────────────────────────────────────────────────────────
 export default function DashboardPage() {
   const [workspaces, setWorkspaces] = useState<LeagueWorkspace[]>([]);
@@ -348,7 +366,12 @@ export default function DashboardPage() {
               </LinkButton>
             }>
               {currentRows.length === 0 ? (
+                // A dashed placeholder surface, not bare text on the canvas: EmptyState is
+                // designed to sit inside a container and reads as an unfinished page
+                // without one.
+                <div className="rounded-[var(--radius-panel)] border border-dashed border-[color:var(--color-border-strong)] bg-[var(--color-surface-1)]/40">
                 <EmptyState
+                  identity={<DraftHQMark className="h-12 w-auto opacity-40" title="" />}
                   title="You don't have any leagues yet."
                   description="Create a new league, or join one with an invite."
                   action={
@@ -365,6 +388,7 @@ export default function DashboardPage() {
                     </>
                   }
                 />
+              </div>
               ) : (
                 <div className="rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)]">
                   {currentRows.map((row, i) => (
@@ -386,15 +410,18 @@ export default function DashboardPage() {
         <aside className="flex flex-col gap-[var(--space-4)]">
           <Panel title="Quick actions">
             <div className="flex flex-col gap-[var(--space-2)]">
-              <LinkButton href="/leagues/new" variant="secondary" scope="product" fullWidth>
-                New League
-              </LinkButton>
-              <LinkButton href="/create" variant="secondary" scope="product" fullWidth>
-                Standalone Draft
-              </LinkButton>
-              <LinkButton href="/join" variant="secondary" scope="product" fullWidth>
-                Join a Draft
-              </LinkButton>
+              <QuickAction href="/leagues/new" label="New League">
+                <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </QuickAction>
+              <QuickAction href="/create" label="Standalone Draft">
+                <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
+                <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </QuickAction>
+              <QuickAction href="/join" label="Join a Draft">
+                <path d="M2 8h9M8 5l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
+                <path d="M12 3h1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
+              </QuickAction>
             </div>
           </Panel>
 

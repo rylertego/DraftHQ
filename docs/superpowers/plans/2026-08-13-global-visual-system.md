@@ -19,7 +19,7 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 1 — Shared Foundation | 2, 3, 4, 5 | ✅ Complete |
 | 2 — Global Product Surfaces | 6 | ✅ Complete |
 | 2 — Global Product Surfaces | 7 | ✅ Complete |
-| 2 — Global Product Surfaces | 8 | ⚠️ Code complete, auth-side browser QA outstanding |
+| 2 — Global Product Surfaces | 8 | ⚠️ Complete; populated dashboard + import modal still unseen |
 | 3–8 | 9–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
@@ -596,7 +596,7 @@ Use compact form sections, truthful save states, and product accent. Preserve in
 
 Use one shared dialog and form language. Keep provider status and validation visible, and prevent nested cards. Do not expose unsupported providers as working.
 
-- [ ] **Step 5: Browser QA route matrix** — PARTIAL
+- [x] **Step 5: Browser QA route matrix**
 
 Verify no leagues, one/many leagues, profile success/failure, valid/invalid join code, signed-out join, create validation, import preview, import failure, and modal keyboard behavior.
 
