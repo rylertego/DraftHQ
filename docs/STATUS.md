@@ -8,7 +8,7 @@
 > and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
 > whose checkboxes are the progress ledger for the visual-system work.
 
-_Last updated: 2026-08-16._
+_Last updated: 2026-08-17._
 _Everything is merged to `main`. No long-lived feature branch; work on short
 branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
@@ -41,11 +41,119 @@ visual-system work:
 
 - `docs/superpowers/specs/2026-08-13-global-visual-system-design.md` (546 lines)
 - `docs/superpowers/plans/2026-08-13-global-visual-system.md` (1094 lines,
-  120 checkbox tasks across 9 phases; Tasks 1-6 are checked, see its Progress block)
+  120 checkbox tasks across 9 phases; Phases 0-3 complete, Task 10 done and
+  Task 11 partway — see its Progress block)
 
 Claude cannot see Codex's session, reasoning, or subagents — only what Codex
 writes to disk or git. The reverse is presumably also true. **Anything one agent
 needs the other to know has to land in a file.**
+
+---
+
+## 2026-08-17 — brand, accent migration, and Phases 2–4
+
+Thirty commits. Three bodies of work: the cyan rebrand finished end to end, the
+visual-system plan advanced from mid-Task-8 to mid-Task-11, and a handful of
+bugs found by looking at the running app rather than by the test suite.
+
+### Brand is now one value in one place
+
+The logo is vector. Four SVGs replaced seven hue-shifted PNGs, and
+`scripts/generate-brand-components.mjs` turns them into React components whose
+fills read `--color-league-accent`. `FILTER_MAP` — ten hand-calibrated
+`hue-rotate` values — is deleted. Accents are now exact rather than approximate:
+setting `#ef4444` renders `rgb(239,68,68)`, where rotation could only land near
+it.
+
+**150 hardcoded teal sites are gone.** `grep -roE 'teal-[0-9]{2,3}' src/` returns
+0. The only old-brand hex left is the "Teal" swatch in `COLOR_PAIRS`, which is a
+colour a commissioner can pick. `scripts/migrate-accent.mjs` is kept as the
+record of which file got product scope and which got league scope.
+
+Three things that sweep found which a blind replace would have broken:
+
+- The four confirmation banners were **success** styling that merely matched the
+  old accent. They use `--color-success-*` now; cyan would have made every
+  "Saved!" read as brand.
+- `globals.css` still had `--primary: #14B8A6` as a legacy alias with two live
+  usages.
+- `WorkspaceLayoutClient` fell back to `"#14B8A6"` for leagues with no colour
+  set, so **every themeless league rendered old-brand teal**.
+
+`emailTemplates.ts` deliberately keeps inline hex — mail clients have no CSS
+variables — so only its value changed.
+
+### Four bugs that passed every automated check
+
+Worth listing together, because the pattern is the point. Typecheck, 215 tests
+and a clean production build were green for all four.
+
+1. **13 of 15 lockup gradients painted nothing.** Inlining namespaced every
+   gradient `id` with `useId()`, but those gradients inherit their stops via
+   `xlink:href="#linear-gradient"` and those references still pointed at the old
+   id. A dangling href is not an error — it paints emptiness. The HQ and "WIN
+   FOREVER." simply vanished.
+2. **Half the palette lost the mark's gradient.** The dark stop came from
+   `--color-league-accent-border`, which only darkens accents already bright
+   against the canvas. For Royal, Violet, Crimson, Rose and Indigo it returned
+   essentially the base colour, so both stops matched and the shield rendered
+   flat. The dark stop is now 62% of the accent over black.
+3. **The dashboard three-dot menu navigated instead of opening.** The row is a
+   `role="link"` div; the menu called `preventDefault()` without
+   `stopPropagation()`. Those do different things — the first cancels the default
+   action, the second stops the bubble. Menu opened and row navigated in one
+   gesture.
+4. **Every portalled dialog lost its league accent.** `Dialog` portals into
+   `document.body`, outside `LeagueThemeScope`, so `--color-league-accent`
+   resolved from the root fallback. Save Changes rendered cyan inside a
+   Royal-accent league. `LeagueThemeScope` now mirrors its properties onto
+   `:root`.
+
+> **A custom property resolves the `var()`s inside it at the element where it is
+> declared.** One defined at `:root` computes once against the root value and
+> children inherit that frozen result. This cost an hour on the gradient work —
+> the tidy `--…-deep` token silently produced identical stops for every accent.
+
+### Two design-system gaps, both found by using it
+
+- **No quiet-destructive variant.** `variant="danger"` is a solid fill. Using it
+  for the Reset Draft trigger put a loud red block in the command center header
+  beside Enter Draft Room, overstating an action nobody should be drawn toward.
+  That trigger keeps a hand-rolled outline until a danger-ghost variant exists.
+  Solid danger *is* right inside a confirmation dialog, where emphasis is the
+  point.
+- **Inconsistent destructive gating.** Delete league and delete account both
+  require typing a confirmation. Delete *team* is one click behind a kebab —
+  the one most likely to be hit by accident.
+
+### Shipped alongside
+
+Privacy policy at `/privacy`, written from the actual data flows rather than a
+template, plus a `SiteFooter` so it is reachable at all. Account deletion is
+live end to end: `delete_my_account()` clears app data first and the route
+deletes the auth user second, because deleting the login first would strand the
+data. League deletion added to league settings, owner-only, matching the RPC's
+own permission rule.
+
+Migration history and schema were realigned — five migrations had been applied
+through the dashboard and never recorded. **Applying SQL through the Supabase
+dashboard is what caused both migration problems this week.** Use `db push`.
+
+### Verification debt, stated plainly
+
+Signed-in verification in real Chrome covered: dashboard (empty and populated),
+profile, create draft, create league, league workspace, teams table, and the
+Reset / Edit Team / delete-league dialogs.
+
+**Not verified, and it matters:**
+
+- **Mobile, at all.** Deferred by decision, not oversight — recorded in the plan.
+  A mobile pass over the whole league workspace is owed before release.
+- **Roles other than commissioner** in the migrated league workspace.
+- **The team delete confirmation.** `ConfirmDialog` confirms on one click with no
+  typed gate, and this is a live league with ten real teams.
+- **The import modal preview**, which needs a real provider league id and a
+  write.
 
 ---
 
@@ -76,7 +184,11 @@ Each went implement → independent review → fix rounds. Task 2 caught a contr
 bug before it reached CSS; Task 3 caught semantic accent inheriting legacy teal;
 Task 5 needed three rounds on overlay focus behaviour.
 
-**Task 6 (global chrome) is done.**
+**Phases 0-3 are complete and Phase 4 is underway.** Task 6 (global chrome),
+Task 7 (auth routes), Task 8 (home/dashboard/profile/join/creation/import),
+Task 9 (league workspace shell) and Task 10 (league home + command center) are
+done. Task 11 has its Add Team, delete-confirm and Edit Team overlays migrated;
+the teams data surface itself and mobile presentation remain.
 
 - `14328ec` — `LeagueAccessDenied` → PageShell/Panel/EmptyState/InlineNotice
 - `cdc4ae3` — `AccountNav` → shared `Menu` + LinkButtons
@@ -526,6 +638,17 @@ Probed directly against project `kogyejhzzggrkekbcppm`.
 **The real mock draft has never been run.** It gates the `main` merge, the
 grading fixes, the owner dashboard, and the My Team page. Nothing below replaces it.
 
+**Mobile is unverified across the whole app.** Deferred by decision on
+2026-08-17, not overlooked. The league workspace shell, every Phase 4 surface
+and all migrated dialogs have only been seen at desktop width. This is now the
+largest untested surface after the mock draft.
+
+**Two destructive-action inconsistencies.** Delete team is one click behind a
+kebab menu, while delete league and delete account both require typing a
+confirmation — the team one is the likeliest accidental hit. And the design
+system has no quiet-destructive variant, so the Reset Draft trigger carries a
+hand-rolled outline rather than the solid `variant="danger"` fill.
+
 ~~**The owner save path is unverified end to end.**~~ **Verified 2026-08-16.**
 Signed in as a real non-commissioner owner, typed into Short Name, saved, and
 confirmed the row changed in the database, then reverted it. The silent-write
@@ -608,9 +731,12 @@ not enforce draft rules. Do not use localStorage as authoritative draft state.
    re-upload producing a hosted URL; a draft date surviving a settings reload in
    the right zone; an owner saving My Team and the row actually changing; and no
    kicker topping the pick grades at the end.
-2. **Finish or land Codex's visual-system plan** —
-   `docs/superpowers/plans/2026-08-13-global-visual-system.md`, 120 tasks, 9
-   phases. It is the largest in-flight body of work.
+2. **Finish the visual-system plan** —
+   `docs/superpowers/plans/2026-08-13-global-visual-system.md`. Phases 0-3 are
+   complete; resume at **Task 11 Step 2** (the teams data surface). Draft
+   Settings — the screen most visibly inconsistent with the rest of the site —
+   is Tasks 16-17, has no hard dependency on Tasks 12-15, and can be pulled
+   forward if it starts to grate.
 3. **ADP saturation.** Replace the distinct-value guard with a distribution-shape
    check, or normalize ADP against draft size in the grader.
 4. **Export / sync back to Sleeper** — still the biggest strategic gap. The
