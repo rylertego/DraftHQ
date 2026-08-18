@@ -62,14 +62,21 @@ function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueS
   }, [open]);
 
   return (
+    // The row is a role="link" that navigates on click and on Enter/Space.
+    // Without stopping propagation here, opening this menu also navigated into
+    // the league — the menu appeared and vanished in one gesture.
+    // preventDefault alone does not do it: it cancels the default action, not
+    // the bubble up to the row handler.
     <div
       ref={ref}
+      onClick={(e) => e.stopPropagation()}
+      onKeyDown={(e) => e.stopPropagation()}
       className={`relative transition-opacity ${open ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
     >
       <button
         type="button"
         aria-label="League options"
-        onClick={(e) => { e.preventDefault(); setOpen((o) => !o); }}
+        onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen((o) => !o); }}
         className="flex h-7 w-7 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-700 hover:text-white transition-colors"
       >
         <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
@@ -81,7 +88,7 @@ function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueS
         <div className="absolute right-0 top-full z-[100] w-48 rounded-xl border border-slate-700 bg-slate-900 py-1 shadow-2xl shadow-black/60 text-sm">
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); router.push(`/leagues/${leagueSlug}/settings`); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); router.push(`/leagues/${leagueSlug}/settings`); }}
             className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
           >
             <svg className="h-4 w-4 text-slate-500" viewBox="0 0 16 16" fill="none">
@@ -92,7 +99,7 @@ function LeagueRowMenu({ onDelete, leagueSlug }: { onDelete: () => void; leagueS
           <hr className="border-slate-800" />
           <button
             type="button"
-            onClick={(e) => { e.preventDefault(); setOpen(false); onDelete(); }}
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); setOpen(false); onDelete(); }}
             className="flex w-full items-center gap-2.5 px-4 py-2.5 text-left text-red-400 hover:bg-red-950/50 hover:text-red-300 transition-colors"
           >
             <svg className="h-4 w-4" viewBox="0 0 16 16" fill="none">

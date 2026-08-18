@@ -17,6 +17,7 @@ import {
   commandLabelClass,
 } from "@/components/CommandCenterUI";
 import LeagueMembers from "../members/LeagueMembers";
+import LeagueDangerZone from "@/components/LeagueDangerZone";
 
 interface ColorPair {
   name: string;
@@ -36,6 +37,13 @@ const COLOR_PAIRS: ColorPair[] = [
   { name: "Cyan",    primary: "#22D3EE", secondary: "#061820" },
   { name: "Sunset",  primary: "#FB923C", secondary: "#1C0E06" },
 ];
+
+// A league that has never picked a colour renders in the product accent, not
+// in whichever pair happens to sit first in the array. This was COLOR_PAIRS[0]
+// — Teal — which is the *old* brand colour, so every new league came up teal
+// while the rest of the app was cyan.
+const DEFAULT_PAIR =
+  COLOR_PAIRS.find((pair) => pair.primary.toUpperCase() === "#22D3EE") ?? COLOR_PAIRS[0];
 
 const PROVIDER_ICONS = {
   sleeper: "/providers/sleeper.png",
@@ -266,11 +274,14 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
   const [name, setName] = useState("");
   const [logoUrl, setLogoUrl] = useState("");
   const [bannerUrl, setBannerUrl] = useState("");
-  const [primaryColor, setPrimaryColor] = useState(COLOR_PAIRS[0].primary);
-  const [secondaryColor, setSecondaryColor] = useState(COLOR_PAIRS[0].secondary);
+  const [primaryColor, setPrimaryColor] = useState(DEFAULT_PAIR.primary);
+  const [secondaryColor, setSecondaryColor] = useState(DEFAULT_PAIR.secondary);
   const [theme] = useState<LeagueTheme>("classic");
   const [teamCount, setTeamCount] = useState(12);
   const [canManage, setCanManage] = useState(false);
+  // Deleting is owner-only, which is narrower than canManage: co-commissioners
+  // can manage the league but delete_league() refuses them with 42501.
+  const [isOwner, setIsOwner] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [tab, setTab] = useState<"general" | "members" | "integrations">(
@@ -289,8 +300,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
     name: "",
     logoUrl: "",
     bannerUrl: "",
-    primaryColor: COLOR_PAIRS[0].primary,
-    secondaryColor: COLOR_PAIRS[0].secondary,
+    primaryColor: DEFAULT_PAIR.primary,
+    secondaryColor: DEFAULT_PAIR.secondary,
     teamCount: 12,
   });
 
@@ -320,8 +331,8 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         setName(s.league.name);
         setLogoUrl(s.league.logoUrl ?? "");
         setBannerUrl(s.league.bannerUrl ?? "");
-        const primary   = s.league.primaryColor   ?? COLOR_PAIRS[0].primary;
-        const secondary = s.league.secondaryColor ?? COLOR_PAIRS[0].secondary;
+        const primary   = s.league.primaryColor   ?? DEFAULT_PAIR.primary;
+        const secondary = s.league.secondaryColor ?? DEFAULT_PAIR.secondary;
         setPrimaryColor(primary);
         setSecondaryColor(secondary);
         setAccentColor(primary);
@@ -339,6 +350,9 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
         setSleeperLastSyncedAt(s.league.sleeperLastSyncedAt);
         setActiveIntegration(s.league.activeIntegration);
         setCanManage(s.canManage);
+        void supabase.auth.getUser().then(({ data }) => {
+          if (active && data.user) setIsOwner(s.league.ownerUserId === data.user.id);
+        });
       })
       .catch(() => { if (active) router.replace("/login"); })
       .finally(() => { if (active) setIsLoading(false); });
@@ -750,6 +764,13 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
           </div>
         </form>
       )}
+
+    {/* Owner-only, matching delete_league(). Placed last: it is the most
+        destructive control on the page and should not sit above the things
+        people actually came here to change. */}
+    {isOwner && leagueId && (
+      <LeagueDangerZone leagueId={leagueId} leagueName={name} />
+    )}
     </div>
   );
 }
