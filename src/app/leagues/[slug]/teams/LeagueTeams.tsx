@@ -17,6 +17,7 @@ import {
   inviteLeagueMember,
 } from "@/lib/leagueApi";
 import type { LeagueMember, LeagueTeam } from "@/types/league";
+import { Alert, Button, ConfirmDialog, Dialog, Field, Input, Select } from "@/components/ui";
 
 type Tone = "neutral" | "ready" | "warning" | "danger" | "complete";
 
@@ -81,7 +82,6 @@ function AddTeamModal({
   onClose: () => void;
   onAdded: (team: LeagueTeam) => void;
 }) {
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
   const [ownerUserId, setOwnerUserId] = useState("");
@@ -116,71 +116,94 @@ function AddTeamModal({
   const useInvite = !ownerUserId;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 px-4 py-8 overflow-y-auto">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 my-auto">
-        <h2 className="mb-5 text-lg font-bold text-white">Add Franchise Team</h2>
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-5">
+    <Dialog
+      open
+      onClose={onClose}
+      size="medium"
+      title="Add Franchise Team"
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button
+            type="submit"
+            form="add-team-form"
+            scope="league"
+            loading={loading}
+            disabled={!name.trim()}
+          >
+            {loading ? "Adding..." : "Add Team"}
+          </Button>
+        </>
+      }
+    >
+      <form id="add-team-form" onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-[var(--space-4)]">
+        {/* Team identity stays visually separate from owner assignment. */}
+        <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+          <Field label="Team Name" controlId="add-team-name" required>
+            <Input
+              autoFocus
+              required
+              maxLength={100}
+              placeholder="e.g. Philly Eagles"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+            />
+          </Field>
+          <Field label="Short Name (Optional)" controlId="add-team-short">
+            <Input
+              maxLength={10}
+              placeholder="e.g. Eagles"
+              value={shortName}
+              onChange={(e) => setShortName(e.target.value)}
+            />
+          </Field>
+        </div>
 
-          {/* Team identity */}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div>
-              <label className={LABEL_CLS}>Team Name <span className="text-red-400">*</span></label>
-              <input autoFocus required maxLength={100} className={INPUT_CLS} placeholder="e.g. Philly Eagles" value={name} onChange={(e) => setName(e.target.value)} />
-            </div>
-            <div>
-              <label className={LABEL_CLS}>Short Name <span className="font-normal normal-case text-slate-500">(Optional)</span></label>
-              <input maxLength={10} className={INPUT_CLS} placeholder="e.g. Eagles" value={shortName} onChange={(e) => setShortName(e.target.value)} />
-            </div>
-          </div>
+        <Field label="Owner (Optional)" controlId="add-team-owner">
+          <Select
+            value={ownerUserId}
+            onChange={(e) => { setOwnerUserId(e.target.value); if (e.target.value) setInviteEmail(""); }}
+          >
+            <option value="">— Unassigned / Invite by email —</option>
+            {members.map((m) => (
+              <option key={m.userId} value={m.userId}>{m.displayName}</option>
+            ))}
+          </Select>
+        </Field>
 
-          {/* Owner */}
-          <div>
-            <label className={LABEL_CLS}>Owner <span className="font-normal normal-case text-slate-500">(Optional)</span></label>
-            <select className={INPUT_CLS} value={ownerUserId} onChange={(e) => { setOwnerUserId(e.target.value); if (e.target.value) setInviteEmail(""); }}>
-              <option value="">— Unassigned / Invite by email —</option>
-              {members.map((m) => (
-                <option key={m.userId} value={m.userId}>{m.displayName}</option>
-              ))}
-            </select>
-            {useInvite && (
-              <div className="mt-2">
-                <input
-                  type="email"
-                  maxLength={320}
-                  className={INPUT_CLS}
-                  placeholder="Invite owner by email (optional)"
-                  value={inviteEmail}
-                  onChange={(e) => setInviteEmail(e.target.value)}
-                />
-                {inviteEmail.trim() && (
-                  <p className="mt-1 text-xs text-slate-500">
-                    They&apos;ll be assigned to this team automatically after accepting the invitation.
-                  </p>
-                )}
-              </div>
-            )}
-          </div>
+        {useInvite && (
+          <Field
+            label="Invite owner by email (Optional)"
+            controlId="add-team-invite"
+            description={
+              inviteEmail.trim()
+                ? "They'll be assigned to this team automatically after accepting the invitation."
+                : undefined
+            }
+          >
+            <Input
+              type="email"
+              maxLength={320}
+              value={inviteEmail}
+              onChange={(e) => setInviteEmail(e.target.value)}
+            />
+          </Field>
+        )}
 
-          <div>
-            <label className={LABEL_CLS}>First Name <span className="font-normal normal-case text-slate-500">(Optional)</span></label>
-            <input maxLength={100} className={INPUT_CLS} placeholder="Display name in draft" value={ownerName} onChange={(e) => setOwnerName(e.target.value)} />
-          </div>
+        <Field label="First Name (Optional)" controlId="add-team-owner-name">
+          <Input
+            maxLength={100}
+            placeholder="Display name in draft"
+            value={ownerName}
+            onChange={(e) => setOwnerName(e.target.value)}
+          />
+        </Field>
 
-          {error && (
-            <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>
-          )}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading || !name.trim()} className="flex-1 rounded-xl px-4 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: primary, color: secondary }}>
-              {loading ? "Adding..." : "Add Team"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        {error && <Alert status="danger">{error}</Alert>}
+      </form>
+    </Dialog>
   );
 }
 
@@ -197,40 +220,23 @@ function ConfirmDeleteModal({
   onConfirm: () => void;
   onCancel: () => void;
 }) {
+  // Solid danger is right here, unlike the Reset Draft trigger in the command
+  // center: this dialog exists only to confirm a destructive act, so the
+  // emphasis is the point rather than an overstatement.
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/68 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-sm overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-        <div className="border-b border-slate-800/80 px-5 py-4">
-          <StatusBadge label="Danger Zone" tone="danger" />
-          <h2 className="mt-3 text-base font-black text-white">Delete &ldquo;{teamName}&rdquo;?</h2>
-        </div>
-        <div className="px-5 py-5">
-        {hasHistory ? (
-          <p className="mb-5 text-sm leading-6 text-slate-400">
-            This team has season history. Deleting it will remove it from past season records. This cannot be undone.
-          </p>
-        ) : (
-          <p className="mb-5 text-sm leading-6 text-slate-400">This cannot be undone.</p>
-        )}
-        <div className="flex flex-col-reverse gap-3 sm:flex-row">
-          <button
-            type="button"
-            onClick={onCancel}
-            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950"
-          >
-            Cancel
-          </button>
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="inline-flex min-h-11 flex-1 items-center justify-center rounded-xl bg-red-600 px-4 py-2.5 text-sm font-black text-white shadow-[0_14px_40px_rgba(220,38,38,0.24)] transition-colors hover:bg-red-500 focus:outline-none focus:ring-2 focus:ring-red-300 focus:ring-offset-2 focus:ring-offset-slate-950"
-          >
-            Delete
-          </button>
-        </div>
-        </div>
-      </div>
-    </div>
+    <ConfirmDialog
+      open
+      onClose={onCancel}
+      onConfirm={onConfirm}
+      title={`Delete "${teamName}"?`}
+      description={
+        hasHistory
+          ? "This team has season history. Deleting it will remove it from past season records. This cannot be undone."
+          : "This cannot be undone."
+      }
+      confirmLabel="Delete"
+      confirmVariant="danger"
+    />
   );
 }
 
