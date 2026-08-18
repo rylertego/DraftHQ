@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabase";
-import { LinkButton } from "@/components/ui/Action";
+import { LinkButton, PageShell, Panel } from "@/components/ui";
 
 /** Landing = marketing. A signed-in user has already bought in, so send them
  *  to the dashboard instead of pitching the product to them again. */
@@ -42,44 +41,50 @@ export default function HomePage() {
   if (authState !== "signed-out") return null;
 
   return (
-    <main className="flex flex-1 items-center px-4 py-12 sm:px-6 sm:py-20">
-      <div className="mx-auto w-full max-w-5xl">
+    <main className="flex flex-1 items-center">
+      <PageShell width="workspace">
         {/* Hero */}
-        <div className="mb-12 text-center">
-          <p className="text-xs font-bold uppercase tracking-[0.3em] text-[color:var(--color-product-accent)] mb-4">
+        <div className="mb-[var(--space-7)] text-center">
+          <p className="mb-[var(--space-3)] text-xs font-bold uppercase tracking-[0.3em] text-[color:var(--color-product-accent)]">
             Fantasy Draft Platform
           </p>
-          <h1 className="text-5xl font-extrabold tracking-tight text-white sm:text-7xl">
+          <h1 className="text-5xl font-extrabold tracking-tight text-[color:var(--color-text-primary)] sm:text-7xl">
             Draft Together.<br />
             <span className="text-[color:var(--color-product-accent)]">Win Forever.</span>
           </h1>
-          <p className="mx-auto mt-6 max-w-2xl text-lg leading-8 text-slate-400">
+          <p className="mx-auto mt-[var(--space-5)] max-w-2xl text-lg leading-8 text-[color:var(--color-text-secondary)]">
             DraftHQ keeps every owner, pick, timer, and team in sync — across phones and laptops — in real time.
           </p>
         </div>
 
-        {/* Cards */}
-        <div className="grid gap-5 sm:grid-cols-2">
-          <section className="rounded-2xl border border-[color:var(--color-product-accent-border)] bg-[var(--color-surface-2)] p-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-[color:var(--color-product-accent)] mb-3">Owners</p>
-            <h2 className="text-2xl font-bold text-white">Joining a draft?</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
+        {/* Two doors: owners arrive with a link or code, commissioners with an
+            account. Both cards are the same surface — the difference in weight
+            comes from the buttons, not from tinting one card. */}
+        <div className="mx-auto grid max-w-4xl gap-[var(--space-4)] sm:grid-cols-2">
+          <Panel>
+            <p className="mb-[var(--space-2)] text-xs font-bold uppercase tracking-widest text-[color:var(--color-product-accent)]">
+              Owners
+            </p>
+            <h2 className="text-2xl font-bold text-[color:var(--color-text-primary)]">Joining a draft?</h2>
+            <p className="mt-[var(--space-2)] text-sm leading-6 text-[color:var(--color-text-secondary)]">
               Open your invitation link or enter the join code from your commissioner.
             </p>
-            <div className="mt-6">
+            <div className="mt-[var(--space-5)]">
               <LinkButton href="/join" variant="primary" scope="product" fullWidth>
                 Join a Draft
               </LinkButton>
             </div>
-          </section>
+          </Panel>
 
-          <section className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-slate-500 mb-3">Commissioners</p>
-            <h2 className="text-2xl font-bold text-white">Running the league?</h2>
-            <p className="mt-3 text-sm leading-6 text-slate-400">
+          <Panel>
+            <p className="mb-[var(--space-2)] text-xs font-bold uppercase tracking-widest text-[color:var(--color-text-muted)]">
+              Commissioners
+            </p>
+            <h2 className="text-2xl font-bold text-[color:var(--color-text-primary)]">Running the league?</h2>
+            <p className="mt-[var(--space-2)] text-sm leading-6 text-[color:var(--color-text-secondary)]">
               Log in to create, configure, and control your draft.
             </p>
-            <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="mt-[var(--space-5)] grid grid-cols-2 gap-[var(--space-3)]">
               <LinkButton href="/login" variant="secondary" scope="product" fullWidth>
                 Log In
               </LinkButton>
@@ -87,9 +92,9 @@ export default function HomePage() {
                 Create League
               </LinkButton>
             </div>
-          </section>
+          </Panel>
         </div>
-      </div>
+      </PageShell>
     </main>
   );
 }
