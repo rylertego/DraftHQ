@@ -19,7 +19,7 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 1 — Shared Foundation | 2, 3, 4, 5 | ✅ Complete |
 | 2 — Global Product Surfaces | 6 | ✅ Complete |
 | 2 — Global Product Surfaces | 7 | ✅ Complete |
-| 2 — Global Product Surfaces | 8 | ⚠️ Complete; populated dashboard + import modal still unseen |
+| 2 — Global Product Surfaces | 8 | ✅ Complete (import modal preview still unseen) |
 | 3–8 | 9–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
