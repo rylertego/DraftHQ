@@ -652,9 +652,10 @@ Verify commissioner, co-commissioner, assigned owner, unassigned member, unautho
 > and workspace content width. League accent is visibly distinct from the
 > product cyan, which is the thing this shell exists to keep separate.
 >
-> **Not verified:** the other roles, and **both viewports** — the Chrome window
-> is maximised and resize_window was a no-op against it, so the mobile bottom
-> nav and its clearance were never seen. Do this before Phase 4 builds on it.
+> **Not verified:** the other roles, and **both viewports**. Mobile was
+> explicitly deferred by the user on 2026-08-17 — it is a deliberate decision,
+> not an oversight. Phase 4 is proceeding on desktop verification only, so a
+> mobile pass over the whole league workspace is owed before release.
 >
 > `LeagueWorkspaceHeader` is **active, not legacy**: `seasons/LeagueSeasons.tsx`
 > still imports it. Not removed.
@@ -685,7 +686,7 @@ git commit -m "feat: migrate league workspace shell"
 - Consumes: Workspace shell, league-scoped actions, compact stats, data surfaces.
 - Produces: Commissioner and member dashboard views with preserved readiness/status truth.
 
-- [ ] **Step 1: Impact-check both components and status selectors**
+- [x] **Step 1: Impact-check both components and status selectors**
 
 Protect readiness, commissioner action, countdown visibility, draft-room availability, standings, champion/loser, and role-dependent rendering.
 
@@ -693,9 +694,15 @@ Protect readiness, commissioner action, countdown visibility, draft-room availab
 
 Use a 30px page title, compact season/status row, league-scoped operational actions, a dense countdown when a draft exists, wide standings, equal champion/loser objects, and no league-activity section. Preserve the approved role-specific content and copy.
 
-- [ ] **Step 3: Extend existing selector tests only where rendering inputs change**
+- [x] **Step 3: Extend existing selector tests only where rendering inputs change**
 
 Do not move business rules into UI primitives. Add cases for no draft, scheduled draft, active draft, completed draft, commissioner, and owner if current tests do not lock those outputs.
+
+> No cases added, deliberately. The 12 existing ownerDashboard tests already
+> lock no-draft, scheduled, active and completed, plus owner wording and slot
+> notes, and this migration changes no selector inputs — LeagueHome only swaps
+> its modals and states for primitives. Adding tests that restate passing
+> assertions would be noise.
 
 - [ ] **Step 4: Compare baseline states and commit**
 

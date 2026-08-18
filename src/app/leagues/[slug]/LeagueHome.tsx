@@ -4,11 +4,19 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import LeagueCommandCenter from "@/components/LeagueCommandCenter";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
-import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { createDraftForSeason, resetSeasonDraft } from "@/lib/leagueApi";
 import { updateDraftSchedule } from "@/lib/draftApi";
 import { localTimeZone, zonedWallClockToUtc } from "@/lib/draftSchedule";
 import type { LeagueSeason } from "@/types/league";
+import {
+  Alert,
+  Button,
+  Dialog,
+  Field,
+  FormLayout,
+  Input,
+  Skeleton,
+} from "@/components/ui";
 
 function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onClose: () => void; onReset: () => void }) {
   const [isResetting, setIsResetting] = useState(false);
@@ -33,52 +41,44 @@ function ResetDraftModal({ seasonId, onClose, onReset }: { seasonId: string; onC
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-950/60">
-            <svg className="h-5 w-5 text-red-400" viewBox="0 0 16 16" fill="none">
-              <path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zm0 3v3M8 10h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="font-bold text-white">Reset Draft?</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              This will permanently delete the draft and all its picks. The season will return to &quot;no draft&quot; state. This cannot be undone.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Type <span className="font-mono text-red-400">RESET</span> to confirm
-          </label>
-          <input
-            ref={inputRef}
-            type="text"
-            maxLength={10}
-            className="w-full"
-            placeholder="RESET"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value.toUpperCase())}
-            onKeyDown={(e) => { if (e.key === "Enter") void handleReset(); }}
-          />
-        </div>
-
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-
-        <div className="mt-5 flex gap-3">
-          <button type="button" onClick={onClose} disabled={isResetting}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors">
+    <Dialog
+      open
+      onClose={onClose}
+      size="small"
+      title="Reset Draft?"
+      description="This will permanently delete the draft and all its picks. The season will return to its no-draft state. This cannot be undone."
+      initialFocusRef={inputRef}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isResetting}>
             Cancel
-          </button>
-          <button type="button" onClick={() => void handleReset()} disabled={confirm !== "RESET" || isResetting}
-            className="flex-1 rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors">
+          </Button>
+          {/* Destructive stays danger even inside a league accent. */}
+          <Button
+            variant="danger"
+            loading={isResetting}
+            disabled={confirm !== "RESET"}
+            onClick={() => void handleReset()}
+          >
             {isResetting ? "Resetting..." : "Delete Draft"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      <Field label="Type RESET to confirm" controlId="reset-draft-confirm">
+        <Input
+          ref={inputRef}
+          type="text"
+          maxLength={10}
+          placeholder="RESET"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value.toUpperCase())}
+          onKeyDown={(e) => { if (e.key === "Enter") void handleReset(); }}
+        />
+      </Field>
+
+      {error && <Alert status="danger">{error}</Alert>}
+    </Dialog>
   );
 }
 
@@ -93,7 +93,6 @@ function CreateDraftModal({
   onClose: () => void;
   onCreated: (draftId: string) => void;
 }) {
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const currentYear = season.year;
   const [draftName, setDraftName] = useState(`${currentYear} Draft`);
   const [teamCount, setTeamCount] = useState(maxTeams);
@@ -137,71 +136,72 @@ function CreateDraftModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
-      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
-        <h2 className="mb-5 text-base font-bold text-white">Create Draft — {season.name}</h2>
-        <form onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Draft Name</label>
-            <input required maxLength={100} className="w-full" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+    <Dialog
+      open
+      onClose={onClose}
+      size="small"
+      title={`Create Draft — ${season.name}`}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={isCreating}>
+            Cancel
+          </Button>
+          <Button type="submit" form="create-draft-form" scope="league" loading={isCreating}>
+            {isCreating ? "Creating..." : "Create Draft"}
+          </Button>
+        </>
+      }
+    >
+      <FormLayout id="create-draft-form" onSubmit={(e) => void handleSubmit(e)}>
+        <Field label="Draft Name" controlId="create-draft-name">
+          <Input required maxLength={100} value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-[var(--space-3)]">
+          <Field label="Teams" controlId="create-draft-teams" description="Set in league settings.">
+            <Input
+              type="number"
+              min={2}
+              max={20}
+              value={teamCount}
+              disabled
+              onChange={(e) => setTeamCount(Number(e.target.value))}
+            />
+          </Field>
+          <Field label="Rounds" controlId="create-draft-rounds">
+            <Input type="number" min={1} max={30} value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
+          </Field>
+        </div>
+
+        <Field
+          label="Draft Date (optional)"
+          controlId="create-draft-date"
+          description={
+            scheduledDate
+              ? "Owners see this as a countdown. You can change it later in draft settings."
+              : "Set it now or later — owners see a countdown as soon as it is set."
+          }
+        >
+          <div className="grid grid-cols-2 gap-[var(--space-3)]">
+            <Input
+              type="date"
+              aria-label="Draft date"
+              value={scheduledDate}
+              onChange={(e) => setScheduledDate(e.target.value)}
+            />
+            <Input
+              type="time"
+              aria-label="Draft start time"
+              disabled={!scheduledDate}
+              value={scheduledTime}
+              onChange={(e) => setScheduledTime(e.target.value)}
+            />
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Teams</label>
-              <input
-                type="number" min={2} max={20}
-                className="w-full disabled:opacity-60 disabled:cursor-not-allowed"
-                value={teamCount}
-                disabled
-                onChange={(e) => setTeamCount(Number(e.target.value))}
-              />
-              <p className="mt-1 text-xs text-slate-500">Set in league settings.</p>
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400">Rounds</label>
-              <input type="number" min={1} max={30} className="w-full" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
-            </div>
-          </div>
-          <div>
-            <div className="mb-1.5 flex items-baseline justify-between gap-2">
-              <label className="text-xs font-semibold uppercase tracking-wide text-slate-400">Draft Date</label>
-              <span className="text-xs text-slate-500">Optional</span>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <input
-                type="date"
-                aria-label="Draft date"
-                className="w-full"
-                value={scheduledDate}
-                onChange={(e) => setScheduledDate(e.target.value)}
-              />
-              <input
-                type="time"
-                aria-label="Draft start time"
-                className="w-full disabled:opacity-50"
-                disabled={!scheduledDate}
-                value={scheduledTime}
-                onChange={(e) => setScheduledTime(e.target.value)}
-              />
-            </div>
-            <p className="mt-1 text-xs text-slate-500">
-              {scheduledDate
-                ? "Owners see this as a countdown. You can change it later in draft settings."
-                : "Set it now or later — owners see a countdown as soon as it's set."}
-            </p>
-          </div>
-          {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 rounded-xl border border-slate-700 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={isCreating} className="flex-1 rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90" style={{ backgroundColor: primary, color: secondary }}>
-              {isCreating ? "Creating..." : "Create Draft"}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        </Field>
+
+        {error && <Alert status="danger">{error}</Alert>}
+      </FormLayout>
+    </Dialog>
   );
 }
 
@@ -213,10 +213,10 @@ export default function LeagueHome({ slug }: { slug: string }) {
 
   if (isLoading && !workspace) {
     return (
-      <div className="space-y-6" aria-label="Loading league dashboard">
-        <div className="h-56 animate-pulse rounded-2xl bg-slate-900" />
-        <div className="grid gap-4 lg:grid-cols-3">
-          {[0, 1, 2].map((item) => <div key={item} className="h-64 animate-pulse rounded-2xl bg-slate-900" />)}
+      <div className="flex flex-col gap-[var(--space-5)]" aria-label="Loading league dashboard">
+        <Skeleton height="mark-large" label="Loading league dashboard" />
+        <div className="grid gap-[var(--space-4)] lg:grid-cols-3">
+          {[0, 1, 2].map((item) => <Skeleton key={item} height="mark-large" />)}
         </div>
       </div>
     );
@@ -224,13 +224,17 @@ export default function LeagueHome({ slug }: { slug: string }) {
 
   if (error || !workspace) {
     return (
-      <div className="rounded-2xl border border-red-800 bg-red-950/30 p-6">
-        <h1 className="font-bold text-red-300">Unable to load league dashboard</h1>
-        <p className="mt-2 text-sm text-red-400">{error || "League not found."}</p>
-        <button type="button" onClick={reload} className="mt-4 rounded-xl border border-red-800 px-4 py-2 text-sm font-semibold text-red-300 hover:bg-red-950/50">
-          Try again
-        </button>
-      </div>
+      <Alert
+        status="danger"
+        title="Unable to load league dashboard"
+        action={
+          <Button variant="secondary" onClick={reload}>
+            Try again
+          </Button>
+        }
+      >
+        {error || "League not found."}
+      </Alert>
     );
   }
 
