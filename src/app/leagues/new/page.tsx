@@ -4,6 +4,16 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createLeague } from "@/lib/leagueApi";
+import {
+  Alert,
+  Button,
+  Field,
+  FormLayout,
+  Input,
+  PageHeader,
+  PageShell,
+  Panel,
+} from "@/components/ui";
 
 export default function NewLeaguePage() {
   const router = useRouter();
@@ -37,81 +47,64 @@ export default function NewLeaguePage() {
   }
 
   return (
-    <main className="flex min-h-screen items-start justify-center bg-slate-950 px-4 py-20">
-      <div className="w-full max-w-md">
+    <PageShell width="readable">
+      <div className="mx-auto w-full max-w-[420px]">
         <Link
           href="/dashboard"
-          className="mb-8 inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-slate-500 hover:text-slate-300 transition-colors"
+          className="mb-[var(--space-6)] inline-flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-text-secondary)]"
         >
-          <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none">
+          <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="none" aria-hidden="true">
             <path d="M10 3L5 8l5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
           Dashboard
         </Link>
 
-        <h1 className="text-3xl font-bold text-white">Create League</h1>
-        <p className="mt-1.5 text-sm text-slate-500">
-          A persistent home for your seasons and drafts.
-        </p>
+        <PageHeader
+          title="Create League"
+          description="A persistent home for your seasons and drafts."
+        />
 
-        <form onSubmit={handleSubmit} className="mt-8 space-y-5">
-          <div>
-            <label
-              className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400"
-              htmlFor="league-name"
+        <div className="mt-[var(--space-5)]">
+          <Panel>
+            <FormLayout
+              onSubmit={handleSubmit}
+              actions={
+                <Button type="submit" loading={isCreating} fullWidth>
+                  {isCreating ? "Creating..." : "Create League"}
+                </Button>
+              }
             >
-              League Name
-            </label>
-            <input
-              id="league-name"
-              autoFocus
-              required
-              maxLength={100}
-              className="w-full"
-              placeholder="The Brotherhood of Champions"
-              value={name}
-              onChange={(e) => updateName(e.target.value)}
-            />
-          </div>
+              <Field label="League Name" controlId="league-name">
+                <Input
+                  autoFocus
+                  required
+                  maxLength={100}
+                  placeholder="The Brotherhood of Champions"
+                  value={name}
+                  onChange={(e) => updateName(e.target.value)}
+                />
+              </Field>
 
-          <div>
-            <label
-              className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400"
-              htmlFor="league-slug"
-            >
-              URL Slug
-            </label>
-            <input
-              id="league-slug"
-              required
-              minLength={3}
-              maxLength={60}
-              pattern="[a-z0-9]+(-[a-z0-9]+)*"
-              className="w-full font-mono"
-              value={slug}
-              onChange={(e) => setSlug(e.target.value.toLowerCase())}
-            />
-            <p className="mt-1.5 text-xs text-slate-600">
-              drafthq.app/leagues/
-              <span className="text-slate-400">{slug || "your-league"}</span>
-            </p>
-          </div>
+              <Field
+                label="URL Slug"
+                controlId="league-slug"
+                description={`drafthq.net/leagues/${slug || "your-league"}`}
+              >
+                <Input
+                  required
+                  minLength={3}
+                  maxLength={60}
+                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
+                  value={slug}
+                  onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                />
+              </Field>
 
-          {error && (
-            <p className="rounded-xl border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">
-              {error}
-            </p>
-          )}
-
-          <button
-            type="submit"
-            disabled={isCreating}
-            className="w-full rounded-xl bg-[var(--color-product-accent)] py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
-          >
-            {isCreating ? "Creating..." : "Create League"}
-          </button>
-        </form>
+              {error && <Alert status="danger">{error}</Alert>}
+            </FormLayout>
+          </Panel>
+        </div>
       </div>
-    </main>
+    </PageShell>
   );
 }

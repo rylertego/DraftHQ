@@ -8,6 +8,18 @@ import { getMyCommissionerLeagues } from "@/lib/leagueApi";
 import { supabase } from "@/lib/supabase";
 import SleeperImportForm from "@/components/SleeperImportForm";
 import type { League } from "@/types/league";
+import {
+  Alert,
+  Button,
+  Field,
+  FormLayout,
+  Input,
+  LinkButton,
+  PageHeader,
+  PageShell,
+  Panel,
+  Select,
+} from "@/components/ui";
 
 const ACCOUNT_CHECK_TIMEOUT_MS = 3_000;
 
@@ -63,96 +75,106 @@ export default function CreateDraftPage() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-6 p-6 sm:p-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white">Create Draft</h1>
-        <p className="mt-1 text-sm text-slate-400">Set up your draft room in seconds.</p>
-      </div>
+    <PageShell width="readable">
+      <PageHeader title="Create Draft" description="Set up your draft room in seconds." />
 
-      {isCheckingAccount ? (
-        <p className="text-slate-400">Checking your account...</p>
-      ) : !hasAccount ? (
-        <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
-          <h2 className="mb-2 text-xl font-bold text-white">Commissioner account required</h2>
-          <p className="mb-6 text-sm text-slate-400">
-            Create an account or log in to create and manage a draft. Owners can join without an account.
-          </p>
-          <div className="flex gap-3">
-            <Link href="/signup" className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] transition-colors">
-              Create Account
-            </Link>
-            <Link href="/login" className="rounded-xl border border-slate-600 bg-slate-800 px-5 py-2.5 text-sm font-semibold text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-              Log In
-            </Link>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-6">
-          <SleeperImportForm />
+      <div className="mt-[var(--space-6)] flex flex-col gap-[var(--space-5)]">
+        {isCheckingAccount ? (
+          <p className="text-[color:var(--color-text-secondary)]">Checking your account...</p>
+        ) : !hasAccount ? (
+          <Panel
+            title="Commissioner account required"
+            description="Create an account or log in to create and manage a draft. Owners can join without an account."
+          >
+            <div className="flex flex-wrap gap-[var(--density-control-gap)]">
+              <LinkButton href="/signup" variant="primary" scope="product">
+                Create Account
+              </LinkButton>
+              <LinkButton href="/login" variant="secondary" scope="product">
+                Log In
+              </LinkButton>
+            </div>
+          </Panel>
+        ) : (
+          <>
+            <SleeperImportForm />
 
-          <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
-            <span className="h-px flex-1 bg-slate-800" />
-            Or create manually
-            <span className="h-px flex-1 bg-slate-800" />
-          </div>
-
-          <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6 space-y-5">
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="draft-league">
-                  League (optional)
-                </label>
-                <Link className="text-xs font-medium text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]" href="/leagues/new">
-                  + Create a league
-                </Link>
-              </div>
-              <select id="draft-league" className="w-full" value={leagueId} onChange={(e) => setLeagueId(e.target.value)}>
-                <option value="">Standalone draft</option>
-                {leagues.map((league) => (
-                  <option key={league.id} value={league.id}>{league.name}</option>
-                ))}
-              </select>
+            <div className="flex items-center gap-[var(--space-3)] text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">
+              <span className="h-px flex-1 bg-[var(--color-border-subtle)]" />
+              Or create manually
+              <span className="h-px flex-1 bg-[var(--color-border-subtle)]" />
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="draft-name">
-                Draft Name
-              </label>
-              <input id="draft-name" className="w-full" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="team-count">
-                  Teams
-                </label>
-                <input id="team-count" type="number" min={2} max={20} className="w-full" value={teamCount} onChange={(e) => setTeamCount(Number(e.target.value))} />
-              </div>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="round-count">
-                  Rounds
-                </label>
-                <input id="round-count" type="number" min={1} max={30} className="w-full" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
-              </div>
-            </div>
-
-            {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-
-            <div className="flex items-center justify-between">
-              <button
-                onClick={handleCreateDraft}
-                disabled={isCreating}
-                className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
+            <Panel>
+              <FormLayout
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void handleCreateDraft();
+                }}
+                actions={
+                  <>
+                    <Button type="submit" loading={isCreating}>
+                      {isCreating ? "Creating..." : "Create Draft"}
+                    </Button>
+                    <LinkButton href="/join" variant="tertiary" scope="product">
+                      Have a code? Join →
+                    </LinkButton>
+                  </>
+                }
               >
-                {isCreating ? "Creating..." : "Create Draft"}
-              </button>
-              <Link className="text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]" href="/join">
-                Have a code? Join →
-              </Link>
-            </div>
-          </div>
-        </div>
-      )}
-    </main>
+                <Field
+                  label="League (optional)"
+                  controlId="draft-league"
+                  description="Leave as a standalone draft, or attach it to a league you run."
+                >
+                  <Select value={leagueId} onChange={(e) => setLeagueId(e.target.value)}>
+                    <option value="">Standalone draft</option>
+                    {leagues.map((league) => (
+                      <option key={league.id} value={league.id}>{league.name}</option>
+                    ))}
+                  </Select>
+                </Field>
+
+                <p className="-mt-[var(--space-2)]">
+                  <Link
+                    className="text-xs font-medium text-[color:var(--color-product-accent)] underline-offset-4 hover:underline"
+                    href="/leagues/new"
+                  >
+                    + Create a league
+                  </Link>
+                </p>
+
+                <Field label="Draft Name" controlId="draft-name">
+                  <Input value={draftName} onChange={(e) => setDraftName(e.target.value)} />
+                </Field>
+
+                <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+                  <Field label="Teams" controlId="team-count">
+                    <Input
+                      type="number"
+                      min={2}
+                      max={20}
+                      value={teamCount}
+                      onChange={(e) => setTeamCount(Number(e.target.value))}
+                    />
+                  </Field>
+                  <Field label="Rounds" controlId="round-count">
+                    <Input
+                      type="number"
+                      min={1}
+                      max={30}
+                      value={rounds}
+                      onChange={(e) => setRounds(Number(e.target.value))}
+                    />
+                  </Field>
+                </div>
+
+                {error && <Alert status="danger">{error}</Alert>}
+              </FormLayout>
+            </Panel>
+          </>
+        )}
+      </div>
+    </PageShell>
   );
 }

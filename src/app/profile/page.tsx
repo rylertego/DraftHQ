@@ -1,6 +1,6 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   changeMyPassword,
@@ -10,11 +10,22 @@ import {
   uploadProfileAvatar,
 } from "@/lib/profileApi";
 import DeleteAccountPanel from "@/components/DeleteAccountPanel";
+import {
+  Alert,
+  Avatar,
+  Button,
+  Field,
+  FileUpload,
+  FormLayout,
+  Input,
+  PageHeader,
+  PageShell,
+  Panel,
+  Textarea,
+} from "@/components/ui";
 
 export default function ProfilePage() {
   const router = useRouter();
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
   const [email, setEmail] = useState("");
   const [displayName, setDisplayName] = useState("");
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
@@ -49,7 +60,11 @@ export default function ProfilePage() {
   }, [router]);
 
   async function handleAvatarChange(e: ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
+    // Captured synchronously: the FileUpload primitive does not forward a ref,
+    // and this element still has to be cleared afterwards so re-picking the
+    // same file fires another change event.
+    const input = e.target;
+    const file = input.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
       setError("Image must be 5 MB or smaller.");
@@ -64,7 +79,7 @@ export default function ProfilePage() {
       setError(err instanceof Error ? err.message : "Unable to upload image.");
     } finally {
       setIsUploadingAvatar(false);
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      input.value = "";
     }
   }
 
@@ -131,175 +146,129 @@ export default function ProfilePage() {
   const initials = displayName.charAt(0).toUpperCase() || "?";
 
   if (isLoading) {
-    return <main className="mx-auto w-full max-w-2xl p-8 text-slate-400">Loading profile...</main>;
+    return (
+      <PageShell width="readable">
+        <p className="text-[color:var(--color-text-secondary)]">Loading profile...</p>
+      </PageShell>
+    );
   }
 
   return (
-    <main className="mx-auto w-full max-w-2xl space-y-8 p-6 sm:p-8">
-      <div>
-        <h1 className="text-3xl font-bold text-white">Owner Profile</h1>
-        <p className="mt-1 text-sm text-slate-500">{email}</p>
-      </div>
+    <PageShell width="readable">
+      <PageHeader title="Owner Profile" description={email} />
 
-      <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6 sm:p-8">
-        <form className="space-y-6" onSubmit={(e) => void handleSubmit(e)}>
-
-          {/* Avatar */}
-          <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Avatar</p>
-            <div className="flex items-center gap-5">
-              <div className="shrink-0">
-                {avatarUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={avatarUrl} alt="Avatar" className="h-20 w-20 rounded-full border border-slate-700 object-cover" />
-                ) : (
-                  <div className="flex h-20 w-20 items-center justify-center rounded-full border border-slate-700 bg-slate-800 text-2xl font-bold text-slate-400">
-                    {initials}
-                  </div>
-                )}
-              </div>
-              <div className="flex flex-col items-start gap-2">
-                <label className="cursor-pointer rounded-lg border border-slate-600 bg-slate-800 px-4 py-2 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors">
-                  {isUploadingAvatar ? "Uploading..." : "Upload image"}
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/gif,image/webp"
-                    className="sr-only"
-                    disabled={isUploadingAvatar}
-                    onChange={(e) => void handleAvatarChange(e)}
-                  />
-                </label>
+      <div className="mt-[var(--space-6)] flex flex-col gap-[var(--space-6)]">
+        <Panel>
+          <FormLayout
+            onSubmit={(e) => void handleSubmit(e)}
+            actions={
+              <Button type="submit" loading={isSaving} disabled={isUploadingAvatar}>
+                {isSaving ? "Saving..." : "Save Profile"}
+              </Button>
+            }
+          >
+            <div className="flex items-center gap-[var(--space-4)]">
+              <Avatar name={displayName || initials} src={avatarUrl} size="large" />
+              <div className="flex min-w-0 flex-col items-start gap-[var(--space-2)]">
+                <FileUpload
+                  label="Avatar"
+                  description="JPG, PNG, GIF, WebP · max 5 MB"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  disabled={isUploadingAvatar}
+                  onChange={(e) => void handleAvatarChange(e)}
+                />
                 {avatarUrl && (
-                  <button
-                    type="button"
-                    className="text-xs text-slate-500 hover:text-red-400 transition-colors"
-                    onClick={() => setAvatarUrl(null)}
-                  >
+                  <Button variant="tertiary" onClick={() => setAvatarUrl(null)}>
                     Remove photo
-                  </button>
+                  </Button>
                 )}
-                <p className="text-xs text-slate-600">JPG, PNG, GIF, WebP · max 5 MB</p>
               </div>
             </div>
-          </div>
 
-          {/* Display name */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="profile-name">
-              Display Name
-            </label>
-            <input
-              id="profile-name"
-              required
-              maxLength={50}
-              className="w-full"
-              value={displayName}
-              onChange={(e) => setDisplayName(e.target.value)}
-            />
-          </div>
+            <Field label="Display Name" controlId="profile-name">
+              <Input
+                required
+                maxLength={50}
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+              />
+            </Field>
 
-          {/* Bio */}
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="profile-bio">
-              Bio
-            </label>
-            <textarea
-              id="profile-bio"
-              maxLength={280}
-              rows={3}
-              className="w-full resize-none"
-              placeholder="Tell leagues a little about yourself..."
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-            />
-            <p className="mt-1 text-right text-xs text-slate-500">{bio.length}/280</p>
-          </div>
+            <Field label="Bio" controlId="profile-bio" description={`${bio.length}/280`}>
+              <Textarea
+                maxLength={280}
+                rows={3}
+                placeholder="Tell leagues a little about yourself..."
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+              />
+            </Field>
 
-          {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-          {message && <p className="rounded-lg border border-[color:var(--color-success-border)] bg-[color-mix(in_srgb,var(--color-success-muted)_45%,transparent)] px-3 py-2 text-sm text-[color:var(--color-success-border)]">{message}</p>}
+            {error && <Alert status="danger">{error}</Alert>}
+            {message && <Alert status="success">{message}</Alert>}
+          </FormLayout>
+        </Panel>
 
-          <button
-            type="submit"
-            disabled={isSaving || isUploadingAvatar}
-            className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
+        <Panel
+          title="Change Password"
+          description="Confirm your current password to set a new one."
+        >
+          <FormLayout
+            onSubmit={(e) => void handleChangePassword(e)}
+            actions={
+              <>
+                <Button type="submit" loading={isChangingPassword}>
+                  {isChangingPassword ? "Saving..." : "Change Password"}
+                </Button>
+                <Button
+                  variant="tertiary"
+                  loading={isSendingReset}
+                  onClick={() => void handleForgotPassword()}
+                >
+                  {isSendingReset ? "Sending..." : "Forgot Password?"}
+                </Button>
+              </>
+            }
           >
-            {isSaving ? "Saving..." : "Save Profile"}
-          </button>
-        </form>
+            <Field label="Current Password" controlId="current-password">
+              <Input
+                type="password"
+                required
+                autoComplete="current-password"
+                value={currentPassword}
+                onChange={(e) => setCurrentPassword(e.target.value)}
+              />
+            </Field>
+
+            <Field label="New Password" controlId="new-password" description="At least 8 characters.">
+              <Input
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+              />
+            </Field>
+
+            <Field label="Confirm New Password" controlId="confirm-new-password">
+              <Input
+                type="password"
+                required
+                minLength={8}
+                autoComplete="new-password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+              />
+            </Field>
+
+            {passwordError && <Alert status="danger">{passwordError}</Alert>}
+            {passwordMessage && <Alert status="success">{passwordMessage}</Alert>}
+          </FormLayout>
+        </Panel>
+
+        <DeleteAccountPanel />
       </div>
-
-      <div className="rounded-2xl border border-slate-700 bg-slate-900 p-6 sm:p-8">
-        <h2 className="mb-1 text-lg font-bold text-white">Change Password</h2>
-        <p className="mb-6 text-sm text-slate-500">Confirm your current password to set a new one.</p>
-
-        <form className="space-y-5" onSubmit={(e) => void handleChangePassword(e)}>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="current-password">
-              Current Password
-            </label>
-            <input
-              id="current-password"
-              type="password"
-              required
-              className="w-full"
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="new-password">
-              New Password
-            </label>
-            <input
-              id="new-password"
-              type="password"
-              required
-              minLength={8}
-              className="w-full"
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="confirm-new-password">
-              Confirm New Password
-            </label>
-            <input
-              id="confirm-new-password"
-              type="password"
-              required
-              minLength={8}
-              className="w-full"
-              value={confirmNewPassword}
-              onChange={(e) => setConfirmNewPassword(e.target.value)}
-            />
-          </div>
-
-          {passwordError && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{passwordError}</p>}
-          {passwordMessage && <p className="rounded-lg border border-[color:var(--color-success-border)] bg-[color-mix(in_srgb,var(--color-success-muted)_45%,transparent)] px-3 py-2 text-sm text-[color:var(--color-success-border)]">{passwordMessage}</p>}
-
-          <div className="flex items-center justify-between">
-            <button
-              type="submit"
-              disabled={isChangingPassword}
-              className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
-            >
-              {isChangingPassword ? "Saving..." : "Change Password"}
-            </button>
-            <button
-              type="button"
-              disabled={isSendingReset}
-              onClick={() => void handleForgotPassword()}
-              className="text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)] disabled:opacity-50"
-            >
-              {isSendingReset ? "Sending..." : "Forgot Password?"}
-            </button>
-          </div>
-        </form>
-      </div>
-
-      <DeleteAccountPanel />
-    </main>
+    </PageShell>
   );
 }
