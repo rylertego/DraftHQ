@@ -21,9 +21,6 @@ import { Alert, Button, ConfirmDialog, Dialog, Field, Input, Select } from "@/co
 
 type Tone = "neutral" | "ready" | "warning" | "danger" | "complete";
 
-const INPUT_CLS = "w-full rounded-xl border border-slate-700/80 bg-slate-950/55 px-3 py-2.5 text-sm text-white placeholder:text-slate-600 transition-colors focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-400/20 disabled:opacity-50";
-const LABEL_CLS = "mb-1.5 block text-[11px] font-black uppercase tracking-[0.16em] text-slate-500";
-const HELPER_CLS = "mt-1.5 text-xs leading-relaxed text-slate-500";
 const primaryButtonClass = "inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-500 px-5 py-3 text-sm font-black text-white shadow-[0_14px_40px_rgba(59,130,246,0.28)] transition-colors hover:bg-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40";
 const secondaryButtonClass = "inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40";
 
@@ -255,7 +252,6 @@ function EditTeamModal({
   onSaved: (updates: Partial<LeagueTeam>) => void;
   onInvite: (email: string) => Promise<void>;
 }) {
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [name, setName] = useState(team.name);
   const [shortName, setShortName] = useState(team.shortName ?? "");
   const [ownerName, setOwnerName] = useState(team.ownerName ?? "");
@@ -347,203 +343,195 @@ function EditTeamModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/68 px-4 py-6 backdrop-blur-sm"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="edit-team-title"
+    <Dialog
+      open
+      onClose={onClose}
+      size="large"
+      title="Edit Team"
+      description="Manage franchise identity and owner assignment for draft night."
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={saving}>
+            Cancel
+          </Button>
+          <Button
+            scope="league"
+            loading={saving}
+            disabled={assigningOwner || !name.trim()}
+            onClick={() => void handleSave()}
+          >
+            {saving ? (uploadingLogo ? "Uploading logo..." : "Saving...") : "Save Changes"}
+          </Button>
+        </>
+      }
     >
-      <div className="my-auto flex max-h-[calc(100vh-2rem)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-slate-800 bg-slate-900/95 shadow-[0_24px_80px_rgba(0,0,0,0.45)]">
-        <div className="relative border-b border-slate-800/80 px-5 py-4 sm:px-6">
-          <div className="absolute inset-x-0 top-0 h-1" style={{ backgroundColor: primary }} />
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Team Command</p>
-              <h2 id="edit-team-title" className="mt-1 text-xl font-black text-white">Edit Team</h2>
-              <p className="mt-1 text-sm leading-6 text-slate-400">
-                Manage franchise identity and owner assignment for draft night.
-              </p>
-            </div>
-            <StatusBadge label={ownerAssigned ? "Assigned" : "Needs Owner"} tone={ownerAssigned ? "complete" : "warning"} />
+      <div className="flex flex-col gap-[var(--space-5)]">
+        {/* Team Identity stays a separate section from Owner Assignment — they
+            are different jobs, and the task treats them as such. */}
+        <section className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-4)]">
+          <div className="mb-[var(--space-4)]">
+            <h3 className="text-sm font-black text-[color:var(--color-text-primary)]">Team Identity</h3>
+            <p className="mt-1 text-xs leading-5 text-[color:var(--color-text-muted)]">
+              Name, abbreviation, and logo used across DraftHQ.
+            </p>
           </div>
-        </div>
 
-        <div className="flex-1 space-y-5 overflow-y-auto px-5 py-5 sm:px-6">
-          <section className="rounded-xl border border-slate-800/90 bg-slate-950/28 p-4">
-            <div className="mb-4">
-              <h3 className="text-sm font-black text-white">Team Identity</h3>
-              <p className="mt-1 text-xs leading-5 text-slate-500">Name, abbreviation, and logo used across DraftHQ.</p>
+          <div className="grid gap-[var(--space-5)] sm:grid-cols-[112px_1fr]">
+            <div>
+              {/* Kept as a custom dropzone rather than FileUpload: the preview
+                  is the control here, and a file-input row would lose that. */}
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-[color:var(--color-border-strong)] bg-[var(--color-surface-1)] text-[color:var(--color-text-primary)] transition-colors hover:border-[color:var(--color-league-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-league-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)]"
+                title="Upload team logo"
+                aria-label="Upload team logo"
+              >
+                {logoPreview ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
+                ) : (
+                  <div className="flex h-full w-full items-center justify-center text-2xl font-black text-[color:var(--color-text-primary)]" style={{ backgroundColor: avatarColor + "55" }}>
+                    {initials}
+                  </div>
+                )}
+                <div className="absolute inset-x-0 bottom-0 bg-[var(--color-canvas)]/80 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+                  {logoPreview ? "Replace" : "Upload"}
+                </div>
+              </button>
+              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">PNG, JPG, or WEBP. 4MB max.</p>
+              {logoFile && !uploadingLogo && (
+                <p className="mt-1 text-xs font-semibold text-[color:var(--color-league-accent)]">New logo selected. Save to apply.</p>
+              )}
+              {uploadingLogo && (
+                <p className="mt-1 text-xs font-semibold text-[color:var(--color-league-accent)]">Uploading logo...</p>
+              )}
             </div>
 
-            <div className="grid gap-5 sm:grid-cols-[112px_1fr]">
-              <div>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-slate-600/90 bg-slate-950/70 text-white transition-colors hover:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-300 focus:ring-offset-2 focus:ring-offset-slate-950"
-                  title="Upload team logo"
-                  aria-label="Upload team logo"
+            <div className="grid content-start gap-[var(--space-4)] sm:grid-cols-2">
+              <div className="sm:col-span-2">
+                <Field
+                  label="Team Name"
+                  controlId="edit-team-name"
+                  required
+                  description="This is the primary franchise name shown in league views."
                 >
-                  {logoPreview ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
-                  ) : (
-                    <div className="flex h-full w-full items-center justify-center text-2xl font-black text-white" style={{ backgroundColor: avatarColor + "55" }}>
-                      {initials}
-                    </div>
-                  )}
-                  <div className="absolute inset-x-0 bottom-0 bg-slate-950/82 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                    {logoPreview ? "Replace" : "Upload"}
-                  </div>
-                </button>
-                <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-                <p className={HELPER_CLS}>PNG, JPG, or WEBP. 4MB max.</p>
-                {logoFile && !uploadingLogo && <p className="mt-1 text-xs font-semibold text-blue-200">New logo selected. Save to apply.</p>}
-                {uploadingLogo && <p className="mt-1 text-xs font-semibold" style={{ color: primary }}>Uploading logo...</p>}
-              </div>
-
-              <div className="grid content-start gap-4 sm:grid-cols-2">
-                <div className="sm:col-span-2">
-                  <label htmlFor="edit-team-name" className={LABEL_CLS}>Team Name <span className="text-red-400">*</span></label>
-                  <input
-                    id="edit-team-name"
+                  <Input
                     required
                     maxLength={100}
-                    className={INPUT_CLS}
                     value={name}
                     onChange={(e) => setName(e.target.value)}
-                    aria-invalid={!name.trim()}
-                    aria-describedby="edit-team-name-help"
                   />
-                  <p id="edit-team-name-help" className={HELPER_CLS}>This is the primary franchise name shown in league views.</p>
-                </div>
-                <div>
-                  <label htmlFor="edit-team-short-name" className={LABEL_CLS}>Short Name</label>
-                  <input
-                    id="edit-team-short-name"
-                    maxLength={10}
-                    className={INPUT_CLS}
-                    placeholder="e.g. Eagles"
-                    value={shortName}
-                    onChange={(e) => setShortName(e.target.value)}
-                  />
-                  <p className={HELPER_CLS}>Optional compact label for tight draft displays.</p>
-                </div>
+                </Field>
               </div>
-            </div>
-          </section>
-
-          <section className="rounded-xl border border-slate-800/90 bg-slate-950/28 p-4">
-            <div className="mb-4 flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-sm font-black text-white">Owner Assignment</h3>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  Assign a league member, invite an owner, or leave this franchise open.
-                </p>
-              </div>
-              <StatusBadge label={selectedOwnerName} tone={ownerAssigned ? "complete" : "warning"} />
-            </div>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <label htmlFor="edit-team-owner" className={LABEL_CLS}>Assigned Owner</label>
-                <select
-                  id="edit-team-owner"
-                  className={INPUT_CLS}
-                  value={ownerUserId}
-                  disabled={assigningOwner || saving}
-                  onChange={(e) => void handleAssignOwner(e.target.value || null)}
-                  aria-describedby="edit-team-owner-help"
-                >
-                  <option value="">Unassigned</option>
-                  {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-                </select>
-                <p id="edit-team-owner-help" className={HELPER_CLS}>
-                  Select Unassigned to remove the current owner from this team.
-                </p>
-                {assigningOwner && <p className="mt-1 text-xs font-semibold text-blue-200">Updating owner assignment...</p>}
-              </div>
-
-              <div className="sm:col-span-2">
-                <label htmlFor="edit-team-owner-name" className={LABEL_CLS}>Owner Display Name</label>
-                <input
-                  id="edit-team-owner-name"
-                  maxLength={100}
-                  className={INPUT_CLS}
-                  placeholder="Name shown during the draft"
-                  value={ownerName}
-                  onChange={(e) => setOwnerName(e.target.value)}
-                  aria-describedby="edit-team-owner-name-help"
+              <Field
+                label="Short Name"
+                controlId="edit-team-short-name"
+                description="Optional compact label for tight draft displays."
+              >
+                <Input
+                  maxLength={10}
+                  placeholder="e.g. Eagles"
+                  value={shortName}
+                  onChange={(e) => setShortName(e.target.value)}
                 />
-                <p id="edit-team-owner-name-help" className={HELPER_CLS}>
-                  Optional draft-room display name. This does not change the owner account profile.
-                </p>
-              </div>
+              </Field>
             </div>
+          </div>
+        </section>
 
-            {!ownerUserId && (
-              <div className="mt-4 border-t border-slate-800/80 pt-4">
-                <label htmlFor="edit-team-invite" className={LABEL_CLS}>Invite Owner by Email</label>
-                <div className="flex flex-col gap-2 sm:flex-row">
-                  <input
-                    id="edit-team-invite"
+        <section className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-4)]">
+          <div className="mb-[var(--space-4)] flex items-start justify-between gap-[var(--space-3)]">
+            <div>
+              <h3 className="text-sm font-black text-[color:var(--color-text-primary)]">Owner Assignment</h3>
+              <p className="mt-1 text-xs leading-5 text-[color:var(--color-text-muted)]">
+                Assign a league member, invite an owner, or leave this franchise open.
+              </p>
+            </div>
+            <StatusBadge label={selectedOwnerName} tone={ownerAssigned ? "complete" : "warning"} />
+          </div>
+
+          <div className="grid gap-[var(--space-4)]">
+            <Field
+              label="Assigned Owner"
+              controlId="edit-team-owner"
+              description="Select Unassigned to remove the current owner from this team."
+            >
+              <Select
+                value={ownerUserId}
+                disabled={assigningOwner || saving}
+                onChange={(e) => void handleAssignOwner(e.target.value || null)}
+              >
+                <option value="">Unassigned</option>
+                {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
+              </Select>
+            </Field>
+
+            {assigningOwner && (
+              <p className="-mt-[var(--space-2)] text-xs font-semibold text-[color:var(--color-league-accent)]">
+                Updating owner assignment...
+              </p>
+            )}
+
+            <Field
+              label="Owner Display Name"
+              controlId="edit-team-owner-name"
+              description="Optional draft-room display name. This does not change the owner account profile."
+            >
+              <Input
+                maxLength={100}
+                placeholder="Name shown during the draft"
+                value={ownerName}
+                onChange={(e) => setOwnerName(e.target.value)}
+              />
+            </Field>
+          </div>
+
+          {!ownerUserId && (
+            <div className="mt-[var(--space-4)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
+              <Field
+                label="Invite Owner by Email"
+                controlId="edit-team-invite"
+                description="Use this when the owner is not yet listed as a league member."
+              >
+                <div className="flex flex-col gap-[var(--space-2)] sm:flex-row">
+                  <Input
                     type="email"
                     maxLength={320}
-                    className={INPUT_CLS}
                     placeholder="owner@example.com"
                     value={inviteEmail}
                     onChange={(e) => setInviteEmail(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleInvite(); } }}
                   />
-                  <button
-                    type="button"
-                    disabled={inviting || !inviteEmail.trim()}
-                    onClick={() => void handleInvite()}
-                    className="inline-flex min-h-11 shrink-0 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 px-4 py-2.5 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
-                  >
-                    {inviting ? "Sending..." : "Invite"}
-                  </button>
+                  <div className="shrink-0">
+                    <Button
+                      variant="secondary"
+                      loading={inviting}
+                      disabled={!inviteEmail.trim()}
+                      onClick={() => void handleInvite()}
+                    >
+                      {inviting ? "Sending..." : "Invite"}
+                    </Button>
+                  </div>
                 </div>
-                <p className={HELPER_CLS}>Use this when the owner is not yet listed as a league member.</p>
-                {inviteStatus && (
-                  <p className={`mt-2 rounded-lg border px-3 py-2 text-xs font-semibold ${
-                    inviteStatus.startsWith("Invite sent")
-                      ? "border-emerald-400/30 bg-emerald-500/10 text-emerald-200"
-                      : "border-red-400/30 bg-red-500/10 text-red-200"
-                  }`}>
+              </Field>
+              {inviteStatus && (
+                <div className="mt-[var(--space-2)]">
+                  <Alert status={inviteStatus.startsWith("Invite sent") ? "success" : "danger"}>
                     {inviteStatus}
-                  </p>
-                )}
-              </div>
-            )}
-          </section>
-
-          {error && (
-            <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">
-              {error}
-            </p>
+                  </Alert>
+                </div>
+              )}
+            </div>
           )}
-        </div>
+        </section>
 
-        <div className="flex flex-col-reverse gap-3 border-t border-slate-800/80 px-5 py-4 sm:flex-row sm:justify-end sm:px-6">
-          <button type="button" onClick={onClose} className={`${secondaryButtonClass} sm:min-w-28`}>
-            Cancel
-          </button>
-          <button
-            type="button"
-            disabled={saving || assigningOwner || !name.trim()}
-            onClick={() => void handleSave()}
-            className={`${primaryButtonClass} sm:min-w-36`}
-            style={{ backgroundColor: primary, color: secondary }}
-          >
-            {saving ? (uploadingLogo ? "Uploading logo..." : "Saving...") : "Save Changes"}
-          </button>
-        </div>
+        {error && <Alert status="danger">{error}</Alert>}
       </div>
-    </div>
+    </Dialog>
   );
 }
-
 // Kebab menu ------------------------------------------------------------
 
 function KebabMenu({ items }: {

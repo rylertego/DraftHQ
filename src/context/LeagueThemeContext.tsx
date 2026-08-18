@@ -67,6 +67,21 @@ function LeagueThemeScope({
       : "var(--color-product-focus-ring)",
   };
 
+  // The same custom properties are mirrored onto :root. Overlays render
+  // through a portal into document.body, which sits outside this wrapper, so
+  // a dialog opened inside a league was resolving --color-league-accent from
+  // the root fallback and rendering its primary action in the product accent
+  // instead of the league's. Everything portalled inherits from :root, so that
+  // is where the scope has to reach.
+  useEffect(() => {
+    const root = document.documentElement;
+    const entries = Object.entries(themeStyle).filter(([key]) => key.startsWith('--'));
+    for (const [key, value] of entries) root.style.setProperty(key, String(value));
+    return () => {
+      for (const [key] of entries) root.style.removeProperty(key);
+    };
+  });
+
   return <div style={themeStyle}>{children}</div>;
 }
 
