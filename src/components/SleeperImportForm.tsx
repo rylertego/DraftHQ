@@ -10,6 +10,7 @@ import {
 } from "@/lib/draftApi";
 import { createSleeperLeagueSeason } from "@/lib/leagueApi";
 import { normalizeEmail } from "@/lib/email";
+import { Alert, Button, Field, Input, Panel } from "@/components/ui";
 import { normalizeSleeperLeagueId, type SleeperLeaguePreview } from "@/lib/sleeper";
 
 interface EditableTeam {
@@ -221,93 +222,95 @@ export default function SleeperImportForm({
   }
 
   return (
-    <section className="rounded-lg border border-gray-700 p-5">
-      <h2 className="text-xl font-bold">Import from Sleeper</h2>
-      <p className="mt-1 text-sm text-gray-400">
-        Preview league teams and draft order before anything is saved.
-      </p>
-
-      <form className="mt-4 flex flex-col gap-3 sm:flex-row" onSubmit={loadPreview}>
-        <input
-          className="min-w-0 flex-1 rounded border p-2"
-          inputMode="numeric"
-          placeholder="Sleeper league ID"
-          value={leagueId}
-          onChange={(event) => setLeagueId(event.target.value)}
-        />
-        <button
-          type="submit"
-          disabled={isLoading || isCreating}
-          className="rounded bg-purple-700 px-4 py-2 disabled:opacity-50"
-        >
-          {isLoading ? "Loading..." : "Preview Import"}
-        </button>
+    <Panel
+      title="Import from Sleeper"
+      description="Preview league teams and draft order before anything is saved."
+    >
+      <form className="flex flex-col gap-[var(--space-3)] sm:flex-row" onSubmit={loadPreview}>
+        <div className="min-w-0 flex-1">
+          <Field label="Sleeper league ID" controlId="sleeper-league-id">
+            <Input
+              inputMode="numeric"
+              placeholder="Sleeper league ID"
+              value={leagueId}
+              onChange={(event) => setLeagueId(event.target.value)}
+            />
+          </Field>
+        </div>
+        <div className="sm:self-end sm:pb-[var(--space-1)]">
+          <Button type="submit" loading={isLoading} disabled={isCreating}>
+            {isLoading ? "Loading..." : "Preview Import"}
+          </Button>
+        </div>
       </form>
 
       {teams.length > 0 && (
-        <div className="mt-6 space-y-4">
-          <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
-            <div>
-              <label className="mb-1 block text-sm" htmlFor="sleeper-name">
-                Draft name
-              </label>
-              <input
-                id="sleeper-name"
+        <div className="mt-[var(--space-5)] flex flex-col gap-[var(--space-4)]">
+          <div className="grid gap-[var(--space-3)] sm:grid-cols-[1fr_140px]">
+            <Field label="Draft name" controlId="sleeper-name">
+              <Input
                 maxLength={100}
-                className="w-full rounded border p-2"
                 value={leagueName}
                 onChange={(event) => setLeagueName(event.target.value)}
               />
-            </div>
-            <div>
-              <label className="mb-1 block text-sm" htmlFor="sleeper-rounds">
-                Rounds
-              </label>
-              <input
-                id="sleeper-rounds"
+            </Field>
+            <Field label="Rounds" controlId="sleeper-rounds">
+              <Input
                 type="number"
                 min={1}
                 max={30}
-                className="w-full rounded border p-2"
                 value={rounds}
                 onChange={(event) => setRounds(Number(event.target.value))}
               />
-            </div>
+            </Field>
           </div>
 
           {warnings.map((warning) => (
-            <p key={warning} className="text-sm text-yellow-400">
-              {warning}
-            </p>
+            <Alert key={warning} status="warning">{warning}</Alert>
           ))}
 
-          <div className="space-y-3">
+          <div className="flex flex-col gap-[var(--space-3)]">
             {teams.map((team, index) => (
-              <div key={team.rosterId} className="rounded border border-gray-800 p-3">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 text-center font-bold">{index + 1}</span>
+              <div
+                key={team.rosterId}
+                className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] p-[var(--space-3)]"
+              >
+                <div className="flex items-center gap-[var(--space-2)]">
+                  <span className="w-8 text-center font-bold tabular-nums text-[color:var(--color-text-primary)]">
+                    {index + 1}
+                  </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm text-gray-400">
+                    <p className="truncate text-sm text-[color:var(--color-text-secondary)]">
                       Sleeper manager: {team.managerName}
                     </p>
                   </div>
-                  <button type="button" disabled={index === 0} onClick={() => moveTeam(index, -1)} className="rounded bg-gray-800 px-2 py-1 disabled:opacity-30">Up</button>
-                  <button type="button" disabled={index === teams.length - 1} onClick={() => moveTeam(index, 1)} className="rounded bg-gray-800 px-2 py-1 disabled:opacity-30">Down</button>
+                  <Button
+                    variant="secondary"
+                    disabled={index === 0}
+                    onClick={() => moveTeam(index, -1)}
+                  >
+                    Up
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    disabled={index === teams.length - 1}
+                    onClick={() => moveTeam(index, 1)}
+                  >
+                    Down
+                  </Button>
                 </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                  <input
+                <div className="mt-[var(--space-3)] grid gap-[var(--space-2)] sm:grid-cols-2">
+                  <Input
                     aria-label={`Team name for ${team.managerName}`}
                     maxLength={100}
-                    className="rounded border p-2"
                     value={team.teamName}
                     onChange={(event) => updateTeam(index, { teamName: event.target.value })}
                   />
-                  <input
+                  <Input
                     aria-label={`Email for ${team.managerName}`}
                     type="email"
                     maxLength={320}
                     placeholder="Optional invitation email"
-                    className="rounded border p-2"
                     value={team.ownerEmail}
                     onChange={(event) => updateTeam(index, { ownerEmail: event.target.value })}
                   />
@@ -316,10 +319,10 @@ export default function SleeperImportForm({
             ))}
           </div>
 
-          <button
-            type="button"
-            disabled={isCreating || Boolean(createdDraftId)}
-            className="w-full rounded bg-blue-600 px-4 py-3 font-bold disabled:opacity-50"
+          <Button
+            fullWidth
+            loading={isCreating}
+            disabled={Boolean(createdDraftId)}
             onClick={() => void approveImport()}
           >
             {isCreating
@@ -327,20 +330,26 @@ export default function SleeperImportForm({
               : seasonContext
                 ? "Approve and Create Season"
                 : "Approve and Create Draft"}
-          </button>
+          </Button>
         </div>
       )}
 
-      {error && <p className="mt-4 text-red-500">{error}</p>}
-      {createdDraftId && (
-        <button
-          type="button"
-          className="mt-3 rounded bg-gray-700 px-4 py-2"
-          onClick={() => router.push(`/teams?draftId=${createdDraftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`)}
-        >
-          Continue to Team Setup
-        </button>
+      {error && (
+        <div className="mt-[var(--space-4)]">
+          <Alert status="danger">{error}</Alert>
+        </div>
       )}
-    </section>
+
+      {createdDraftId && (
+        <div className="mt-[var(--space-3)]">
+          <Button
+            variant="secondary"
+            onClick={() => router.push(`/teams?draftId=${createdDraftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`)}
+          >
+            Continue to Team Setup
+          </Button>
+        </div>
+      )}
+    </Panel>
   );
 }

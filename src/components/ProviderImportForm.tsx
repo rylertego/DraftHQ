@@ -6,6 +6,7 @@ import { normalizeEmail } from "@/lib/email";
 import { createImportedLeagueSeason } from "@/lib/leagueApi";
 import { getDraftSetup, inviteOwner } from "@/lib/draftApi";
 import type { ProviderLeaguePreview } from "@/lib/providers/types";
+import { Alert, Button, Field, Input } from "@/components/ui";
 
 interface EditableTeam {
   externalId: string;
@@ -137,77 +138,68 @@ export default function ProviderImportForm({
   }
 
   return (
-    <div className="space-y-4">
+    <div className="flex flex-col gap-[var(--space-4)]">
       {preview.warnings.map((warning) => (
-        <p key={warning} className="text-sm text-yellow-400">{warning}</p>
+        <Alert key={warning} status="warning">{warning}</Alert>
       ))}
 
-      <div className="grid gap-3 sm:grid-cols-[1fr_140px]">
-        <div>
-          <label className="mb-1 block text-sm" htmlFor="import-draft-name">Draft name</label>
-          <input
-            id="import-draft-name"
+      <div className="grid gap-[var(--space-3)] sm:grid-cols-[1fr_140px]">
+        <Field label="Draft name" controlId="import-draft-name">
+          <Input
             maxLength={100}
-            className="w-full rounded border p-2"
             value={draftName}
             onChange={(e) => setDraftName(e.target.value)}
           />
-        </div>
-        <div>
-          <label className="mb-1 block text-sm" htmlFor="import-rounds">Rounds</label>
-          <input
-            id="import-rounds"
+        </Field>
+        <Field label="Rounds" controlId="import-rounds">
+          <Input
             type="number"
             min={1}
             max={30}
-            className="w-full rounded border p-2"
             value={rounds}
             onChange={(e) => setRounds(Number(e.target.value))}
           />
-        </div>
+        </Field>
       </div>
 
-      <div className="space-y-3">
+      <div className="flex flex-col gap-[var(--space-3)]">
         {teams.map((team, index) => (
-          <div key={team.externalId} className="rounded border border-gray-800 p-3">
-            <div className="flex items-center gap-2">
-              <span className="w-8 text-center font-bold">{index + 1}</span>
+          <div
+            key={team.externalId}
+            className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] p-[var(--space-3)]"
+          >
+            <div className="flex items-center gap-[var(--space-2)]">
+              <span className="w-8 text-center font-bold tabular-nums text-[color:var(--color-text-primary)]">
+                {index + 1}
+              </span>
               <div className="min-w-0 flex-1">
-                <p className="truncate text-sm text-gray-400">
+                <p className="truncate text-sm text-[color:var(--color-text-secondary)]">
                   {team.ownerName}
                 </p>
               </div>
-              <button
-                type="button"
-                disabled={index === 0}
-                onClick={() => moveTeam(index, -1)}
-                className="rounded bg-gray-800 px-2 py-1 disabled:opacity-30"
-              >
+              <Button variant="secondary" disabled={index === 0} onClick={() => moveTeam(index, -1)}>
                 Up
-              </button>
-              <button
-                type="button"
+              </Button>
+              <Button
+                variant="secondary"
                 disabled={index === teams.length - 1}
                 onClick={() => moveTeam(index, 1)}
-                className="rounded bg-gray-800 px-2 py-1 disabled:opacity-30"
               >
                 Down
-              </button>
+              </Button>
             </div>
-            <div className="mt-3 grid gap-2 sm:grid-cols-2">
-              <input
+            <div className="mt-[var(--space-3)] grid gap-[var(--space-2)] sm:grid-cols-2">
+              <Input
                 aria-label={`Team name for ${team.ownerName}`}
                 maxLength={100}
-                className="rounded border p-2"
                 value={team.teamName}
                 onChange={(e) => updateTeam(index, { teamName: e.target.value })}
               />
-              <input
+              <Input
                 aria-label={`Email for ${team.ownerName}`}
                 type="email"
                 maxLength={320}
                 placeholder="Optional invitation email"
-                className="rounded border p-2"
                 value={team.ownerEmail}
                 onChange={(e) => updateTeam(index, { ownerEmail: e.target.value })}
               />
@@ -216,34 +208,32 @@ export default function ProviderImportForm({
         ))}
       </div>
 
-      {error && <p className="text-red-500">{error}</p>}
+      {error && <Alert status="danger">{error}</Alert>}
 
-      <div className="flex gap-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="rounded bg-gray-700 px-4 py-2 font-semibold"
-        >
+      <div className="flex gap-[var(--space-3)]">
+        <Button variant="secondary" onClick={onBack}>
           Back
-        </button>
-        <button
-          type="button"
-          disabled={isCreating || Boolean(createdDraftId)}
-          onClick={() => void handleApprove()}
-          className="flex-1 rounded bg-blue-600 px-4 py-3 font-bold disabled:opacity-50"
-        >
-          {isCreating ? "Creating season..." : "Approve and Create Season"}
-        </button>
+        </Button>
+        <div className="flex-1">
+          <Button
+            fullWidth
+            loading={isCreating}
+            disabled={Boolean(createdDraftId)}
+            onClick={() => void handleApprove()}
+          >
+            {isCreating ? "Creating season..." : "Approve and Create Season"}
+          </Button>
+        </div>
       </div>
 
       {createdDraftId && (
-        <button
-          type="button"
-          className="w-full rounded bg-gray-700 px-4 py-2"
+        <Button
+          variant="secondary"
+          fullWidth
           onClick={() => router.push(`/teams?draftId=${createdDraftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`)}
         >
           Continue to Team Setup
-        </button>
+        </Button>
       )}
     </div>
   );

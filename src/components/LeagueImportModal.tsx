@@ -1,7 +1,6 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { getSleeperLeaguePreview } from "@/lib/draftApi";
 import { importLeagueTeams } from "@/lib/leagueApi";
 import {
@@ -10,6 +9,7 @@ import {
   getYahooLeaguePreview,
 } from "@/lib/providerApi";
 import type { ProviderLeaguePreview } from "@/lib/providers/types";
+import { Alert, Button, Dialog, Field, Input } from "@/components/ui";
 
 type Provider = "sleeper" | "espn" | "yahoo";
 
@@ -44,7 +44,6 @@ export default function LeagueImportModal({
   onClose: () => void;
   onImported: (count: number) => Promise<void> | void;
 }) {
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [provider, setProvider] = useState<Provider | null>(null);
   const [leagueKey, setLeagueKey] = useState("");
   const [year, setYear] = useState(String(new Date().getFullYear()));
@@ -148,92 +147,190 @@ export default function LeagueImportModal({
     }
   }
 
+  // The dialog is mounted only while open by its parent, so `open` is constant
+  // here. Adopting the primitive is still worth it: it brings the focus trap,
+  // Escape handling, scroll lock and overlay stacking that the hand-rolled
+  // version did not have.
+  const footer =
+    provider && !preview ? (
+      <Button
+        type="submit"
+        form="import-league-form"
+        scope="league"
+        loading={loading}
+        disabled={provider === "yahoo" && !yahooConnected}
+      >
+        {loading ? "Loading preview..." : "Preview Import"}
+      </Button>
+    ) : preview ? (
+      <>
+        <Button variant="secondary" onClick={onClose} disabled={loading}>
+          Cancel
+        </Button>
+        <Button scope="league" loading={loading} onClick={() => void confirmImport()}>
+          {loading ? "Importing teams..." : `Import ${preview.teams.length} Teams`}
+        </Button>
+      </>
+    ) : undefined;
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-black/70 px-4 py-8" role="dialog" aria-modal="true" aria-labelledby="import-league-title">
-      <div className="my-auto w-full max-w-2xl rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl sm:p-6">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h2 id="import-league-title" className="text-xl font-bold text-white">Import League</h2>
-            <p className="mt-1 text-sm text-slate-400">{provider ? "Enter the provider league details." : "Choose Provider"}</p>
-          </div>
-          <button type="button" onClick={onClose} disabled={loading} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white disabled:opacity-50" aria-label="Close import dialog">✕</button>
+    <Dialog
+      open
+      onClose={onClose}
+      size="large"
+      title="Import League"
+      description={provider ? "Enter the provider league details." : "Choose Provider"}
+      footer={footer}
+    >
+      {!provider && (
+        <div className="grid gap-[var(--space-3)] sm:grid-cols-3">
+          {PROVIDERS.map((item) => (
+            <button
+              key={item.id}
+              type="button"
+              onClick={() => setProvider(item.id)}
+              className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-3)] text-left transition-colors hover:border-[color:var(--color-border-strong)] hover:bg-[var(--color-surface-3)]"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={item.logo} alt="" className="mb-[var(--space-2)] h-10 w-10 rounded-xl object-cover" />
+              <p className="font-bold text-[color:var(--color-text-primary)]">{item.label}</p>
+              <p className="mt-1 text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
+                {item.description}
+              </p>
+            </button>
+          ))}
         </div>
+      )}
 
-        {!provider && (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {PROVIDERS.map((item) => (
-              <button key={item.id} type="button" onClick={() => setProvider(item.id)} className="rounded-xl border border-slate-700 bg-slate-800/40 p-4 text-left transition-colors hover:border-slate-500 hover:bg-slate-800">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={item.logo} alt="" className="mb-3 h-10 w-10 rounded-xl object-cover" />
-                <p className="font-bold text-white">{item.label}</p>
-                <p className="mt-1 text-xs leading-relaxed text-slate-400">{item.description}</p>
-              </button>
-            ))}
+      {provider && !preview && (
+        <form
+          id="import-league-form"
+          onSubmit={(event) => void loadPreview(event)}
+          className="flex flex-col gap-[var(--space-4)]"
+        >
+          <div>
+            <Button variant="tertiary" onClick={resetProvider} disabled={loading}>
+              ← Providers
+            </Button>
           </div>
-        )}
 
-        {provider && !preview && (
-          <form onSubmit={(event) => void loadPreview(event)} className="space-y-4">
-            <button type="button" onClick={resetProvider} disabled={loading} className="text-sm text-slate-400 hover:text-white">← Providers</button>
-            {provider === "yahoo" && (
-              <button type="button" disabled={loading || yahooConnected} onClick={() => void connectYahoo()} className="w-full rounded-xl bg-purple-700 px-4 py-2.5 text-sm font-bold text-white hover:bg-purple-600 disabled:opacity-60">
-                {yahooConnected ? "Yahoo account connected" : loading ? "Connecting..." : "Connect Yahoo Account"}
-              </button>
+          {provider === "yahoo" && (
+            <Button
+              type="button"
+              variant="secondary"
+              fullWidth
+              disabled={loading || yahooConnected}
+              onClick={() => void connectYahoo()}
+            >
+              {yahooConnected ? "Yahoo account connected" : loading ? "Connecting..." : "Connect Yahoo Account"}
+            </Button>
+          )}
+
+          <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+            <div className={provider === "sleeper" || provider === "yahoo" ? "sm:col-span-2" : ""}>
+              <Field
+                label={provider === "yahoo" ? "League Key" : "League ID"}
+                controlId="import-league-key"
+              >
+                <Input
+                  required
+                  inputMode={provider === "yahoo" ? "text" : "numeric"}
+                  placeholder={provider === "yahoo" ? "423.l.123456" : "Numeric league ID"}
+                  value={leagueKey}
+                  onChange={(event) => setLeagueKey(event.target.value)}
+                />
+              </Field>
+            </div>
+            {provider === "espn" && (
+              <Field label="Season Year" controlId="import-season-year">
+                <Input
+                  required
+                  type="number"
+                  min={2000}
+                  max={2100}
+                  value={year}
+                  onChange={(event) => setYear(event.target.value)}
+                />
+              </Field>
             )}
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div className={provider === "sleeper" || provider === "yahoo" ? "sm:col-span-2" : ""}>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="import-league-key">{provider === "yahoo" ? "League Key" : "League ID"}</label>
-                <input id="import-league-key" required inputMode={provider === "yahoo" ? "text" : "numeric"} placeholder={provider === "yahoo" ? "423.l.123456" : "Numeric league ID"} className="w-full" value={leagueKey} onChange={(event) => setLeagueKey(event.target.value)} />
-              </div>
-              {provider === "espn" && (
-                <div>
-                  <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="import-season-year">Season Year</label>
-                  <input id="import-season-year" required type="number" min={2000} max={2100} className="w-full" value={year} onChange={(event) => setYear(event.target.value)} />
+          </div>
+
+          {provider === "espn" && (
+            <div>
+              <Button variant="tertiary" onClick={() => setShowPrivate((value) => !value)}>
+                {showPrivate ? "Hide private league cookies" : "Private league? Add cookies"}
+              </Button>
+              {showPrivate && (
+                <div className="mt-[var(--space-3)] grid gap-[var(--space-3)] sm:grid-cols-2">
+                  <Field label="espn_s2 cookie" controlId="import-espn-s2">
+                    <Input
+                      type="password"
+                      placeholder="espn_s2"
+                      value={espnS2}
+                      onChange={(event) => setEspnS2(event.target.value)}
+                    />
+                  </Field>
+                  <Field label="SWID cookie" controlId="import-espn-swid">
+                    <Input
+                      type="password"
+                      placeholder="SWID"
+                      value={swid}
+                      onChange={(event) => setSwid(event.target.value)}
+                    />
+                  </Field>
                 </div>
               )}
             </div>
-            {provider === "espn" && (
-              <div>
-                <button type="button" onClick={() => setShowPrivate((value) => !value)} className="text-sm" style={{ color: primary }}>{showPrivate ? "Hide private league cookies" : "Private league? Add cookies"}</button>
-                {showPrivate && (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                    <input type="password" aria-label="ESPN espn_s2 cookie" placeholder="espn_s2" className="w-full font-mono" value={espnS2} onChange={(event) => setEspnS2(event.target.value)} />
-                    <input type="password" aria-label="ESPN SWID cookie" placeholder="SWID" className="w-full font-mono" value={swid} onChange={(event) => setSwid(event.target.value)} />
-                  </div>
-                )}
-              </div>
-            )}
-            {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-            <div className="flex justify-end">
-              <button type="submit" disabled={loading || (provider === "yahoo" && !yahooConnected)} className="rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ backgroundColor: primary, color: secondary }}>{loading ? "Loading preview..." : "Preview Import"}</button>
-            </div>
-          </form>
-        )}
+          )}
 
-        {preview && (
-          <div className="space-y-4">
-            <button type="button" onClick={() => { setPreview(null); setError(""); }} disabled={loading} className="text-sm text-slate-400 hover:text-white">← Back</button>
-            <div>
-              <h3 className="font-bold text-white">{preview.leagueName}</h3>
-              <p className="text-sm text-slate-400">{preview.teams.length} teams will be added.</p>
-            </div>
-            {preview.warnings.map((warning) => <p key={warning} className="rounded-lg border border-yellow-800/60 bg-yellow-950/30 px-3 py-2 text-sm text-yellow-300">{warning}</p>)}
-            <div className="grid max-h-72 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-              {preview.teams.map((team, index) => (
-                <div key={`${team.name}-${index}`} className="rounded-xl border border-slate-800 bg-slate-800/40 px-3 py-2.5">
-                  <p className="truncate text-sm font-semibold text-white">{team.name}</p>
-                  <p className="truncate text-xs text-slate-400">{team.ownerName || "Owner not provided"}</p>
-                </div>
-              ))}
-            </div>
-            {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <button type="button" onClick={onClose} disabled={loading} className="rounded-xl border border-slate-700 px-4 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-800 disabled:opacity-50">Cancel</button>
-              <button type="button" onClick={() => void confirmImport()} disabled={loading} className="rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50" style={{ backgroundColor: primary, color: secondary }}>{loading ? "Importing teams..." : `Import ${preview.teams.length} Teams`}</button>
-            </div>
+          {error && <Alert status="danger">{error}</Alert>}
+        </form>
+      )}
+
+      {preview && (
+        <div className="flex flex-col gap-[var(--space-4)]">
+          <div>
+            <Button
+              variant="tertiary"
+              onClick={() => { setPreview(null); setError(""); }}
+              disabled={loading}
+            >
+              ← Back
+            </Button>
           </div>
-        )}
-      </div>
-    </div>
+
+          <div>
+            <h3 className="font-bold text-[color:var(--color-text-primary)]">{preview.leagueName}</h3>
+            <p className="text-sm text-[color:var(--color-text-secondary)]">
+              {preview.teams.length} teams will be added.
+            </p>
+          </div>
+
+          {preview.warnings.map((warning) => (
+            <Alert key={warning} status="warning">{warning}</Alert>
+          ))}
+
+          {/* Plain rows, not cards: this list already sits inside the dialog
+              surface and nesting a third card deep reads as clutter. */}
+          <div className="grid max-h-72 gap-[var(--space-2)] overflow-y-auto pr-1 sm:grid-cols-2">
+            {preview.teams.map((team, index) => (
+              <div
+                key={`${team.name}-${index}`}
+                className="rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] px-[var(--space-3)] py-2"
+              >
+                <p className="truncate text-sm font-semibold text-[color:var(--color-text-primary)]">
+                  {team.name}
+                </p>
+                <p className="truncate text-xs text-[color:var(--color-text-secondary)]">
+                  {team.ownerName || "Owner not provided"}
+                </p>
+              </div>
+            ))}
+          </div>
+
+          {error && <Alert status="danger">{error}</Alert>}
+        </div>
+      )}
+    </Dialog>
   );
 }
