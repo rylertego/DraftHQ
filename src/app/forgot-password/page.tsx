@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useState } from "react";
+import { Alert, Button, Field, FormLayout, Input, PageShell, Panel } from "@/components/ui";
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
@@ -33,57 +34,66 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          <h1 className="text-3xl font-bold text-white">Reset your password</h1>
-          <p className="mt-2 text-slate-400">Enter your account email and we&apos;ll send you a reset link.</p>
-        </div>
-
-        <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
-          {message ? (
-            <div className="rounded-xl border border-[color:var(--color-success-border)] bg-[color-mix(in_srgb,var(--color-success-muted)_45%,transparent)] px-4 py-5 text-center">
-              <p className="text-sm font-medium text-[color:var(--color-product-accent)]">{message}</p>
-              <Link href="/login" className="mt-3 inline-block text-sm text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]">
-                Back to login →
-              </Link>
-            </div>
-          ) : (
-            <form className="space-y-5" onSubmit={(e) => void handleSubmit(e)}>
-              <div>
-                <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="forgot-email">
-                  Email
-                </label>
-                <input
-                  id="forgot-email"
-                  type="email"
-                  required
-                  className="w-full"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                />
-              </div>
-              {error && <p className="rounded-lg bg-red-950/40 border border-red-800 px-3 py-2 text-sm text-red-400">{error}</p>}
-              <button
-                type="submit"
-                disabled={isSubmitting}
-                className="w-full rounded-xl bg-[var(--color-product-accent)] px-4 py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
-              >
-                {isSubmitting ? "Sending..." : "Send Reset Link"}
-              </button>
-            </form>
-          )}
-
-          {!message && (
-            <p className="mt-6 text-center text-sm text-slate-500">
-              Remembered it?{" "}
-              <Link className="text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)] font-medium" href="/login">
-                Log in
-              </Link>
+    <main className="flex flex-1 items-center justify-center">
+      <PageShell width="readable">
+        <div className="mx-auto w-full max-w-[420px]">
+          <div className="mb-[var(--space-6)] text-center">
+            <h1 className="text-[length:var(--font-size-page-title)] font-bold text-[color:var(--color-text-primary)]">
+              Reset your password
+            </h1>
+            <p className="mt-[var(--space-2)] text-[color:var(--color-text-secondary)]">
+              Enter your account email and we&apos;ll send you a reset link.
             </p>
-          )}
+          </div>
+
+          <Panel>
+            {message ? (
+              <Alert status="success" title="Check your email">
+                <p>{message}</p>
+                <Link
+                  href="/login"
+                  className="mt-[var(--space-2)] inline-block font-medium text-[color:var(--color-product-accent)] underline-offset-4 hover:underline"
+                >
+                  Back to login →
+                </Link>
+              </Alert>
+            ) : (
+              <>
+                <FormLayout
+                  onSubmit={(e) => void handleSubmit(e)}
+                  actions={
+                    <Button type="submit" loading={isSubmitting} fullWidth>
+                      {isSubmitting ? "Sending..." : "Send Reset Link"}
+                    </Button>
+                  }
+                >
+                  <Field label="Email" controlId="forgot-email">
+                    <Input
+                      type="email"
+                      required
+                      autoComplete="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                    />
+                  </Field>
+
+                  {error ? <Alert status="danger">{error}</Alert> : null}
+                </FormLayout>
+
+                <p className="mt-[var(--space-5)] text-center text-sm text-[color:var(--color-text-secondary)]">
+                  Remembered it?{" "}
+                  <Link
+                    className="font-medium text-[color:var(--color-product-accent)] underline-offset-4 hover:underline"
+                    href="/login"
+                  >
+                    Log in
+                  </Link>
+                </p>
+              </>
+            )}
+          </Panel>
         </div>
-      </div>
+      </PageShell>
     </main>
   );
 }

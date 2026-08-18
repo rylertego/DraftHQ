@@ -18,7 +18,8 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 0 — Baseline Contract | 1 | ✅ Complete |
 | 1 — Shared Foundation | 2, 3, 4, 5 | ✅ Complete |
 | 2 — Global Product Surfaces | 6 | ✅ Complete |
-| 2 — Global Product Surfaces | 7, 8 | ⬜ Not started |
+| 2 — Global Product Surfaces | 7 | ✅ Complete |
+| 2 — Global Product Surfaces | 8 | ⬜ Not started |
 | 3–8 | 9–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
@@ -40,6 +41,11 @@ stalled. Steps below are left unticked until every slice lands:
 > `Remove-Item -Recurse -Force .next`, then restart.
 
 **Baseline at last commit:** typecheck clean, 215 tests, production build clean.
+
+> **The `npm run lint` gate does not hold and never has.** The repo carries
+> 15,080 pre-existing problems (1,308 errors), so "expect exit code 0" is not a
+> usable signal. Lint the touched files directly instead, and compare the
+> repo-wide total before and after to prove a change adds none.
 
 ### Done ahead of the plan (2026-08-16)
 
@@ -536,19 +542,19 @@ git commit -m "feat: migrate global product chrome"
 - Consumes: Product-scoped actions, readable form layout, fields, alerts, loading states.
 - Produces: One compact authentication family with unchanged Supabase flows.
 
-- [ ] **Step 1: Impact-check each page component and auth handler**
+- [x] **Step 1: Impact-check each page component and auth handler**
 
 Do not alter auth callbacks, redirects, validation rules, or query parsing.
 
-- [ ] **Step 2: Apply the common auth composition**
+- [x] **Step 2: Apply the common auth composition**
 
 Use `PageShell width="readable"`, one un-nested form panel, shared fields, product primary submit, neutral secondary links, and inline error/success alerts. Operational title is no larger than 30px.
 
-- [ ] **Step 3: Browser QA every state**
+- [x] **Step 3: Browser QA every state**
 
 Compare login/signup/recovery baselines; verify empty submission, invalid email, invalid credentials, loading, reset sent, expired token, and keyboard submission.
 
-- [ ] **Step 4: Gate and commit**
+- [x] **Step 4: Gate and commit**
 
 ```powershell
 git add -- src/app/login/page.tsx src/app/signup/page.tsx src/app/forgot-password/page.tsx src/app/reset-password/page.tsx

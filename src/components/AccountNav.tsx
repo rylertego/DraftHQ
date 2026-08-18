@@ -66,7 +66,7 @@ export default function AccountNav() {
 
         {/* Logo */}
         <Link href={hasAccount ? "/dashboard" : "/"} className="flex items-center py-2 hover:opacity-90 transition-opacity">
-          <DraftHQLogo accentColor={accentColor} className="h-24 w-auto" />
+          <DraftHQLogo accentColor={accentColor} className="h-14 w-auto sm:h-20 lg:h-24" />
         </Link>
 
         {/* Spacer */}

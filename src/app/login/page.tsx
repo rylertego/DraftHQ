@@ -4,6 +4,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import DraftHQLockup from "@/components/brand/DraftHQLockup";
+import { Alert, Button, Field, FormLayout, Input, PageShell, Panel } from "@/components/ui";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -33,66 +35,72 @@ export default function LoginPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center px-4 py-12">
-      <div className="w-full max-w-md">
-        <div className="mb-8 text-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/branding/lockup.svg" alt="DraftHQ" className="mx-auto mb-6 h-40 w-auto" />
-          <h1 className="text-3xl font-bold text-white">Welcome back</h1>
-          <p className="mt-2 text-slate-400">Log in to your DraftHQ account.</p>
-        </div>
+    <main className="flex flex-1 items-center justify-center">
+      <PageShell width="readable">
+        <div className="mx-auto w-full max-w-[420px]">
+          <div className="mb-[var(--space-6)] text-center">
+            <DraftHQLockup className="mx-auto mb-[var(--space-5)] h-28 w-auto" />
+            <h1 className="text-[length:var(--font-size-page-title)] font-bold text-[color:var(--color-text-primary)]">
+              Welcome back
+            </h1>
+            <p className="mt-[var(--space-2)] text-[color:var(--color-text-secondary)]">
+              Log in to your DraftHQ account.
+            </p>
+          </div>
 
-        <div className="rounded-2xl border border-slate-700 bg-slate-900 p-8">
-          <form className="space-y-5" onSubmit={handleSubmit}>
-            <div>
-              <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="login-email">
-                Email
-              </label>
-              <input
-                id="login-email"
-                type="email"
-                required
-                className="w-full"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-              />
-            </div>
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="login-password">
-                  Password
-                </label>
-                <Link href="/forgot-password" className="text-xs text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)]">
+          <Panel>
+            <FormLayout
+              onSubmit={handleSubmit}
+              actions={
+                <Button type="submit" loading={isSubmitting} fullWidth>
+                  {isSubmitting ? "Logging in..." : "Log In"}
+                </Button>
+              }
+            >
+              <Field label="Email" controlId="login-email">
+                <Input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                />
+              </Field>
+
+              <Field label="Password" controlId="login-password">
+                <Input
+                  type="password"
+                  required
+                  autoComplete="current-password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </Field>
+
+              <div className="-mt-[var(--space-2)] text-right">
+                <Link
+                  href="/forgot-password"
+                  className="text-sm text-[color:var(--color-text-secondary)] underline-offset-4 hover:text-[color:var(--color-text-primary)] hover:underline"
+                >
                   Forgot password?
                 </Link>
               </div>
-              <input
-                id="login-password"
-                type="password"
-                required
-                className="w-full"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
-            {error && <p className="rounded-lg bg-red-950/40 border border-red-800 px-3 py-2 text-sm text-red-400">{error}</p>}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full rounded-xl bg-[var(--color-product-accent)] px-4 py-3 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] disabled:opacity-50 transition-colors"
-            >
-              {isSubmitting ? "Logging in..." : "Log In"}
-            </button>
-          </form>
 
-          <p className="mt-6 text-center text-sm text-slate-500">
-            New here?{" "}
-            <Link className="text-[color:var(--color-product-accent)] hover:text-[color:var(--color-product-accent-hover)] font-medium" href="/signup">
-              Create an account
-            </Link>
-          </p>
+              {error ? <Alert status="danger">{error}</Alert> : null}
+            </FormLayout>
+
+            <p className="mt-[var(--space-5)] text-center text-sm text-[color:var(--color-text-secondary)]">
+              New here?{" "}
+              <Link
+                className="font-medium text-[color:var(--color-product-accent)] underline-offset-4 hover:underline"
+                href="/signup"
+              >
+                Create an account
+              </Link>
+            </p>
+          </Panel>
         </div>
-      </div>
+      </PageShell>
     </main>
   );
 }
