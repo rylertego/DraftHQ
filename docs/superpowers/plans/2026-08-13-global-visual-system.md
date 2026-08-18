@@ -20,7 +20,8 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 2 — Global Product Surfaces | 6 | ✅ Complete |
 | 2 — Global Product Surfaces | 7 | ✅ Complete |
 | 2 — Global Product Surfaces | 8 | ✅ Complete (import modal preview still unseen) |
-| 3–8 | 9–… | ⬜ Not started |
+| 3 — League Workspace Shell | 9 | ⚠️ Code complete; role + mobile QA outstanding |
+| 4–8 | 10–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
 stalled. Steps below are left unticked until every slice lands:
@@ -630,23 +631,39 @@ git commit -m "feat: migrate global account and league flows"
 - Consumes: League theme variables, `LeagueMark`, navigation primitives, product global header.
 - Produces: Stable desktop sidebar, compact mobile workspace navigation, league identity, and content width contract for all league routes.
 
-- [ ] **Step 1: Impact-check shell and context symbols**
+- [x] **Step 1: Impact-check shell and context symbols**
 
 Record all league route consumers and whether `LeagueWorkspaceHeader` is active or legacy. Do not remove it until usage is proven absent.
 
-- [ ] **Step 2: Migrate shell geometry**
+- [x] **Step 2: Migrate shell geometry**
 
 Keep global DraftHQ identity distinct from league identity. Use league accent for active workspace navigation and focus only. Preserve commissioner-only Settings visibility and the existing Home, League, My Team navigation rules.
 
-- [ ] **Step 3: Implement responsive workspace behavior**
+- [x] **Step 3: Implement responsive workspace behavior**
 
 Desktop retains the fixed operational sidebar. Mobile uses compact, reachable navigation without merely stacking desktop chrome. Content must use `workspace` width by default and let form routes opt into `readable` inner columns.
 
-- [ ] **Step 4: Browser QA all roles**
+- [ ] **Step 4: Browser QA all roles** — PARTIAL
 
 Verify commissioner, co-commissioner, assigned owner, unassigned member, unauthorized user, long league name, missing logo, light accent, and dark accent at both viewports.
 
-- [ ] **Step 5: Gate and commit**
+> Verified: commissioner at desktop on a Royal-accent league — sidebar identity,
+> all four nav entries including Settings, active state in the league accent,
+> and workspace content width. League accent is visibly distinct from the
+> product cyan, which is the thing this shell exists to keep separate.
+>
+> **Not verified:** the other roles, and **both viewports** — the Chrome window
+> is maximised and resize_window was a no-op against it, so the mobile bottom
+> nav and its clearance were never seen. Do this before Phase 4 builds on it.
+>
+> `LeagueWorkspaceHeader` is **active, not legacy**: `seasons/LeagueSeasons.tsx`
+> still imports it. Not removed.
+>
+> `LeagueMark` was deliberately not used for the sidebar identity. It caps at
+> 72px and the identity block is 112px with an accent glow — swapping would
+> shrink the one surface where league identity is meant to be prominent.
+
+- [x] **Step 5: Gate and commit**
 
 ```powershell
 git add -- src/app/leagues/[slug]/layout.tsx src/app/leagues/[slug]/WorkspaceLayoutClient.tsx src/components/LeagueWorkspaceHeader.tsx src/context/LeagueWorkspaceContext.tsx

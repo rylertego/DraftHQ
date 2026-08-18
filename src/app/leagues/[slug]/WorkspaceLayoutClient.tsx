@@ -7,6 +7,7 @@ import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
 import { LeagueWorkspaceContext } from "@/context/LeagueWorkspaceContext";
 import { DEFAULT_ACCENT, DEFAULT_BG, useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useEffect } from "react";
+import { PageShell } from "@/components/ui";
 
 function SidebarNav({ slug }: { slug: string }) {
   const pathname = usePathname();
@@ -72,7 +73,7 @@ function SidebarNav({ slug }: { slug: string }) {
             style={
               isActive
                 ? { backgroundColor: primary + "1a", color: primary }
-                : { color: "#94a3b8" }
+                : { color: "var(--color-text-secondary)" }
             }
           >
             <span
@@ -148,7 +149,7 @@ function BottomMobileNav({ slug }: { slug: string }) {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-slate-800 bg-slate-950 sm:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 flex border-t border-[color:var(--color-border-subtle)] bg-[var(--color-canvas)] sm:hidden">
       {items.map(({ href, label, icon }) => {
         const isActive = pathname === href;
         return (
@@ -156,7 +157,7 @@ function BottomMobileNav({ slug }: { slug: string }) {
             key={href}
             href={href}
             className="flex flex-1 flex-col items-center gap-1 py-3 text-[10px] font-semibold uppercase tracking-wide transition-colors"
-            style={isActive ? { color: primary } : { color: "#64748b" }}
+            style={isActive ? { color: primary } : { color: "var(--color-text-muted)" }}
           >
             {icon}
             {label}
@@ -213,7 +214,7 @@ export default function WorkspaceLayoutClient({
 
         {/* ── Sidebar (desktop) ───────────────────────────────────────────── */}
         <aside
-          className="hidden sm:flex w-60 shrink-0 flex-col border-r border-slate-800/60 bg-slate-950"
+          className="hidden w-60 shrink-0 flex-col border-r border-[color:var(--color-border-subtle)] bg-[var(--color-canvas)] sm:flex"
         >
           <div className="flex h-full flex-col">
 
@@ -283,8 +284,11 @@ export default function WorkspaceLayoutClient({
         </aside>
 
         {/* ── Main content ─────────────────────────────────────────────────── */}
-        <div className="flex-1 min-w-0 overflow-y-auto p-4 sm:p-6 pb-20 sm:pb-6">
-          {children}
+        {/* Width contract for every league route: workspace by default. Form
+            routes opt into a readable inner column themselves. pb-20 keeps the
+            mobile bottom nav from covering the last row of content. */}
+        <div className="min-w-0 flex-1 overflow-y-auto pb-20 sm:pb-0">
+          <PageShell width="workspace">{children}</PageShell>
         </div>
       </div>
 
