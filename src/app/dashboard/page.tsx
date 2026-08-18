@@ -5,6 +5,19 @@ import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { deleteLeague, getMyLeagueWorkspaces } from "@/lib/leagueApi";
 import type { LeagueSeason, LeagueWorkspace } from "@/types/league";
+import {
+  Alert,
+  Button,
+  Dialog,
+  EmptyState,
+  Field,
+  Input,
+  LinkButton,
+  PageShell,
+  Panel,
+  Section,
+  Skeleton,
+} from "@/components/ui";
 
 const CURRENT_YEAR = new Date().getFullYear();
 
@@ -245,60 +258,43 @@ function DeleteLeagueModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-950/60">
-            <svg className="h-5 w-5 text-red-400" viewBox="0 0 16 16" fill="none">
-              <path d="M8 2a6 6 0 1 0 0 12A6 6 0 0 0 8 2zm0 3v3M8 10h.01" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
-            </svg>
-          </div>
-          <div>
-            <h2 className="font-bold text-white">Delete &ldquo;{workspace.league.name}&rdquo;?</h2>
-            <p className="mt-1 text-sm text-slate-400">
-              This will permanently delete the league, all seasons, and all associated drafts. This cannot be undone.
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5">
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-500">
-            Type <span className="font-mono text-red-400">DELETE</span> to confirm
-          </label>
-          <input
-            ref={inputRef}
-            type="text"
-            maxLength={10}
-            className="w-full"
-            placeholder="DELETE"
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            onKeyDown={(e) => { if (e.key === "Enter") void handleDelete(); }}
-          />
-        </div>
-
-        {error && <p className="mt-3 text-sm text-red-400">{error}</p>}
-
-        <div className="mt-5 flex gap-3">
-          <button
-            type="button"
-            onClick={onCancel}
-            disabled={isDeleting}
-            className="flex-1 rounded-xl border border-slate-700 bg-slate-800 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white disabled:opacity-50 transition-colors"
-          >
+    <Dialog
+      open
+      onClose={onCancel}
+      size="small"
+      title={`Delete “${workspace.league.name}”?`}
+      description="This will permanently delete the league, all seasons, and all associated drafts. This cannot be undone."
+      initialFocusRef={inputRef}
+      footer={
+        <>
+          <Button variant="secondary" onClick={onCancel} disabled={isDeleting}>
             Cancel
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="danger"
+            loading={isDeleting}
+            disabled={confirm !== "DELETE"}
             onClick={() => void handleDelete()}
-            disabled={confirm !== "DELETE" || isDeleting}
-            className="flex-1 rounded-xl bg-red-700 py-2.5 text-sm font-semibold text-white hover:bg-red-600 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             {isDeleting ? "Deleting..." : "Delete League"}
-          </button>
-        </div>
-      </div>
-    </div>
+          </Button>
+        </>
+      }
+    >
+      <Field label="Type DELETE to confirm" controlId="dashboard-delete-confirm">
+        <Input
+          ref={inputRef}
+          type="text"
+          maxLength={10}
+          placeholder="DELETE"
+          value={confirm}
+          onChange={(e) => setConfirm(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") void handleDelete(); }}
+        />
+      </Field>
+
+      {error && <Alert status="danger">{error}</Alert>}
+    </Dialog>
   );
 }
 
@@ -327,126 +323,88 @@ export default function DashboardPage() {
   if (!byYear.has(CURRENT_YEAR)) byYear.set(CURRENT_YEAR, []);
   const currentRows = byYear.get(CURRENT_YEAR) ?? [];
 
+
   return (
-    <div className="flex-1">
-      <div className="px-6 py-8">
-
-        {error && (
-          <div className="mb-6 rounded-xl border border-red-800/60 bg-red-950/40 px-4 py-3 text-sm text-red-400">{error}</div>
-        )}
-
-        <div className="grid gap-8 lg:grid-cols-[1fr_280px]">
-
-          {/* ── Main column ── */}
-          <div className="space-y-8">
-            {isLoading ? (
-              <div className="space-y-3">
-                {[...Array(3)].map((_, i) => (
-                  <div key={i} className="h-14 animate-pulse rounded-xl bg-slate-800/50" />
-                ))}
-              </div>
-            ) : (
-              <section>
-                <div className="mb-3 flex items-center justify-between">
-                  <h2 className="text-xl font-bold text-white">Leagues</h2>
-                  <Link
-                    href="/leagues/new"
-                    className="rounded-xl bg-[var(--color-product-accent)] px-4 py-2 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] transition-colors"
-                  >
-                    + Create League
-                  </Link>
-                </div>
-
-                {currentRows.length === 0 && (
-                  <div className="rounded-2xl border border-dashed border-slate-700 bg-slate-900/40 px-6 py-10 text-center">
-                    <p className="font-semibold text-white">You don&apos;t have any leagues yet.</p>
-                    <p className="mt-1 text-sm text-slate-500">
-                      Create a new league or{" "}
-                      <Link href="/join" className="text-[color:var(--color-product-accent)] underline hover:text-[color:var(--color-product-accent-hover)]">
-                        join one with an invite
-                      </Link>
-                      .
-                    </p>
-                    <div className="mt-5 flex items-center justify-center gap-3">
-                      <Link
-                        href="/leagues/new"
-                        className="rounded-xl bg-[var(--color-product-accent)] px-5 py-2.5 text-sm font-bold text-slate-950 hover:bg-[var(--color-product-accent-hover)] transition-colors"
-                      >
-                        Create League
-                      </Link>
-                      <Link
-                        href="/create"
-                        className="rounded-xl border border-slate-700 bg-slate-800 px-5 py-2.5 text-sm font-medium text-slate-300 hover:bg-slate-700 hover:text-white transition-colors"
-                      >
-                        Standalone Draft
-                      </Link>
-                    </div>
-                  </div>
-                )}
-
-                {currentRows.length > 0 && (
-                  <div className="rounded-xl border border-slate-800 bg-slate-900">
-                    {currentRows.map((row, i) => (
-                      <LeagueRow
-                        key={`${row.workspace.league.id}-${row.season.id}`}
-                        {...row}
-                        isFirst={i === 0}
-                        isLast={i === currentRows.length - 1}
-                        onDeleteClick={row.workspace.canManage ? () => setDeleteTarget(row.workspace) : undefined}
-                      />
-                    ))}
-                  </div>
-                )}
-              </section>
-            )}
-          </div>
-
-          {/* ── Sidebar ── */}
-          <aside className="space-y-4">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-              <p className="text-sm font-bold text-white">Quick actions</p>
-              <div className="mt-3 space-y-2">
-                <Link
-                  href="/leagues/new"
-                  className="flex w-full items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-[color:var(--color-product-accent-border)] hover:bg-[color-mix(in_srgb,var(--color-product-accent-muted)_20%,transparent)] hover:text-white transition-colors"
-                >
-                  <svg className="h-4 w-4 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none">
-                    <circle cx="8" cy="8" r="6" stroke="currentColor" strokeWidth="1.4" />
-                    <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  </svg>
-                  New League
-                </Link>
-                <Link
-                  href="/create"
-                  className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-[color:var(--color-product-accent-border)] hover:bg-[color-mix(in_srgb,var(--color-product-accent-muted)_20%,transparent)] hover:text-white transition-colors"
-                >
-                  <svg className="h-4 w-4 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none">
-                    <rect x="2" y="2" width="12" height="12" rx="1.5" stroke="currentColor" strokeWidth="1.4" />
-                    <path d="M8 5v6M5 8h6" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  </svg>
-                  Standalone Draft
-                </Link>
-                <Link
-                  href="/join"
-                  className="flex items-center gap-3 rounded-xl border border-slate-700 bg-slate-800 px-4 py-3 text-sm font-medium text-slate-300 hover:border-[color:var(--color-product-accent-border)] hover:bg-[color-mix(in_srgb,var(--color-product-accent-muted)_20%,transparent)] hover:text-white transition-colors"
-                >
-                  <svg className="h-4 w-4 text-[color:var(--color-product-accent)]" viewBox="0 0 16 16" fill="none">
-                    <path d="M2 8h9M8 5l3 3-3 3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
-                    <path d="M12 3h1a1 1 0 0 1 1 1v8a1 1 0 0 1-1 1h-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
-                  </svg>
-                  Join a Draft
-                </Link>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-800 bg-slate-900 p-5">
-              <p className="text-sm font-bold text-white">VPNs can disrupt drafts</p>
-              <p className="mt-1.5 text-xs leading-relaxed text-slate-500">
-                If you&apos;re using a VPN, disable it during your draft — VPNs can cause connection drops and real-time sync issues.
-              </p>
-            </div>
-          </aside>
+    <PageShell width="workspace">
+      {error && (
+        <div className="mb-[var(--space-5)]">
+          <Alert status="danger">{error}</Alert>
         </div>
+      )}
+
+      <div className="grid gap-[var(--space-6)] lg:grid-cols-[1fr_280px]">
+        {/* ── Main column ── */}
+        <div>
+          {isLoading ? (
+            <div className="flex flex-col gap-[var(--space-3)]">
+              {[...Array(3)].map((_, i) => (
+                <Skeleton key={i} height="row" label={i === 0 ? "Loading leagues" : undefined} />
+              ))}
+            </div>
+          ) : (
+            <Section title="Leagues" actions={
+              <LinkButton href="/leagues/new" variant="primary" scope="product">
+                + Create League
+              </LinkButton>
+            }>
+              {currentRows.length === 0 ? (
+                <EmptyState
+                  title="You don't have any leagues yet."
+                  description="Create a new league, or join one with an invite."
+                  action={
+                    <>
+                      <LinkButton href="/leagues/new" variant="primary" scope="product">
+                        Create League
+                      </LinkButton>
+                      <LinkButton href="/create" variant="secondary" scope="product">
+                        Standalone Draft
+                      </LinkButton>
+                      <LinkButton href="/join" variant="tertiary" scope="product">
+                        Join with an invite
+                      </LinkButton>
+                    </>
+                  }
+                />
+              ) : (
+                <div className="rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)]">
+                  {currentRows.map((row, i) => (
+                    <LeagueRow
+                      key={`${row.workspace.league.id}-${row.season.id}`}
+                      {...row}
+                      isFirst={i === 0}
+                      isLast={i === currentRows.length - 1}
+                      onDeleteClick={row.workspace.canManage ? () => setDeleteTarget(row.workspace) : undefined}
+                    />
+                  ))}
+                </div>
+              )}
+            </Section>
+          )}
+        </div>
+
+        {/* ── Sidebar ── */}
+        <aside className="flex flex-col gap-[var(--space-4)]">
+          <Panel title="Quick actions">
+            <div className="flex flex-col gap-[var(--space-2)]">
+              <LinkButton href="/leagues/new" variant="secondary" scope="product" fullWidth>
+                New League
+              </LinkButton>
+              <LinkButton href="/create" variant="secondary" scope="product" fullWidth>
+                Standalone Draft
+              </LinkButton>
+              <LinkButton href="/join" variant="secondary" scope="product" fullWidth>
+                Join a Draft
+              </LinkButton>
+            </div>
+          </Panel>
+
+          <Panel title="VPNs can disrupt drafts">
+            <p className="text-xs leading-relaxed text-[color:var(--color-text-secondary)]">
+              If you&apos;re using a VPN, disable it during your draft — VPNs can cause
+              connection drops and real-time sync issues.
+            </p>
+          </Panel>
+        </aside>
       </div>
 
       {deleteTarget && (
@@ -456,6 +414,6 @@ export default function DashboardPage() {
           onDeleted={handleDeleted}
         />
       )}
-    </div>
+    </PageShell>
   );
 }

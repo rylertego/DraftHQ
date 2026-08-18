@@ -19,7 +19,7 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 1 — Shared Foundation | 2, 3, 4, 5 | ✅ Complete |
 | 2 — Global Product Surfaces | 6 | ✅ Complete |
 | 2 — Global Product Surfaces | 7 | ✅ Complete |
-| 2 — Global Product Surfaces | 8 | ⬜ Not started |
+| 2 — Global Product Surfaces | 8 | ⚠️ Code complete, auth-side browser QA outstanding |
 | 3–8 | 9–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
@@ -580,27 +580,34 @@ git commit -m "feat: migrate authentication surfaces"
 - Consumes: Global shell, product-scoped actions, forms, feedback, overlays.
 - Produces: Cohesive non-league routes; league accent does not leak into these screens.
 
-- [ ] **Step 1: Impact-check route components and submit handlers**
+- [x] **Step 1: Impact-check route components and submit handlers**
 
 Separate visual edits from league creation/import/join logic. Stop if any handler would need behavior changes.
 
-- [ ] **Step 2: Migrate the global landing and league index**
+- [x] **Step 2: Migrate the global landing and league index**
 
 Preserve the current first-screen product proposition and available actions. Use product accent for Join/Create; use workspace width for the league collection and readable width for prose.
 
-- [ ] **Step 3: Migrate profile and join flows**
+- [x] **Step 3: Migrate profile and join flows**
 
 Use compact form sections, truthful save states, and product accent. Preserve invite resolution, membership checks, and redirects.
 
-- [ ] **Step 4: Migrate creation/import flows**
+- [x] **Step 4: Migrate creation/import flows**
 
 Use one shared dialog and form language. Keep provider status and validation visible, and prevent nested cards. Do not expose unsupported providers as working.
 
-- [ ] **Step 5: Browser QA route matrix**
+- [ ] **Step 5: Browser QA route matrix** — PARTIAL
 
 Verify no leagues, one/many leagues, profile success/failure, valid/invalid join code, signed-out join, create validation, import preview, import failure, and modal keyboard behavior.
 
-- [ ] **Step 6: Gate and commit**
+> Only the signed-out half was verified: landing renders, and an invalid join
+> code still runs the preview RPC, shows a danger Alert and keeps submit
+> disabled. Dashboard, profile, create, leagues/new and all three import
+> surfaces are behind auth and were **not** seen in a browser. Typecheck, 215
+> tests and the build are clean, which this week has repeatedly shown is not
+> the same thing. Re-run the auth half before trusting Task 8 as done.
+
+- [x] **Step 6: Gate and commit**
 
 ```powershell
 git add -- src/app/page.tsx src/app/dashboard/page.tsx src/app/profile/page.tsx src/app/join src/app/create/page.tsx src/app/leagues/new/page.tsx src/components/LeagueImportModal.tsx src/components/SleeperImportForm.tsx src/components/ProviderImportForm.tsx
