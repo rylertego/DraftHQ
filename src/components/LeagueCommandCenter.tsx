@@ -2,11 +2,11 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { DEFAULT_ACCENT, useLeagueTheme } from "@/context/LeagueThemeContext";
-import { deriveAccentTokens } from "@/lib/uiColor";
+import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { getLeagueTeamDraftSlot, getLeagueTeams } from "@/lib/leagueApi";
 import { buildOwnerDashboardView } from "@/lib/ownerDashboard";
 import type { LeagueSeason, LeagueTeam, LeagueWorkspace } from "@/types/league";
+import { Button, LinkButton } from "@/components/ui";
 
 type DraftStatus = "setup" | "active" | "paused" | "complete" | null;
 type Tone = "neutral" | "live" | "ready" | "warning" | "danger" | "complete";
@@ -317,15 +317,11 @@ export default function LeagueCommandCenter({
     : null;
   const previousLeagueYear = currentSeason?.year ? currentSeason.year - 1 : lastCompletedSeason?.year;
 
-  // Primary actions inside a league wear the league's own accent, not the
-  // product blue this used to hardcode. The foreground is derived rather than
-  // assumed: accents are user-chosen, so a pale one needs dark ink and a dark
-  // one needs light. Hardcoding text-white is how a league that picks yellow
-  // ends up with an unreadable button.
-  const accent = deriveAccentTokens(primary, DEFAULT_ACCENT);
-  const primaryButtonClass = "inline-flex items-center justify-center rounded-xl px-5 py-3 text-sm font-black transition-opacity hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-slate-950";
-  const primaryButtonStyle = { backgroundColor: accent.base, color: accent.foreground };
-  const secondaryButtonClass = "inline-flex items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 focus:ring-offset-2 focus:ring-offset-slate-950";
+  // Primary actions inside a league wear the league's own accent. That now
+  // comes from scope="league" on the action primitives rather than a locally
+  // derived token pair — the primitive resolves the accessible foreground, so
+  // a league that picks yellow still gets readable ink instead of white on
+  // white.
   const teamSetupHref = `/leagues/${slug}/teams`;
   const roomHref = draft ? `/draft/lobby?draftId=${draft.id}&leagueSlug=${slug}` : null;
   const ownerView = buildOwnerDashboardView({
@@ -394,26 +390,24 @@ export default function LeagueCommandCenter({
                   Enter Draft Room is the primary action beside it. */}
               {workspace.canManage && (
                 draft ? (
-                  <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
+                  <LinkButton href={configureHref ?? teamSetupHref} variant="secondary" scope="league">
                     Configure Draft
-                  </Link>
+                  </LinkButton>
                 ) : !currentSeason ? (
-                  <Link
+                  <LinkButton
                     href={`/leagues/${slug}/seasons/new`}
-                    className={primaryButtonClass}
-                    style={primaryButtonStyle}
+                    variant="primary"
+                    scope="league"
                   >
                     Create Season
-                  </Link>
+                  </LinkButton>
                 ) : (
-                  <button
-                    type="button"
+                  <Button
                     onClick={onConfigureDraft}
-                    className={primaryButtonClass}
-                    style={primaryButtonStyle}
+                    scope="league"
                   >
                     Create Draft
-                  </button>
+                  </Button>
                 )
               )}
               {isOwnerView ? (
@@ -421,29 +415,34 @@ export default function LeagueCommandCenter({
                 // actually open to them — see roomOpenToOwners in
                 // ownerDashboard.ts. Otherwise this points at the team list, so
                 // the hero is never actionless for an owner.
-                <Link
+                <LinkButton
                   href={ownerView.primaryCta.target === "room" && roomHref ? roomHref : teamSetupHref}
-                  className={primaryButtonClass}
-                  style={primaryButtonStyle}
+                  variant="primary"
+                  scope="league"
                 >
                   {ownerView.primaryCta.label}
-                </Link>
+                </LinkButton>
               ) : (
                 draftScheduled && roomHref && (
-                  <Link href={roomHref} className={primaryButtonClass} style={primaryButtonStyle}>
+                  <LinkButton href={roomHref} variant="primary" scope="league">
                     Enter Draft Room
-                  </Link>
+                  </LinkButton>
                 )
               )}
               {/* Reset draft used to sit absolutely positioned in the top-right
                   corner, underneath the team logo — hard to see and easy to hit
                   by accident. It belongs with the other draft actions, and last
                   in the row since it is the destructive one. */}
+              {/* Deliberately not <Button variant="danger">. That variant is a solid
+                   fill, and a loud red block in the header beside Enter Draft Room
+                   overstates an action nobody should be drawn toward. The system has no
+                   quiet-destructive variant, so this keeps its outline until one exists. */}
+
               {workspace.canManage && draft && (
                 <button
                   type="button"
                   onClick={onResetDraft}
-                  className="inline-flex items-center justify-center rounded-xl border border-red-500/30 px-4 py-3 text-sm font-bold text-red-300 transition-colors hover:border-red-400/50 hover:bg-red-500/10 hover:text-red-200 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 focus:ring-offset-slate-950"
+                  className="inline-flex h-[var(--control-height-touch)] items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-danger)]/30 px-[var(--space-3)] text-[length:var(--font-size-control)] font-bold text-[color:var(--color-danger-border)] transition-colors hover:border-[color:var(--color-danger)]/50 hover:bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)] sm:h-[var(--control-height-md)]"
                 >
                   Reset Draft
                 </button>
@@ -463,9 +462,9 @@ export default function LeagueCommandCenter({
                       <h2 className="text-base font-bold text-white">Draft Countdown</h2>
                     </div>
                     {workspace.canManage && !draft.scheduledAt && (
-                      <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
+                      <LinkButton href={configureHref ?? teamSetupHref} variant="secondary" scope="league">
                         Schedule Draft
-                      </Link>
+                      </LinkButton>
                     )}
                   </div>
                 </div>
@@ -545,9 +544,9 @@ export default function LeagueCommandCenter({
                       : "This season's draft hasn't been opened yet. Check back — the countdown lands here first.")
                   : undefined}
                 action={workspace.canManage && draft ? (
-                  <Link href={configureHref ?? teamSetupHref} className={secondaryButtonClass}>
+                  <LinkButton href={configureHref ?? teamSetupHref} variant="secondary" scope="league">
                     Schedule Draft
-                  </Link>
+                  </LinkButton>
                 ) : undefined}
               />
               <div className="grid gap-3 sm:grid-cols-3">

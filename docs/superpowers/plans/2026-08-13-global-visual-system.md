@@ -690,7 +690,7 @@ git commit -m "feat: migrate league workspace shell"
 
 Protect readiness, commissioner action, countdown visibility, draft-room availability, standings, champion/loser, and role-dependent rendering.
 
-- [ ] **Step 2: Migrate the dashboard composition**
+- [x] **Step 2: Migrate the dashboard composition**
 
 Use a 30px page title, compact season/status row, league-scoped operational actions, a dense countdown when a draft exists, wide standings, equal champion/loser objects, and no league-activity section. Preserve the approved role-specific content and copy.
 
