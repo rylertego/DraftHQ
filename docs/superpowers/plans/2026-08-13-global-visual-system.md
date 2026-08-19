@@ -21,7 +21,9 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 2 — Global Product Surfaces | 7 | ✅ Complete |
 | 2 — Global Product Surfaces | 8 | ✅ Complete (import modal preview still unseen) |
 | 3 — League Workspace Shell | 9 | ⚠️ Code complete; role + mobile QA outstanding |
-| 4–8 | 10–… | ⬜ Not started |
+| 4 — League Operations | 10, 11, 12 | ✅ Desktop complete |
+| 4 — League Operations | 13, 14, 15 | ⬜ Not started |
+| 5–8 | 16–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
 stalled. Steps below are left unticked until every slice lands:
@@ -764,17 +766,28 @@ git commit -m "feat: migrate league team management"
 - Consumes: Readable form layout, TeamMark, owner photo field, fields, upload states, league actions.
 - Produces: Assigned-owner team profile editor with unchanged ownership constraints and Draft Night walk-up songs.
 
-- [ ] **Step 1: Impact-check profile, upload, and song handlers**
+- [x] **Step 1: Impact-check profile, upload, and song handlers**
 
-- [ ] **Step 2: Migrate composition**
+- [x] **Step 2: Migrate composition**
 
 Keep team summary alongside a readable form on desktop and above it on mobile. Preserve Team Details under Team Identity, owner photo upload, Draft Night Walk-Up Songs, upload/replace/remove behavior, and save feedback.
 
-- [ ] **Step 3: Verify all states**
+- [ ] **Step 3: Verify all states** — PARTIAL
 
 Check assigned/unassigned, owner versus commissioner, empty/replaced/removed photo and logo, zero/maximum songs, validation failure, save failure, and saving.
 
-- [ ] **Step 4: Gate and commit**
+> Verified signed in as an assigned owner: summary aside, Team Details, owner
+> photo empty state, zero-songs empty state, and the sticky save bar in the
+> league accent. Unassigned, commissioner-viewing-another-team, replaced and
+> removed photo/logo, maximum songs, and the failure states are unverified.
+>
+> Deviation from Step 2: the "Team Identity" and "Walk-Up Playlist" descriptors
+> were dropped rather than preserved. Panel renders description below the title,
+> so they read as subtitles restating the heading — the redundant-eyebrow
+> pattern the user had already stripped from the dashboard and asked not to see
+> restored.
+
+- [x] **Step 4: Gate and commit**
 
 ```powershell
 git add -- src/app/leagues/[slug]/my-team/MyTeamForm.tsx

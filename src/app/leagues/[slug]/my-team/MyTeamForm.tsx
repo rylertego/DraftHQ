@@ -13,6 +13,7 @@ import {
 } from "@/lib/leagueApi";
 import type { LeagueTeam } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
+import { Alert, Button, EmptyState, Field, IconButton, Input, Panel } from "@/components/ui";
 
 function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
   return (
@@ -25,7 +26,7 @@ function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
 export default function MyTeamForm({ slug }: { slug: string }) {
   void slug;
   const { workspace, isLoading } = useWorkspace();
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
+  const { accentColor: primary } = useLeagueTheme();
   const [team, setTeam] = useState<LeagueTeam | null>(null);
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
@@ -181,236 +182,205 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const savedSongCount = team?.walkUpSongs.length ?? 0;
 
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <section className="overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/70 shadow-[0_24px_80px_rgba(0,0,0,0.2)]">
-        <div className="h-1" style={{ backgroundColor: primary }} />
-        <div className="grid gap-6 p-5 lg:grid-cols-[20rem_1fr] lg:p-6">
-          <aside className="rounded-2xl border border-slate-800 bg-slate-900/70 p-5">
-            <div className="flex items-start gap-4 lg:block">
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="group relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 transition-colors hover:border-slate-500 focus:outline-none focus:ring-2"
-                style={{ ["--tw-ring-color" as string]: primary }}
-                aria-label="Upload team logo"
-              >
-                {logoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
-                ) : (
-                  <span className="text-3xl font-black text-white">{initials}</span>
-                )}
-                <span className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
-                  Replace
-                </span>
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-
-              <div className="min-w-0 lg:mt-5">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>
-                  My Franchise
-                </p>
-                <h1 className="mt-2 truncate text-3xl font-black text-white">{name || myTeamRef.name}</h1>
-                <p className="mt-2 text-sm leading-6 text-slate-400">
-                  These details are your league-level defaults and carry into draft night unless a commissioner overrides a draft.
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-800 pt-5">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Songs</p>
-                <p className="mt-1 text-xl font-black text-white">{walkUpSongs.length}/{MAX_WALK_UP_SONGS}</p>
-              </div>
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Saved</p>
-                <p className="mt-1 text-xl font-black text-white">{savedSongCount}</p>
-              </div>
-            </div>
-          </aside>
-
-          <div className="space-y-5">
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <div className="flex flex-col gap-1 border-b border-slate-800 pb-4">
-                <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>
-                  Team Identity
-                </p>
-                <h2 className="text-xl font-black text-white">Team Details</h2>
-              </div>
-
-              <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-400">
-                    Team Name <span className="text-red-400">*</span>
-                  </span>
-                  <input
-                    required
-                    maxLength={100}
-                    className="w-full"
-                    value={name}
-                    onChange={(e) => {
-                      setName(e.target.value);
-                      setSuccess(false);
-                    }}
-                  />
-                </label>
-
-                <label className="block">
-                  <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-400">Short Name</span>
-                  <input
-                    maxLength={10}
-                    className="w-full"
-                    placeholder="Shown in compact draft views"
-                    value={shortName}
-                    onChange={(e) => {
-                      setShortName(e.target.value);
-                      setSuccess(false);
-                    }}
-                  />
-                </label>
-              </div>
-
-              <label className="mt-4 block">
-                <span className="mb-1.5 block text-xs font-bold uppercase tracking-wide text-slate-400">Owner Display Name</span>
-                <input
-                  maxLength={100}
-                  className="w-full"
-                  placeholder="Optional display name shown during draft night"
-                  value={ownerName}
-                  onChange={(e) => {
-                    setOwnerName(e.target.value);
-                    setSuccess(false);
-                  }}
-                />
-              </label>
-
-              <div className="mt-5 border-t border-slate-800 pt-5">
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-center">
-                  <label className="group block w-fit cursor-pointer">
-                    <input type="file" accept="image/*" className="sr-only" onChange={handleOwnerPhotoChange} />
-                    <span
-                      className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-slate-700/80 bg-slate-950 transition-colors group-hover:border-slate-500 group-focus-within:ring-2"
-                      style={{ ["--tw-ring-color" as string]: primary }}
-                    >
-                      {ownerPhotoPreview ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={ownerPhotoPreview} alt="" className="h-full w-full object-cover" />
-                      ) : (
-                        <svg viewBox="0 0 24 24" fill="currentColor" className="h-9 w-9 text-slate-600 transition-colors group-hover:text-slate-400" aria-hidden="true">
-                          <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z" />
-                        </svg>
-                      )}
-                      <span className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-2 py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
-                        Replace
-                      </span>
-                    </span>
-                  </label>
-
-                  <div className="min-w-0">
-                    <p className="text-sm font-black text-white">Owner Photo</p>
-                    <p className="mt-1 text-sm leading-6 text-slate-400">
-                      Add your profile image for draft-night presentation screens. Your team logo stays managed from the franchise card.
-                    </p>
-                    {uploadingOwnerPhoto && (
-                      <p className="mt-1 text-xs font-bold" style={{ color: primary }}>
-                        Uploading owner photo...
-                      </p>
-                    )}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div className="rounded-2xl border border-slate-800 bg-slate-900/60 p-5">
-              <div className="flex flex-col gap-3 border-b border-slate-800 pb-4 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>
-                    Walk-Up Playlist
-                  </p>
-                  <h2 className="mt-1 text-xl font-black text-white">Draft Night Walk-Up Songs</h2>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setShowSongPicker(true)}
-                  disabled={walkUpSongs.length >= MAX_WALK_UP_SONGS}
-                  className="inline-flex min-h-11 items-center justify-center rounded-xl px-4 py-2 text-sm font-black text-slate-950 transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                  style={{ backgroundColor: primary }}
-                >
-                  Add Song
-                </button>
-              </div>
-
-              {walkUpSongs.length === 0 ? (
-                <div className="mt-5 rounded-2xl border border-dashed border-slate-700 bg-slate-950/50 p-6 text-center">
-                  <p className="font-bold text-white">No custom walk-up songs yet</p>
-                  <p className="mt-1 text-sm text-slate-500">
-                    DraftHQ will use the default walk-up track until you add your own songs.
-                  </p>
-                </div>
+    <>
+      <div className="grid gap-[var(--space-5)] lg:grid-cols-[20rem_1fr]">
+        {/* Summary sits beside the form on desktop and above it on mobile — the
+            grid handles both, so no duplicated markup. */}
+        <aside className="rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)] p-[var(--space-4)]">
+          <div className="flex items-start gap-[var(--space-4)] lg:block">
+            {/* The preview is the control, so this stays a custom dropzone
+                rather than the FileUpload primitive. */}
+            <button
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="group relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--color-border-strong)] bg-[var(--color-canvas)] transition-colors hover:border-[color:var(--color-league-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-league-focus-ring)]"
+              aria-label="Upload team logo"
+            >
+              {logoPreview ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
               ) : (
-                <div className="mt-5 divide-y divide-slate-800 overflow-hidden rounded-2xl border border-slate-800 bg-slate-950/50">
-                  {walkUpSongs.map((song, index) => (
-                    <div key={`${song.platform}-${song.trackId}-${index}`} className="flex items-center gap-3 px-4 py-3">
-                      {song.thumbnail ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={song.thumbnail} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
-                      ) : (
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-slate-800 text-xs font-black text-slate-500">
-                          {index + 1}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2">
-                          <p className="truncate text-sm font-black text-white">{song.title}</p>
-                          <SongSourceBadge platform={song.platform} />
-                        </div>
-                        <p className="truncate text-xs text-slate-500">{song.artist || "Unknown artist"}</p>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => removeSong(index)}
-                        className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-800 text-slate-400 transition-colors hover:border-red-500/40 hover:bg-red-500/10 hover:text-red-300 focus:outline-none focus:ring-2 focus:ring-red-400"
-                        aria-label={`Remove ${song.title}`}
-                      >
-                        <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
-                          <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-                        </svg>
-                      </button>
-                    </div>
-                  ))}
-                </div>
+                <span className="text-3xl font-black text-[color:var(--color-text-primary)]">{initials}</span>
               )}
-            </div>
+              <span className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                Replace
+              </span>
+            </button>
+            <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
-            {error && (
-              <p className="rounded-xl border border-red-800 bg-red-950/40 px-4 py-3 text-sm text-red-300">{error}</p>
-            )}
-            {success && (
-              <p className="rounded-xl border border-emerald-800 bg-emerald-950/30 px-4 py-3 text-sm text-emerald-300">
-                Team profile saved. These defaults will carry into draft night unless a commissioner overrides them for a draft.
+            <div className="min-w-0 lg:mt-5">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[color:var(--color-league-accent)]">
+                My Franchise
               </p>
-            )}
-
-            <div className="sticky bottom-4 z-10 rounded-2xl border border-slate-800 bg-slate-950/90 p-3 shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
-              <button
-                type="button"
-                disabled={saving || !name.trim()}
-                onClick={() => void handleSave()}
-                className="min-h-12 w-full rounded-xl text-sm font-black transition-opacity hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
-                style={{ backgroundColor: primary, color: secondary }}
-              >
-                {saving
-                  ? uploadingLogo
-                    ? "Uploading Logo..."
-                    : uploadingOwnerPhoto
-                      ? "Uploading Owner Photo..."
-                      : "Saving Team..."
-                  : "Save Team Profile"}
-              </button>
+              <h1 className="mt-2 truncate text-3xl font-black text-[color:var(--color-text-primary)]">
+                {name || myTeamRef.name}
+              </h1>
+              <p className="mt-2 text-sm leading-6 text-[color:var(--color-text-secondary)]">
+                These details are your league-level defaults and carry into draft night unless a commissioner overrides a draft.
+              </p>
             </div>
           </div>
+
+          <div className="mt-[var(--space-4)] grid grid-cols-2 gap-[var(--space-3)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">Songs</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-[color:var(--color-text-primary)]">
+                {walkUpSongs.length}/{MAX_WALK_UP_SONGS}
+              </p>
+            </div>
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">Saved</p>
+              <p className="mt-1 text-xl font-black tabular-nums text-[color:var(--color-text-primary)]">{savedSongCount}</p>
+            </div>
+          </div>
+        </aside>
+
+        <div className="flex flex-col gap-[var(--space-4)]">
+          {/* No "Team Identity" descriptor. Panel renders description below the
+              title, so it read as a subtitle restating the heading — the same
+              redundant-eyebrow pattern that was stripped from the dashboard. */}
+          <Panel title="Team Details">
+            <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+              <Field label="Team Name" controlId="my-team-name" required>
+                <Input
+                  required
+                  maxLength={100}
+                  value={name}
+                  onChange={(e) => { setName(e.target.value); setSuccess(false); }}
+                />
+              </Field>
+              <Field label="Short Name" controlId="my-team-short">
+                <Input
+                  maxLength={10}
+                  placeholder="Shown in compact draft views"
+                  value={shortName}
+                  onChange={(e) => { setShortName(e.target.value); setSuccess(false); }}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-[var(--space-4)]">
+              <Field label="Owner Display Name" controlId="my-team-owner-name">
+                <Input
+                  maxLength={100}
+                  placeholder="Optional display name shown during draft night"
+                  value={ownerName}
+                  onChange={(e) => { setOwnerName(e.target.value); setSuccess(false); }}
+                />
+              </Field>
+            </div>
+
+            <div className="mt-[var(--space-4)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
+              <div className="flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-center">
+                <label className="group block w-fit cursor-pointer">
+                  <input type="file" accept="image/*" className="sr-only" onChange={handleOwnerPhotoChange} />
+                  <span className="relative flex h-24 w-24 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--color-border-strong)] bg-[var(--color-canvas)] transition-colors group-hover:border-[color:var(--color-league-accent)] group-focus-within:ring-2 group-focus-within:ring-[var(--color-league-focus-ring)]">
+                    {ownerPhotoPreview ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={ownerPhotoPreview} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <svg viewBox="0 0 24 24" fill="currentColor" className="h-9 w-9 text-[color:var(--color-text-muted)] transition-colors group-hover:text-[color:var(--color-text-secondary)]" aria-hidden="true">
+                        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z" />
+                      </svg>
+                    )}
+                    <span className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-2 py-1 text-center text-[10px] font-black uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
+                      Replace
+                    </span>
+                  </span>
+                </label>
+
+                <div className="min-w-0">
+                  <p className="text-sm font-black text-[color:var(--color-text-primary)]">Owner Photo</p>
+                  <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
+                    Add your profile image for draft-night presentation screens. Your team logo stays managed from the franchise card.
+                  </p>
+                  {uploadingOwnerPhoto && (
+                    <p className="mt-1 text-xs font-bold text-[color:var(--color-league-accent)]">
+                      Uploading owner photo...
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Draft Night Walk-Up Songs"
+            actions={
+              <Button
+                scope="league"
+                onClick={() => setShowSongPicker(true)}
+                disabled={walkUpSongs.length >= MAX_WALK_UP_SONGS}
+              >
+                Add Song
+              </Button>
+            }
+          >
+            {walkUpSongs.length === 0 ? (
+              <div className="rounded-[var(--radius-surface)] border border-dashed border-[color:var(--color-border-strong)] bg-[var(--color-surface-2)]">
+                <EmptyState
+                  title="No custom walk-up songs yet"
+                  description="DraftHQ will use the default walk-up track until you add your own songs."
+                />
+              </div>
+            ) : (
+              <div className="divide-y divide-[color:var(--color-border-subtle)] overflow-hidden rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)]">
+                {walkUpSongs.map((song, index) => (
+                  <div key={`${song.platform}-${song.trackId}-${index}`} className="flex items-center gap-[var(--space-3)] px-[var(--space-3)] py-[var(--space-2)]">
+                    {song.thumbnail ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={song.thumbnail} alt="" className="h-12 w-12 shrink-0 rounded-xl object-cover" />
+                    ) : (
+                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-[var(--color-surface-3)] text-xs font-black text-[color:var(--color-text-muted)]">
+                        {index + 1}
+                      </div>
+                    )}
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="truncate text-sm font-black text-[color:var(--color-text-primary)]">{song.title}</p>
+                        <SongSourceBadge platform={song.platform} />
+                      </div>
+                      <p className="truncate text-xs text-[color:var(--color-text-muted)]">{song.artist || "Unknown artist"}</p>
+                    </div>
+                    <IconButton label={`Remove ${song.title}`} onClick={() => removeSong(index)}>
+                      <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
+                        <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+                      </svg>
+                    </IconButton>
+                  </div>
+                ))}
+              </div>
+            )}
+          </Panel>
+
+          {error && <Alert status="danger">{error}</Alert>}
+          {success && (
+            <Alert status="success">
+              Team profile saved. These defaults will carry into draft night unless a commissioner overrides them for a draft.
+            </Alert>
+          )}
+
+          {/* Sticky save bar: the form is long enough that the action would
+              otherwise scroll out of reach. */}
+          <div className="sticky bottom-4 z-10 rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-canvas)]/90 p-[var(--space-2)] shadow-[0_20px_60px_rgba(0,0,0,0.35)] backdrop-blur">
+            <Button
+              scope="league"
+              fullWidth
+              loading={saving}
+              disabled={!name.trim()}
+              onClick={() => void handleSave()}
+            >
+              {saving
+                ? uploadingLogo
+                  ? "Uploading Logo..."
+                  : uploadingOwnerPhoto
+                    ? "Uploading Owner Photo..."
+                    : "Saving Team..."
+                : "Save Team Profile"}
+            </Button>
+          </div>
         </div>
-      </section>
+      </div>
 
       {showSongPicker && (
         <SongPicker
@@ -418,6 +388,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
           onClose={() => setShowSongPicker(false)}
         />
       )}
-    </div>
+    </>
   );
 }
