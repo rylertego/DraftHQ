@@ -32,7 +32,7 @@ export default function SignupPage() {
     setMessage("");
     setIsSubmitting(true);
 
-    const captchaToken = await getCaptchaToken();
+    const captchaToken = await getCaptchaToken("signup");
     const { data: sessionData } = await supabase.auth.getSession();
     const currentUser = sessionData.session?.user;
     const redirectTo = `${window.location.origin}/dashboard`;

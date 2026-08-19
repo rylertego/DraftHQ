@@ -53,7 +53,7 @@ export async function ensureAnonymousUser() {
     // Guest draft joins go through this. Supabase gates anonymous sign-in
     // behind CAPTCHA too, so without a token here enabling protection would
     // lock guests out of drafts entirely.
-    anonymousSignIn = getCaptchaToken()
+    anonymousSignIn = getCaptchaToken("guest_join")
       .then((captchaToken) => supabase.auth.signInAnonymously({ options: { captchaToken } }))
       .then(({ data, error }) => {
       if (error) {

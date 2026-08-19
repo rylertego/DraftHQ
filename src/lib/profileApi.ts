@@ -94,7 +94,7 @@ export async function changeMyPassword(input: {
 
   // Supabase gates signInWithPassword behind CAPTCHA once enabled, and this
   // re-auth check has no form of its own to host a widget.
-  const verifyCaptchaToken = await getCaptchaToken();
+  const verifyCaptchaToken = await getCaptchaToken("password_change");
   const { error: verifyError } = await supabase.auth.signInWithPassword({
     email: userData.user.email,
     password: input.currentPassword,

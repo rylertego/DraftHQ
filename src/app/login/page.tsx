@@ -20,7 +20,7 @@ export default function LoginPage() {
     setError("");
     setIsSubmitting(true);
 
-    const captchaToken = await getCaptchaToken();
+    const captchaToken = await getCaptchaToken("login");
 
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
