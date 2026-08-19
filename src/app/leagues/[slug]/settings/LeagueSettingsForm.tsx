@@ -18,6 +18,7 @@ import {
 } from "@/components/CommandCenterUI";
 import LeagueMembers from "../members/LeagueMembers";
 import LeagueDangerZone from "@/components/LeagueDangerZone";
+import { Field, Input, Panel, Stepper } from "@/components/ui";
 
 interface ColorPair {
   name: string;
@@ -642,67 +643,48 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       )}
 
       {tab === "general" && (
-        <form onSubmit={handleSubmit} className="space-y-5">
-          <CommandPanel
-            eyebrow="Core Configuration"
+        <form onSubmit={handleSubmit} className="flex flex-col gap-[var(--space-5)]">
+          <Panel
             title="League Identity"
             description="These settings define how the league appears in DraftHQ workspaces, teams, and draft-night surfaces."
           >
-            <div className="grid gap-5 md:grid-cols-2">
+            <div className="grid gap-[var(--space-5)] md:grid-cols-2">
               <div className="md:col-span-2">
-                <label className={commandLabelClass} htmlFor="settings-league-name">League Name</label>
-                <input
-                  id="settings-league-name"
-                  required
-                  maxLength={100}
-                  disabled={!canManage}
-                  className={commandInputClass}
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  aria-invalid={!name.trim()}
-                />
-                <p className={commandHelperClass}>Shown in the sidebar, dashboard, invitations, and league-level pages.</p>
+                <Field
+                  label="League Name"
+                  controlId="settings-league-name"
+                  description="Shown in the sidebar, dashboard, invitations, and league-level pages."
+                >
+                  <Input
+                    required
+                    maxLength={100}
+                    disabled={!canManage}
+                    value={name}
+                    onChange={(e) => setName(e.target.value)}
+                  />
+                </Field>
               </div>
 
-              <div>
-                <label className={commandLabelClass} htmlFor="settings-team-count">Active Teams</label>
-                <p className="mb-2 text-sm leading-6 text-slate-400">Number of active franchise teams. Archived teams do not count toward this total.</p>
-                <div className="flex items-center gap-3">
-                  <button
-                    type="button"
-                    disabled={!canManage || teamCount <= 2}
-                    onClick={() => setTeamCount((n) => Math.max(2, n - 1))}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label="Decrease active teams"
-                  >
-                    -
-                  </button>
-                  <input
-                    id="settings-team-count"
-                    type="number"
-                    min={2}
-                    max={32}
-                    disabled={!canManage}
-                    className={`${commandInputClass} w-20 text-center [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-                    value={teamCount}
-                    onChange={(e) => {
-                      const v = parseInt(e.target.value, 10);
-                      if (!isNaN(v) && v >= 2 && v <= 32) setTeamCount(v);
-                    }}
-                  />
-                  <button
-                    type="button"
-                    disabled={!canManage || teamCount >= 32}
-                    onClick={() => setTeamCount((n) => Math.min(32, n + 1))}
-                    className="flex h-11 w-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/70 text-lg font-black text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
-                    aria-label="Increase active teams"
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
+              <Field
+                label="Active Teams"
+                controlId="settings-team-count"
+                description="Number of active franchise teams. Archived teams do not count toward this total."
+              >
+                {/* Stepper primitive rather than a hand-rolled +/- pair: it
+                    already handles the clamping, the spin-button reset and the
+                    decrement/increment labels this had reimplemented. */}
+                <Stepper
+                  value={teamCount}
+                  onValueChange={setTeamCount}
+                  min={2}
+                  max={32}
+                  disabled={!canManage}
+                  decrementLabel="Decrease active teams"
+                  incrementLabel="Increase active teams"
+                />
+              </Field>
             </div>
-          </CommandPanel>
+          </Panel>
 
           <CommandPanel
             eyebrow="Brand System"

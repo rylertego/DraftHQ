@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCaptchaToken } from "@/lib/turnstile";
 import { Alert, Button, Field, FormLayout, Input, PageShell, Panel } from "@/components/ui";
 
 export default function SignupPage() {
@@ -31,6 +32,7 @@ export default function SignupPage() {
     setMessage("");
     setIsSubmitting(true);
 
+    const captchaToken = await getCaptchaToken();
     const { data: sessionData } = await supabase.auth.getSession();
     const currentUser = sessionData.session?.user;
     const redirectTo = `${window.location.origin}/dashboard`;
@@ -42,7 +44,7 @@ export default function SignupPage() {
       : await supabase.auth.signUp({
           email: email.trim(),
           password,
-          options: { data: { display_name: name }, emailRedirectTo: redirectTo },
+          options: { data: { display_name: name }, emailRedirectTo: redirectTo, captchaToken },
         });
 
     if (result.error) {

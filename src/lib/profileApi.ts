@@ -1,4 +1,5 @@
 import { supabase } from "@/lib/supabase";
+import { getCaptchaToken } from "@/lib/turnstile";
 
 interface ProfileRow {
   id: string;
@@ -91,9 +92,13 @@ export async function changeMyPassword(input: {
     throw new Error("New password must be at least 8 characters.");
   }
 
+  // Supabase gates signInWithPassword behind CAPTCHA once enabled, and this
+  // re-auth check has no form of its own to host a widget.
+  const verifyCaptchaToken = await getCaptchaToken();
   const { error: verifyError } = await supabase.auth.signInWithPassword({
     email: userData.user.email,
     password: input.currentPassword,
+    options: { captchaToken: verifyCaptchaToken },
   });
   if (verifyError) {
     throw new Error("Current password is incorrect.");

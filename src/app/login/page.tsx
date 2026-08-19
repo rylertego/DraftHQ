@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useState } from "react";
 import { supabase } from "@/lib/supabase";
+import { getCaptchaToken } from "@/lib/turnstile";
 import DraftHQLockup from "@/components/brand/DraftHQLockup";
 import { Alert, Button, Field, FormLayout, Input, PageShell, Panel } from "@/components/ui";
 
@@ -19,9 +20,12 @@ export default function LoginPage() {
     setError("");
     setIsSubmitting(true);
 
+    const captchaToken = await getCaptchaToken();
+
     const { error: signInError } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
+      options: { captchaToken },
     });
 
     if (signInError) {

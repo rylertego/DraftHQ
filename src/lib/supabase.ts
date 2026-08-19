@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import type { User } from "@supabase/supabase-js";
+import { getCaptchaToken } from "@/lib/turnstile";
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabasePublishableKey =
@@ -49,7 +50,12 @@ export async function ensureAnonymousUser() {
   }
 
   if (!anonymousSignIn) {
-    anonymousSignIn = supabase.auth.signInAnonymously().then(({ data, error }) => {
+    // Guest draft joins go through this. Supabase gates anonymous sign-in
+    // behind CAPTCHA too, so without a token here enabling protection would
+    // lock guests out of drafts entirely.
+    anonymousSignIn = getCaptchaToken()
+      .then((captchaToken) => supabase.auth.signInAnonymously({ options: { captchaToken } }))
+      .then(({ data, error }) => {
       if (error) {
         throw error;
       }
