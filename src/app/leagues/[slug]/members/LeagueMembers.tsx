@@ -17,18 +17,14 @@ import type { LeagueMember } from "@/types/league";
 import {
   CommandButton,
   CommandEmptyState,
-  CommandModal,
   CommandPanel,
   CommandStatusBadge,
-  commandHelperClass,
-  commandInputClass,
-  commandLabelClass,
 } from "@/components/CommandCenterUI";
+import { Alert, Button, Dialog, Field, Input } from "@/components/ui";
 
 // ── Invite modal ──────────────────────────────────────────────────────────────
 
 function InviteMemberModal({ leagueId, onClose, onAdded, onInviteSent }: { leagueId: string; onClose: () => void; onAdded: () => void; onInviteSent: (email: string) => void }) {
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const [email, setEmail] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -50,32 +46,46 @@ function InviteMemberModal({ leagueId, onClose, onAdded, onInviteSent }: { leagu
   }
 
   return (
-    <CommandModal
-      eyebrow="League Access"
+    <Dialog
+      open
+      onClose={loading ? () => {} : onClose}
+      size="small"
       title="Add Member"
       description="They will receive a pending invitation and can join or decline from DraftHQ."
-      badge={<CommandStatusBadge label="Invite" tone="ready" />}
-      onClose={loading ? undefined : onClose}
-      footer={(
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <CommandButton type="button" onClick={onClose} disabled={loading} className="sm:min-w-28">
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
             Cancel
-          </CommandButton>
-          <CommandButton type="submit" form="invite-member-form" variant="primary" disabled={loading || !email.trim()} className="sm:min-w-40" style={{ backgroundColor: primary, color: secondary }}>
+          </Button>
+          <Button
+            type="submit"
+            form="invite-member-form"
+            scope="league"
+            loading={loading}
+            disabled={!email.trim()}
+          >
             {loading ? "Sending..." : "Send Invitation"}
-          </CommandButton>
-        </div>
-      )}
+          </Button>
+        </>
+      }
     >
-        <form id="invite-member-form" onSubmit={(e) => void handleSubmit(e)} className="space-y-4">
-          <div>
-            <label className={commandLabelClass}>Email Address</label>
-            <input type="email" autoFocus className={commandInputClass} placeholder="teammate@example.com" value={email} onChange={(e) => setEmail(e.target.value)} />
-            <p className={commandHelperClass}>Invitations are managed from the Pending Invitations section.</p>
-          </div>
-          {error && <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
-        </form>
-    </CommandModal>
+      <form id="invite-member-form" onSubmit={(e) => void handleSubmit(e)} className="flex flex-col gap-[var(--space-4)]">
+        <Field
+          label="Email Address"
+          controlId="invite-member-email"
+          description="Invitations are managed from the Pending Invitations section."
+        >
+          <Input
+            type="email"
+            autoFocus
+            placeholder="teammate@example.com"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+          />
+        </Field>
+        {error && <Alert status="danger">{error}</Alert>}
+      </form>
+    </Dialog>
   );
 }
 
@@ -98,24 +108,28 @@ function RemoveConfirmModal({ member, leagueId, onClose, onRemoved }: { member: 
     }
   }
 
+  // Dialog rather than ConfirmDialog: this needs somewhere to surface a failed
+  // removal, and ConfirmDialog has no slot for one.
   return (
-    <CommandModal
-      eyebrow="Member Access"
+    <Dialog
+      open
+      onClose={loading ? () => {} : onClose}
+      size="small"
       title={`Remove ${member.displayName}?`}
       description="They will be removed from this league. This does not affect any draft picks or history."
-      badge={<CommandStatusBadge label="Destructive" tone="danger" />}
-      onClose={loading ? undefined : onClose}
-      footer={(
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <CommandButton type="button" onClick={onClose} disabled={loading} className="sm:min-w-28">Cancel</CommandButton>
-          <CommandButton type="button" variant="danger" onClick={() => void handleRemove()} disabled={loading} className="sm:min-w-32">
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button variant="danger" loading={loading} onClick={() => void handleRemove()}>
             {loading ? "Removing..." : "Remove"}
-          </CommandButton>
-        </div>
-      )}
+          </Button>
+        </>
+      }
     >
-      {error && <p className="rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
-    </CommandModal>
+      {error ? <Alert status="danger">{error}</Alert> : null}
+    </Dialog>
   );
 }
 
@@ -139,26 +153,26 @@ function TransferOwnershipModal({ member, leagueId, onClose, onTransferred }: { 
   }
 
   return (
-    <CommandModal
-      eyebrow="Ownership"
+    <Dialog
+      open
+      onClose={loading ? () => {} : onClose}
+      size="small"
       title={`Transfer ownership to ${member.displayName}?`}
       description="They will become the league owner with full commissioner control. You will be demoted to co-commissioner and retain access."
-      badge={<CommandStatusBadge label="Requires Trust" tone="warning" />}
-      onClose={loading ? undefined : onClose}
-      footer={(
-        <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-          <CommandButton type="button" onClick={onClose} disabled={loading} className="sm:min-w-28">Cancel</CommandButton>
-          <CommandButton type="button" variant="danger" onClick={() => void handleTransfer()} disabled={loading} className="sm:min-w-44">
+      footer={
+        <>
+          <Button variant="secondary" onClick={onClose} disabled={loading}>
+            Cancel
+          </Button>
+          <Button variant="danger" loading={loading} onClick={() => void handleTransfer()}>
             {loading ? "Transferring..." : "Transfer Ownership"}
-          </CommandButton>
-        </div>
-      )}
+          </Button>
+        </>
+      }
     >
-      <p className="rounded-xl border border-amber-400/30 bg-amber-500/10 px-3 py-2 text-sm font-semibold text-amber-200">
-        This cannot be undone without their cooperation.
-      </p>
-      {error && <p className="mt-3 rounded-xl border border-red-400/30 bg-red-500/10 px-3 py-2 text-sm font-semibold text-red-200">{error}</p>}
-    </CommandModal>
+      <Alert status="warning">This cannot be undone without their cooperation.</Alert>
+      {error ? <Alert status="danger">{error}</Alert> : null}
+    </Dialog>
   );
 }
 
@@ -209,11 +223,13 @@ function MemberCard({
   }, [menuOpen]);
 
   return (
-    // Name takes the slack, role sizes to its own text, and the last track is a
-    // fixed 2.5rem for the kebab. Each row is its own grid, so a variable last
-    // column would let the role wander row to row — the fixed track keeps every
-    // label's right edge on the same line, hard against the menu.
-    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_auto_2.5rem] sm:items-center">
+    // Name takes the slack; the role track is a fixed 10rem and the kebab a
+    // fixed 2.5rem. Each row is its own grid, so an `auto` role track sized to
+    // that row's own label — measured 117px on "Commissioner" and 145px on
+    // "Member", so the labels started at different x on every row. Right
+    // alignment hid it, because 1fr absorbed the difference and the right edges
+    // still lined up. Fixed track, and both edges agree.
+    <article className="group relative grid gap-3 border-b border-slate-800/80 px-4 py-3 last:border-b-0 sm:grid-cols-[minmax(0,1fr)_10rem_2.5rem] sm:items-center">
       {member.avatarUrl ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={member.avatarUrl} alt="" className="h-11 w-11 shrink-0 rounded-xl object-cover sm:absolute sm:left-4" />

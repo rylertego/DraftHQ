@@ -22,7 +22,8 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 2 — Global Product Surfaces | 8 | ✅ Complete (import modal preview still unseen) |
 | 3 — League Workspace Shell | 9 | ⚠️ Code complete; role + mobile QA outstanding |
 | 4 — League Operations | 10, 11, 12 | ✅ Desktop complete |
-| 4 — League Operations | 13, 14, 15 | ⬜ Not started |
+| 4 — League Operations | 13 | ✅ Desktop complete |
+| 4 — League Operations | 14, 15 | ⬜ Not started |
 | 5–8 | 16–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
@@ -803,21 +804,29 @@ git commit -m "feat: migrate owner team profile"
 - Consumes: Data surface, badges, portal menu, confirm dialog, league actions.
 - Produces: Compact member/invitation/archive lists with unclipped permission actions.
 
-- [ ] **Step 1: Impact-check member mutation handlers**
+- [x] **Step 1: Impact-check member mutation handlers**
 
 Protect invitation, role, removal, ownership transfer, and archive behavior.
 
-- [ ] **Step 2: Migrate current members, invites, and archive**
+- [x] **Step 2: Migrate current members, invites, and archive**
 
 Use table/list rows rather than oversized member cards. Distinguish commissioner, co-commissioner, member, pending, and former states with semantic text plus color.
 
-- [ ] **Step 3: Migrate menus and confirmations**
+- [x] **Step 3: Migrate menus and confirmations**
 
 Portal ellipsis menus outside all clipping containers. Retain every supported action. Use danger only for destructive actions and explicit confirmation for removal/ownership transfer.
 
-- [ ] **Step 4: Verify role matrix and commit**
+- [ ] **Step 4: Verify role matrix and commit** — PARTIAL
 
 Run each action as allowed and disallowed roles, plus empty invites/archive, mobile menus, and keyboard navigation. Run phase gate.
+
+> Verified as league owner: member rows render with role ordering and the badge
+> budget intact, and the Add Member dialog opens focused with its submit
+> disabled until an email is entered, in the league accent.
+>
+> The role matrix itself is unverified — removal, role change and ownership
+> transfer were not executed against a live member, and there is only one other
+> member in the test league. Mobile menus and keyboard navigation also unchecked.
 
 ```powershell
 git add -- src/app/leagues/[slug]/members/LeagueMembers.tsx
