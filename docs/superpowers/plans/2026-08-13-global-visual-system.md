@@ -723,21 +723,30 @@ git commit -m "feat: migrate league dashboard"
 - Consumes: `DataSurface`, identity, menu/dialog, league action, status border tokens.
 - Produces: Wide active-team management table with stable Team, Owner, and Actions columns.
 
-- [ ] **Step 1: Impact-check team mutation and assignment handlers**
+- [x] **Step 1: Impact-check team mutation and assignment handlers**
 
 Do not alter creation, owner assignment, uploads, permissions, or database calls.
 
-- [ ] **Step 2: Migrate the team data surface**
+- [x] **Step 2: Migrate the team data surface**
 
 Keep only Active Teams framing. Preserve colored left status rails; do not restore Assigned/Needs Owner pills or the removed Setup column. Define stable CSS grid tracks so Owner and Actions align across every row regardless of content.
 
-- [ ] **Step 3: Migrate edit, assign, remove-owner, logo, error, and saving states**
+- [x] **Step 3: Migrate edit, assign, remove-owner, logo, error, and saving states**
 
 Use shared Dialog, Field, Identity, and Actions. Keep Team Details distinct from Owner Assignment. Preserve add, edit, archive, unarchive, delete, owner assignment/removal, logo upload/replace/remove, validation error, save failure, and saving states. Menus must portal beyond the table overflow boundary.
 
-- [ ] **Step 4: Verify desktop and intentional mobile presentation**
+- [ ] **Step 4: Verify desktop and intentional mobile presentation** — DESKTOP ONLY
 
 Desktop uses the workspace width. Mobile uses compact team rows with identity/status/action access and no horizontally clipped required action.
+
+> Desktop verified by measurement, not by eye: the header and all ten rows now
+> resolve to a single grid track set. They previously disagreed twice over — the
+> rows carried gap-4 and the header did not, and the trailing actions track was
+> `auto`, which sizes per grid (58px for the word ACTIONS, 119px for Assign plus
+> kebab, different again on a row with no Assign). Fixed at 132px, with a
+> transparent 3px rail on the header to match the rows status rail.
+>
+> Mobile not verified — deferred with the rest of the mobile pass.
 
 - [ ] **Step 5: Gate and commit**
 

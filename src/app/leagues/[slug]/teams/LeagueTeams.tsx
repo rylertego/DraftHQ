@@ -532,6 +532,22 @@ function EditTeamModal({
     </Dialog>
   );
 }
+
+// One definition of the table geometry, used by the header and by every row.
+// These were two separate literals and they had drifted: the rows carried gap-4
+// and the header did not, so the Actions label sat a gap-width right of the
+// buttons it labelled. Same tracks and same gap, or the columns lie.
+// The actions track is a fixed width, not `auto`. An auto track is sized by the
+// content of its own grid, and the header and each row are separate grids: the
+// header measured the word "ACTIONS" (~58px) while a row measured Assign plus
+// the kebab (~119px), so the tracks silently disagreed. A row without an Assign
+// button disagreed again. Fixed width makes every grid resolve identically.
+function teamGridClass(canManage: boolean) {
+  return canManage
+    ? "gap-4 md:grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr_132px]"
+    : "gap-4 md:grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr]";
+}
+
 // Kebab menu ------------------------------------------------------------
 
 function KebabMenu({ items }: {
@@ -657,9 +673,7 @@ function TeamRosterRow({
 
   return (
     <article
-      className={`grid gap-4 border-b border-slate-800/70 bg-slate-950/20 px-4 py-4 transition-colors last:border-b-0 hover:bg-slate-950/35 md:items-center ${
-        canManage ? "md:grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr_auto]" : "md:grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr]"
-      }`}
+      className={`grid border-b border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-4 py-4 transition-colors last:border-b-0 hover:bg-[var(--color-surface-3)] md:items-center ${teamGridClass(canManage)}`}
       style={{ borderLeft: `3px solid ${ownerAssigned ? primary + "99" : "rgba(251,191,36,0.75)"}` }}
     >
       <div className="flex min-w-0 items-center gap-3">
@@ -951,9 +965,7 @@ export default function LeagueTeams({ slug }: { slug: string }) {
           >
             <div className="overflow-hidden rounded-xl border border-slate-800/80">
               <div
-                className={`hidden border-b border-slate-800/80 bg-slate-950/45 px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 md:grid ${
-                  canManage ? "grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr_auto]" : "grid-cols-[minmax(280px,520px)_minmax(220px,260px)_1fr]"
-                }`}
+                className={`hidden border-b border-l-[3px] border-l-transparent border-b-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)] px-4 py-3 text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)] md:grid ${teamGridClass(canManage)}`}
               >
                 <span>Team</span>
                 <span className="text-center">Owner</span>
