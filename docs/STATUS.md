@@ -8,7 +8,7 @@
 > and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
 > whose checkboxes are the progress ledger for the visual-system work.
 
-_Last updated: 2026-08-17._
+_Last updated: 2026-08-19._
 _Everything is merged to `main`. No long-lived feature branch; work on short
 branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
@@ -643,6 +643,12 @@ grading fixes, the owner dashboard, and the My Team page. Nothing below replaces
 and all migrated dialogs have only been seen at desktop width. This is now the
 largest untested surface after the mock draft.
 
+**Email reputation after the signup abuse is unassessed.** 56 bot signups sent
+confirmation mail to harvested addresses, some of them carrier SMS gateways. If
+that routed through Resend on drafthq.net, the bounce and complaint rates are
+the real damage and nobody has looked yet. See the Signup abuse section at the
+end of this doc.
+
 **Two destructive-action inconsistencies.** Delete team is one click behind a
 kebab menu, while delete league and delete account both require typing a
 confirmation — the team one is the likeliest accidental hit. And the design
@@ -746,3 +752,89 @@ not enforce draft rules. Do not use localStorage as authoritative draft state.
    construction penalty; `league_events` table so League Activity shows leaves as
    well as joins; logo-dimension warning on upload (now worth doing, since logos
    are finally stored at full resolution); transactional email.
+---
+
+## Signup abuse — 2026-08-19
+
+**56 bot accounts were created in three days** against a public signup endpoint
+with no bot protection. Display names were random strings; the emails were real,
+harvested addresses across unrelated domains.
+
+The tell was the carrier SMS gateways among the targets — `…@txt.att.net`,
+`…@vtext.com`. Those deliver as text messages. **The signup form was being used
+as a relay**: a bot submits a stranger's address, Supabase sends a confirmation
+to it, and the victim receives mail or an SMS that appears to come from DraftHQ.
+
+This was not caused by any recent change. Signup had always been public and
+unprotected; what changed is that `drafthq.net` went live and became
+discoverable. Scanners find new auth endpoints quickly.
+
+### Turnstile, and the trap in enabling it
+
+Cloudflare Turnstile now protects auth (`5ea5de5`, `210dc33`). The important
+detail for anyone touching this later:
+
+> **Supabase's CAPTCHA setting gates every auth endpoint, not just signup.**
+
+Two of ours have no form to host a widget on, and would have broken silently:
+
+- `signInAnonymously()` in `src/lib/supabase.ts` — how guests join a draft.
+  Enabling CAPTCHA without a token here locks guests out of drafts entirely.
+- `signInWithPassword()` in `src/lib/profileApi.ts` — re-verifies the current
+  password during a password change.
+
+So `getCaptchaToken()` is a module-level token source rather than a React
+component: any caller can await a token, including non-React code. All four call
+sites pass a distinct action label — `signup`, `login`, `password_change`,
+`guest_join` — because Cloudflare reports per action, and that breakdown is what
+shows whether abuse is hitting signup specifically.
+
+**It is a two-sided switch.** With no `NEXT_PUBLIC_TURNSTILE_SITE_KEY` the helper
+resolves `undefined` and every caller behaves as before. Enabling only the
+Supabase side rejects every auth request. Set the key first, confirm the deploy,
+then enable Attack Protection.
+
+`getCaptchaToken()` never rejects. A CAPTCHA that fails to load must not be why
+someone cannot log in; if Supabase is enforcing it rejects with its own clear
+error, which beats a dead submit button.
+
+Verification stays server-side. Cloudflare is explicit that siteverify must never
+be called from the browser — Supabase is the verifying backend and holds the
+secret.
+
+### Still outstanding
+
+**Check Resend for delivery damage.** This is the part that outlives the bot
+rows. Every one of those confirmations was mail to someone who never asked for
+it, and if they went out over `drafthq.net`, the cost is domain reputation —
+slow to build, fast to lose, and Resend suspends accounts for it.
+
+In the Resend dashboard, look at:
+
+- **Bounce rate.** Harvested lists carry dead addresses. Sustained bounces above
+  a few percent are what get a sending domain throttled.
+- **Complaint/spam rate.** Recipients marking unsolicited confirmations as spam
+  is the most damaging signal there is.
+- **Whether Supabase auth mail actually routes through Resend at all**
+  (Supabase → Authentication → Emails). If it uses Supabase's built-in sender,
+  the reputation hit landed on their shared infrastructure instead of your
+  domain — better for you, and worth knowing either way.
+
+If reputation is damaged, warming the domain back up is slow. Consider whether
+league invitations should send from a subdomain (`mail.drafthq.net`) so
+transactional mail is insulated from anything that happens to the apex.
+
+**Then clear the bot accounts**, once none are confirmed to be real:
+
+```sql
+select count(*) filter (where email_confirmed_at is not null) as confirmed,
+       count(*) filter (where email_confirmed_at is null)     as never_confirmed
+from auth.users
+where created_at > now() - interval '7 days';
+```
+
+Cross-check against `league_members` before deleting anything.
+
+**Verify guest join after enabling Attack Protection.** It is the one path with
+no visible form, so it is the one that fails quietly. A broken signup or login
+is obvious immediately; a broken guest join might not surface until draft night.
