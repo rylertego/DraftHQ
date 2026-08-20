@@ -1584,6 +1584,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       const isExpanded = expandedTeamId === team.id;
                       const isCommissionerTeam = owner?.role === "commissioner";
                       const isSelf = owner?.userId === setup.currentUserId;
+                      // Team ownership for a draft lives in draft_participants,
+                      // not on teams. public.teams has no owner_user_id column —
+                      // that field exists on league_teams. See the note in
+                      // docs/STATUS.md: update_team_details() reads
+                      // v_team.owner_user_id and plpgsql only resolves that at
+                      // runtime, so its owner branch is believed broken.
+                      const canEditTeam = isCommissioner || isSelf;
                       const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","var(--color-league-accent)","#f59e0b"];
                       const avatarColor = avatarColors[index % avatarColors.length];
                       const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
@@ -1978,8 +1985,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     <div className="grid grid-cols-2 gap-3">
                                       <div>
                                         <label className={labelCls}>Team logo</label>
-                                        <label className="block cursor-pointer group">
-                                          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                                        <label className={canEditTeam ? "block cursor-pointer group" : "block cursor-not-allowed opacity-50"}>
+                                          <input type="file" accept="image/*" className="sr-only" disabled={!canEditTeam} onChange={async (e) => {
                                             const file = e.target.files?.[0];
                                             if (!file) return;
                                             try {
@@ -1997,8 +2004,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                       </div>
                                       <div>
                                         <label className={labelCls}>Owner photo</label>
-                                        <label className="block cursor-pointer group">
-                                          <input type="file" accept="image/*" className="sr-only" onChange={async (e) => {
+                                        <label className={canEditTeam ? "block cursor-pointer group" : "block cursor-not-allowed opacity-50"}>
+                                          <input type="file" accept="image/*" className="sr-only" disabled={!canEditTeam} onChange={async (e) => {
                                             const file = e.target.files?.[0];
                                             if (!file) return;
                                             try {
@@ -2015,7 +2022,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                         </label>
                                       </div>
                                     </div>
-                                    <p className="text-[10px] text-slate-500">Click either image to upload · PNG, JPG, WEBP · 4MB max</p>
+                                    <p className="text-[10px] text-slate-500">{canEditTeam ? "Click either image to upload · PNG, JPG, WEBP · 4MB max" : "Only this team’s owner and the commissioner can change these."}</p>
                                   </div>
 
                                   {/* Actions */}
@@ -2023,7 +2030,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     <p className="text-sm font-bold text-white">Actions</p>
                                     <button
                                       type="button"
-                                      disabled={savingTeamId === team.id}
+                                      disabled={savingTeamId === team.id || !canEditTeam}
                                       className="w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
                                       style={{ backgroundColor: primary, color: secondary }}
                                       onClick={() => void saveTeam(team.id)}

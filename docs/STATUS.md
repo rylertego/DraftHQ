@@ -634,6 +634,62 @@ Probed directly against project `kogyejhzzggrkekbcppm`.
 ---
 
 ## Known gaps
+### `update_team_details()` owner branch looks broken — `public.teams` has no `owner_user_id`
+
+Found 2026-08-19 while gating the Draft Settings image fields.
+
+`update_team_details()` authorises like this:
+
+```sql
+if v_draft.commissioner_user_id <> v_user_id then
+  if v_team.owner_user_id is null or v_team.owner_user_id <> v_user_id then
+    raise exception 'Not authorized to edit this team.' using errcode = '42501';
+  end if;
+end if;
+```
+
+`v_team` is `public.teams%rowtype`. **No migration adds `owner_user_id` to
+`public.teams`.** That column exists on `leagues`, `league_teams` and
+`league_team_seasons` — the league-scoped tables — but not on the draft-scoped
+`teams` table.
+
+Evidence it is genuinely absent: adding `owner_user_id` to the `teams` select in
+`getDraftSetup` made the whole Draft Settings page fail with "Unable to
+refresh". Removing it fixed it. PostgREST rejects unknown columns.
+
+**Why this compiles anyway.** plpgsql does not resolve `%rowtype` field
+references at function-creation time — only at execution. So the function
+creates cleanly and only fails when that line actually runs.
+
+**Which means the commissioner path works and the owner path does not.** For a
+commissioner, `v_draft.commissioner_user_id <> v_user_id` is false and the inner
+block never executes. For a team owner it does execute, and should raise a
+runtime "record v_team has no field owner_user_id" rather than authorising them.
+
+This is consistent with the reported symptom: edits from Draft Settings appear to
+do nothing.
+
+**Confirm before fixing** — one query settles it:
+
+```sql
+select column_name from information_schema.columns
+where table_schema = 'public' and table_name = 'teams' and column_name = 'owner_user_id';
+```
+
+Empty result confirms the diagnosis.
+
+**Two possible fixes, and they are not equivalent.** Either add `owner_user_id`
+to `public.teams` and populate it wherever a participant is assigned to a team,
+or rewrite the guard to authorise off `draft_participants` — which is where
+draft-team ownership actually lives today. The second matches the current data
+model; the first changes it. Decide deliberately rather than picking whichever
+makes the error stop.
+
+**The UI now gates on `draft_participants`** (`isCommissioner || isSelf`),
+because that is the only ownership signal that exists client-side. If the guard
+is later rewritten to use a real `teams.owner_user_id`, the UI should follow so
+the two agree.
+
 ### Draft lobby: commissioner needs to assign guests to teams
 
 **The gap.** Someone can join a draft as a guest, with no account, straight from
