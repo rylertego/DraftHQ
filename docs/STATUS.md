@@ -20,10 +20,13 @@ branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
 ## Read this first
 
-**Only one agent is active now.** Codex ran out of weekly quota mid-task on
-2026-08-13 and has not returned; everything since is Claude's. Both agents'
-commits carry the same git identity (`Tyler`), so authorship cannot be read
-from `git log`. The commit-message style separates them:
+**Handing back to Codex on 2026-08-19.** Codex ran out of weekly quota mid-task
+on 2026-08-13; everything between then and now is Claude's. Start with the
+**2026-08-19** section below — it covers where the plan stands, the deviations
+taken, and what has and has not been verified.
+
+Both agents' commits carry the same git identity (`Tyler`), so authorship cannot
+be read from `git log`. The commit-message style separates them:
 
 | Style | Author | Example |
 | --- | --- | --- |
@@ -41,12 +44,129 @@ visual-system work:
 
 - `docs/superpowers/specs/2026-08-13-global-visual-system-design.md` (546 lines)
 - `docs/superpowers/plans/2026-08-13-global-visual-system.md` (1094 lines,
-  120 checkbox tasks across 9 phases; Phases 0-3 complete, Task 10 done and
-  Task 11 partway — see its Progress block)
+  120 checkbox tasks across 9 phases; **Phases 0-4 complete, resume at Task 16**
+  — see its Progress block)
 
 Claude cannot see Codex's session, reasoning, or subagents — only what Codex
 writes to disk or git. The reverse is presumably also true. **Anything one agent
 needs the other to know has to land in a file.**
+
+---
+
+## 2026-08-19 — Phase 4 complete, auth hardening, permission fixes
+
+Three strands: the visual-system plan finished Phase 4, bot protection went on
+every auth endpoint, and a run of permission bugs surfaced by walking the guest
+path.
+
+### Visual system: Phases 0–4 done. Resume at Task 16.
+
+| Task | Surface | State |
+| --- | --- | --- |
+| 9 | League workspace shell | ✅ desktop |
+| 10 | League home + command center | ✅ desktop |
+| 11 | Teams + team overlays | ✅ desktop |
+| 12 | My Team | ✅ desktop |
+| 13 | Members + permission overlays | ✅ desktop |
+| 14 | League Settings | ✅ desktop |
+| 15 | Seasons + season creation | ✅ desktop |
+
+**Next is Phase 5, Tasks 16–17: Draft Settings** (`/teams`). That is also the
+screen the user has repeatedly flagged as visibly inconsistent, and where the
+per-team edit permissions belong.
+
+**Deviations worth knowing, all recorded in the plan:**
+
+- **Reset Draft keeps a hand-rolled outline.** `variant="danger"` is a solid
+  fill, and a red block in the command-center header overstates an action nobody
+  should be drawn toward. The system has no quiet-destructive variant. Adding one
+  would let this be deleted.
+- **`LeagueMark` was not used for the sidebar identity.** It caps at 72px; that
+  block is 112px with an accent glow. Using it would shrink the one surface where
+  league identity is meant to be prominent.
+- **My Team dropped its "Team Identity" and "Walk-Up Playlist" descriptors**
+  even though Task 12 said to preserve them. `Panel` renders description *below*
+  the title, so they became subtitles restating the heading — the redundant
+  eyebrow pattern already stripped from the dashboard.
+
+**Two components are now orphaned.** `LeagueWorkspaceHeader` lost its last
+consumer when Seasons dropped it (it rendered a hero plus its own nav *inside*
+the workspace shell that already provides both). `CommissionerParticipantManager`
+has never had one — see the lobby note under Known gaps. Deleting the first
+belongs to Task 23; the second should be wired up, not deleted.
+
+**Three tables this week had duplicated grid definitions that had drifted** —
+teams, members, and nearly seasons. In every case an `auto` track sized to each
+grid's own content, so the header and rows silently disagreed. The seasons list
+uses one shared definition from the start. **If you build a table here, define
+the tracks once.**
+
+### Auth is behind Turnstile
+
+Bot protection is live on all four auth paths (`signup`, `login`,
+`password_change`, `guest_join`). See the Signup abuse section at the end of this
+doc for why, and for the trap: **Supabase's CAPTCHA setting gates every auth
+endpoint**, and anonymous sign-in for guest draft joins is one of them.
+
+### Permission bugs: one pattern, four instances
+
+Every one was a condition written for the league-member case that failed open for
+guests. **None was a data risk** — every RPC refuses at the database — but each
+produced a screen that looked *broken* rather than *forbidden*.
+
+1. **Draft Settings image uploads** were interactive for everyone; saves were
+   rejected. Now gated on commissioner-or-owner.
+2. **The owner-assignment dropdown** checked draft status but not the viewer, so
+   a non-commissioner got "Unable to assign team".
+3. **The lobby's back link** read `!isCommissioner && leagueSlug`, which requires
+   a league to hold. A guest joining by code has no `leagueSlug`, fell through to
+   the else, and was handed a link *into* Draft Settings. That was the actual
+   path by which non-members reached it.
+4. **Draft branding** only loaded when `leagueSlug` was in the URL, so
+   code-joiners saw the product cyan while everyone else in the same draft saw
+   the league's. Now resolved from the draft.
+
+### Three migrations applied 2026-08-19
+
+- `20260819000000` — **`update_team_details()` could never authorise an owner.**
+  It read `v_team.owner_user_id` and `public.teams` has no such column; plpgsql
+  resolves `%rowtype` fields at execution, so it created cleanly and failed only
+  for the people it was meant to permit. Now authorises against
+  `draft_participants`, which is where draft-team ownership actually lives.
+- `20260819010000` — a league member can no longer enter their own draft by join
+  code, which was creating an unattached guest seat beside their league identity.
+  Existing participants still pass, so rejoin keeps working.
+- `20260819020000` — the join preview decided "already joined" inside an email
+  check, so the answer depended on the shape of the caller's token.
+
+**Applying these required repairing 88 migrations** whose history rows were
+missing. The earlier repair had covered only the five most recent. **Never answer
+that with `--include-all`** — the CLI suggests it, but those files are the applied
+schema history and re-running them starts at `create table public.teams` with no
+`if not exists`. `migration repair --status applied` writes history rows and runs
+no SQL.
+
+### What is verified, and what is not
+
+**Verified signed in, at desktop:** dashboard (empty and populated), profile,
+create draft, create league, league workspace, teams table, members, seasons,
+settings (all three tabs), and the Reset / Edit Team / Add Member /
+delete-league dialogs.
+
+**Not verified — read this before trusting anything above:**
+
+- **Mobile, anywhere.** Deferred by decision on 2026-08-17, not overlooked. Every
+  Phase 3 and 4 surface has only been seen at desktop width.
+- **Roles other than commissioner** across the league workspace. The role matrix
+  in Task 13 — removal, role change, ownership transfer — was never run against a
+  live member.
+- **The team delete confirmation.** `ConfirmDialog` confirms on one click with no
+  typed gate, against a live league with ten real teams.
+- **The owner-edit path**, which is newly possible and has never once succeeded
+  in production. Test both directions: an owner saves their own team, and is
+  still refused on someone else's.
+- Import modal preview, no-seasons empty state, save/sync/disconnect and their
+  failure states.
 
 ---
 
@@ -182,7 +302,8 @@ never been started because it read the main checkout while the work sat in a
 worktree. If something looks missing, run `git worktree list` before concluding
 anything.
 
-Completed and independently reviewed (13 commits):
+Phase 0 and Phase 1, independently reviewed (13 commits). Phases 2-4 are also
+complete — see the 2026-08-19 section above for their state and deviations:
 
 | Task | Commits | What |
 | --- | --- | --- |
@@ -196,11 +317,10 @@ Each went implement → independent review → fix rounds. Task 2 caught a contr
 bug before it reached CSS; Task 3 caught semantic accent inheriting legacy teal;
 Task 5 needed three rounds on overlay focus behaviour.
 
-**Phases 0-3 are complete and Phase 4 is underway.** Task 6 (global chrome),
-Task 7 (auth routes), Task 8 (home/dashboard/profile/join/creation/import),
-Task 9 (league workspace shell) and Task 10 (league home + command center) are
-done. Task 11 has its Add Team, delete-confirm and Edit Team overlays migrated;
-the teams data surface itself and mobile presentation remain.
+**Phases 0-4 are complete.** Tasks 6-8 (global chrome, auth, home/dashboard/
+profile/join/creation/import), Task 9 (workspace shell) and Tasks 10-15 (league
+home, teams, My Team, members, settings, seasons) are all migrated and verified
+at desktop. Phase 5 (Tasks 16-17, Draft Settings) is next.
 
 - `14328ec` — `LeagueAccessDenied` → PageShell/Panel/EmptyState/InlineNotice
 - `cdc4ae3` — `AccountNav` → shared `Menu` + LinkButtons
@@ -850,11 +970,11 @@ not enforce draft rules. Do not use localStorage as authoritative draft state.
    the right zone; an owner saving My Team and the row actually changing; and no
    kicker topping the pick grades at the end.
 2. **Finish the visual-system plan** —
-   `docs/superpowers/plans/2026-08-13-global-visual-system.md`. Phases 0-3 are
-   complete; resume at **Task 11 Step 2** (the teams data surface). Draft
-   Settings — the screen most visibly inconsistent with the rest of the site —
-   is Tasks 16-17, has no hard dependency on Tasks 12-15, and can be pulled
-   forward if it starts to grate.
+   `docs/superpowers/plans/2026-08-13-global-visual-system.md`. **Phases 0-4 are
+   complete; resume at Task 16** (Draft Settings shell and General controls).
+   That is Phase 5, and it is also the screen most visibly inconsistent with the
+   rest of the site. Its Step 1 marks the draft lifecycle paths — timer, reset —
+   as a stop-and-report gate; treat them that way.
 3. **ADP saturation.** Replace the distinct-value guard with a distribution-shape
    check, or normalize ADP against draft size in the grader.
 4. **Export / sync back to Sleeper** — still the biggest strategic gap. The
