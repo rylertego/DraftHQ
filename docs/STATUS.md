@@ -135,9 +135,21 @@ deletes the auth user second, because deleting the login first would strand the
 data. League deletion added to league settings, owner-only, matching the RPC's
 own permission rule.
 
-Migration history and schema were realigned — five migrations had been applied
-through the dashboard and never recorded. **Applying SQL through the Supabase
-dashboard is what caused both migration problems this week.** Use `db push`.
+Migration history and schema were realigned twice. First, five migrations that
+had been applied through the dashboard were never recorded. Then on 2026-08-19 a
+push revealed that **the 88 migrations older than those five were also
+unrecorded** — the first repair had fixed only the visible symptom, and the gap
+below it stayed invisible until something new needed pushing.
+
+**Two lessons, not one.** Applying SQL through the Supabase dashboard causes the
+drift; use `db push`. And when repairing history, repair *all* of it —
+`supabase migration list` shows every row with an empty Remote column, and each
+one is a trap for whoever pushes next.
+
+**Never answer this with `--include-all`.** The CLI suggests it, but those files
+are the entire schema history, already applied. Re-running them starts at
+`create table public.teams` with no `if not exists`. `migration repair --status
+applied` writes history rows and runs no SQL; that is the correct tool.
 
 ### Verification debt, stated plainly
 
@@ -634,7 +646,7 @@ Probed directly against project `kogyejhzzggrkekbcppm`.
 ---
 
 ## Known gaps
-### ~~`update_team_details()` owner branch broken~~ — FIXED, awaiting deploy
+### ~~`update_team_details()` owner branch broken~~ — FIXED and deployed 2026-08-19
 
 Found 2026-08-19 while gating the Draft Settings image fields.
 
@@ -676,8 +688,12 @@ select column_name from information_schema.columns
 where table_schema = 'public' and table_name = 'teams' and column_name = 'owner_user_id';
 ```
 
-Fix written in `supabase/migrations/20260819000000_fix_update_team_details_owner_check.sql`,
-authorising against `draft_participants`. **Needs `npx supabase db push`.**
+Fixed in `supabase/migrations/20260819000000_fix_update_team_details_owner_check.sql`,
+authorising against `draft_participants`. Applied to production 2026-08-19.
+
+**Untested in production.** This path has never once succeeded, so nobody has
+seen it work. Confirm both directions: a non-commissioner owner saves their own
+team, and is still refused on someone else’s.
 
 **Chose draft_participants over adding a column.** `assign_team()` writes the
 user-to-team mapping into `draft_participants` and returns that row, so it is
