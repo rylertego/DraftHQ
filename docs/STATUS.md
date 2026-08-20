@@ -634,6 +634,46 @@ Probed directly against project `kogyejhzzggrkekbcppm`.
 ---
 
 ## Known gaps
+### Draft lobby: commissioner needs to assign guests to teams
+
+**The gap.** Someone can join a draft as a guest, with no account, straight from
+an invite link or join code. Verified working 2026-08-19. But once they are in
+the lobby there is no way for the commissioner to say *which team they are*. A
+guest arrives unattached, and the commissioner is looking at the one screen
+where that should be fixable.
+
+**Most of this is already built and not wired up.**
+`src/components/CommissionerParticipantManager.tsx` does exactly this job —
+`assignTeam`, `removeDraftParticipant`, `getAssignedTeamIds`, with its own busy
+and error states, and it already gates itself on `status === "setup" || status
+=== "paused"` so it cannot reassign mid-draft.
+
+It has **zero consumers**. Nothing renders it. It was built and never
+connected.
+
+**And `DraftLobby` already receives every prop it needs:**
+
+| Component wants | Lobby already has |
+| --- | --- |
+| `draftId` | `draft.id` |
+| `status` | `draft.status` |
+| `participants` | `participants` |
+| `teams` | `teams` |
+| `onlineUserIds` | `onlineUserIds` |
+| `leagueSlug` | `leagueSlug` |
+| `onChanged` | needs a refresh callback |
+| — | `isCommissioner` for the gate |
+
+So this is closer to a wiring job than a build: render it in the lobby behind
+`isCommissioner`, and pass a reload. The only genuinely new piece is
+`onChanged`, since the lobby's data comes from the realtime hook rather than a
+local fetch.
+
+**Check before assuming it works.** It has never been rendered, so it has never
+been exercised. Confirm it against a guest participant specifically — the
+anonymous-user case is the whole reason this matters, and an unused component is
+most likely to be wrong exactly where it was never tested.
+
 
 **The real mock draft has never been run.** It gates the `main` merge, the
 grading fixes, the owner dashboard, and the My Team page. Nothing below replaces it.
@@ -835,6 +875,10 @@ where created_at > now() - interval '7 days';
 
 Cross-check against `league_members` before deleting anything.
 
-**Verify guest join after enabling Attack Protection.** It is the one path with
-no visible form, so it is the one that fails quietly. A broken signup or login
-is obvious immediately; a broken guest join might not surface until draft night.
+~~**Verify guest join after enabling Attack Protection.**~~ **Verified
+2026-08-19.** A guest joined a draft with Attack Protection on, so anonymous
+sign-in is getting its token. That was the path most likely to fail quietly.
+
+One product gap surfaced by testing it: a guest who joins this way has no team.
+See "Draft lobby: commissioner needs to assign guests to teams" under Known
+gaps.
