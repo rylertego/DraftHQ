@@ -59,6 +59,24 @@ let scriptPromise: Promise<void> | null = null;
 // One widget per action, since a widget's action is fixed at render time.
 const widgets = new Map<CaptchaAction, string>();
 
+/**
+ * Thrown when a site key is configured but no token could be produced.
+ *
+ * Returning undefined in that situation was the original design, on the theory
+ * that a broken CAPTCHA should never be why someone cannot log in. That holds
+ * only while Supabase is not enforcing. Once it is, a missing token guarantees
+ * rejection — and the rejection reads "captcha protection: request disallowed
+ * (no captcha_token found)", which tells a developer what happened and tells
+ * the person signing in nothing at all. Failing here instead puts a sentence in
+ * front of them that names an action they can take.
+ */
+export class CaptchaUnavailableError extends Error {
+  constructor() {
+    super("Could not verify you are human. Refresh the page and try again.");
+    this.name = "CaptchaUnavailableError";
+  }
+}
+
 /** True when a site key is configured. Supabase's setting must match. */
 export function isCaptchaConfigured() {
   return Boolean(SITE_KEY);
@@ -108,23 +126,25 @@ function hostFor(action: CaptchaAction): HTMLElement {
 }
 
 /**
- * Resolves a single-use CAPTCHA token, or undefined when no site key is set.
+ * Resolves a single-use CAPTCHA token.
  *
- * Never rejects. A CAPTCHA that fails to load must not be the reason someone
- * cannot log in — if Supabase is enforcing, it rejects the request itself with
- * a clear error, which is a better failure than a dead submit button.
+ * Returns undefined when no site key is configured, so callers behave exactly
+ * as before this existed. When a key *is* configured, any failure throws
+ * CaptchaUnavailableError rather than resolving empty — see that class for why.
  */
 export async function getCaptchaToken(
   action: CaptchaAction,
 ): Promise<string | undefined> {
   if (!SITE_KEY) return undefined;
 
+  let token: string | undefined;
+
   try {
     await loadScript();
     const api = window.turnstile;
-    if (!api) return undefined;
+    if (!api) throw new CaptchaUnavailableError();
 
-    return await new Promise<string | undefined>((resolve) => {
+    token = await new Promise<string | undefined>((resolve) => {
       let settled = false;
       const finish = (token?: string) => {
         if (settled) return;
@@ -155,7 +175,11 @@ export async function getCaptchaToken(
 
       api.execute(widgetId);
     });
-  } catch {
-    return undefined;
+  } catch (error) {
+    if (error instanceof CaptchaUnavailableError) throw error;
+    throw new CaptchaUnavailableError();
   }
+
+  if (!token) throw new CaptchaUnavailableError();
+  return token;
 }

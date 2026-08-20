@@ -32,7 +32,14 @@ export default function SignupPage() {
     setMessage("");
     setIsSubmitting(true);
 
-    const captchaToken = await getCaptchaToken("signup");
+    let captchaToken: string | undefined;
+    try {
+      captchaToken = await getCaptchaToken("signup");
+    } catch (captchaError) {
+      setError(captchaError instanceof Error ? captchaError.message : "Verification failed.");
+      setIsSubmitting(false);
+      return;
+    }
     const { data: sessionData } = await supabase.auth.getSession();
     const currentUser = sessionData.session?.user;
     const redirectTo = `${window.location.origin}/dashboard`;
