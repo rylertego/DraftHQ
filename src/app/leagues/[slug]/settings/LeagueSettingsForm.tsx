@@ -9,16 +9,12 @@ import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import type { LeagueTheme } from "@/types/league";
 import {
-  CommandButton,
-  CommandPanel,
-  CommandStatusBadge,
   commandHelperClass,
-  commandInputClass,
   commandLabelClass,
 } from "@/components/CommandCenterUI";
 import LeagueMembers from "../members/LeagueMembers";
 import LeagueDangerZone from "@/components/LeagueDangerZone";
-import { Field, Input, Panel, Stepper } from "@/components/ui";
+import { Alert, Button, Field, Input, Panel, StatusBadge, Stepper } from "@/components/ui";
 
 interface ColorPair {
   name: string;
@@ -462,9 +458,6 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
     secondaryColor !== savedGeneral.secondaryColor ||
     teamCount !== savedGeneral.teamCount ||
     Boolean(pendingLogo || pendingBanner);
-  const connectedProvider = activeIntegration
-    ? activeIntegration.charAt(0).toUpperCase() + activeIntegration.slice(1)
-    : "None";
   const showSleeperIntegration = !activeIntegration || activeIntegration === "sleeper";
   const showUnavailableIntegrations = !activeIntegration;
 
@@ -525,121 +518,140 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
       {tab === "members" && <LeagueMembers slug={slug} embedded />}
 
       {tab === "integrations" && (
-        <div className="space-y-5">
-          <CommandPanel
-            eyebrow="League History"
-            title="Connected Sources"
-            description={activeIntegration
-              ? `${connectedProvider} is connected for completed season history.`
-              : "Connect supported fantasy platforms to import completed season history."}
-          >
-            <div className="space-y-4">
-              {showSleeperIntegration && (
-                <div className="rounded-xl border border-slate-800/90 bg-slate-950/35 p-4">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex gap-3">
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-black text-white">Sleeper</h3>
-                          <CommandStatusBadge label={activeIntegration === "sleeper" ? "Connected" : "Available"} tone={activeIntegration === "sleeper" ? "complete" : "ready"} />
-                        </div>
-                        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">
-                          Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
-                        </p>
-                        {sleeperLastSyncedAt && (
-                          <p className="mt-2 text-xs font-semibold text-slate-500">Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}</p>
-                        )}
-                      </div>
-                    </div>
-                    {activeIntegration === "sleeper" && canManage && (
-                      <CommandButton type="button" variant="secondary" onClick={handleDisconnect} disabled={isDisconnecting} className="sm:min-w-32">
-                        {isDisconnecting ? "Disconnecting..." : "Disconnect"}
-                      </CommandButton>
-                    )}
-                  </div>
-
-                  <form onSubmit={handleSleeperSync} className="mt-5 border-t border-slate-800/80 pt-5">
-                    <label htmlFor="sleeper-league-id" className={commandLabelClass}>Sleeper League ID</label>
-                    <div className="flex flex-col gap-3 sm:flex-row">
-                      <input
-                        id="sleeper-league-id"
-                        inputMode="numeric"
-                        pattern="[0-9]*"
-                        placeholder="e.g. 123456789012345678"
-                        value={sleeperLeagueId}
-                        onChange={(event) => setSleeperLeagueId(event.target.value.replace(/\D/g, ""))}
-                        disabled={!canManage || isSyncingSleeper}
-                        className={`${commandInputClass} min-w-0 flex-1`}
-                      />
-                      <CommandButton
-                        type="submit"
-                        variant="primary"
-                        disabled={!canManage || isSyncingSleeper || !sleeperLeagueId.trim()}
-                        className="sm:min-w-40"
-                        style={{ backgroundColor: primaryColor, color: secondaryColor }}
-                      >
-                        {isSyncingSleeper ? "Syncing..." : sleeperLastSyncedAt ? "Sync Again" : "Connect & Sync"}
-                      </CommandButton>
-                    </div>
-                    <p className={commandHelperClass}>Sync is manual and only runs when you press this button.</p>
-                  </form>
-
-                  {sleeperResult && (
-                    <div className="mt-5 rounded-xl border border-slate-800 bg-slate-950/45 p-4 text-sm">
+        <Panel
+          title="Connected Sources"
+          description="Connect supported fantasy platforms to import completed season history."
+        >
+          {/* The panel description used to restate connection state — "Sleeper is
+              connected for completed season history" — directly above a card
+              carrying a Connected badge. One place says it now: the provider. */}
+          <div className="flex flex-col gap-[var(--space-4)]">
+            {showSleeperIntegration && (
+              <div className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-4)]">
+                <div className="flex flex-col gap-[var(--space-4)] sm:flex-row sm:items-start sm:justify-between">
+                  <div className="flex gap-[var(--space-3)]">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img src={PROVIDER_ICONS.sleeper} alt="Sleeper" width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+                    <div>
                       <div className="flex flex-wrap items-center gap-2">
-                        <p className="font-bold text-white">{sleeperResult.seasonYear} season</p>
-                        <CommandStatusBadge
-                          label={`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
-                          tone={sleeperResult.unmappedTeams.length > 0 ? "warning" : "complete"}
-                        />
+                        <h3 className="text-lg font-black text-[color:var(--color-text-primary)]">Sleeper</h3>
+                        <StatusBadge status={activeIntegration === "sleeper" ? "success" : "info"} dot>
+                          {activeIntegration === "sleeper" ? "Connected" : "Available"}
+                        </StatusBadge>
                       </div>
-                      <div className="mt-3 space-y-2 leading-6">
-                        {sleeperResult.unmappedTeams.length > 0 && (
-                          <p className="text-amber-200"><span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}</p>
-                        )}
-                        {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
-                          <p className="text-slate-400"><span className="font-semibold text-slate-300">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}</p>
-                        )}
-                        {sleeperResult.draftHqTeamNames?.length === 0 && (
-                          <p className="font-semibold text-red-300">No league teams found in DraftHQ for this league. Add teams on the Teams page first.</p>
-                        )}
-                        {sleeperResult.leagueTeamsError && (
-                          <p className="text-xs text-red-300"><span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}</p>
-                        )}
-                        {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
-                          <p className="text-xs text-slate-500">Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.</p>
-                        )}
-                      </div>
+                      <p className="mt-1 max-w-2xl text-sm leading-6 text-[color:var(--color-text-secondary)]">
+                        Import the latest completed season champion and final standings from a public Sleeper league. No Sleeper password or OAuth login is needed.
+                      </p>
+                      {sleeperLastSyncedAt && (
+                        <p className="mt-2 text-xs font-semibold text-[color:var(--color-text-muted)]">
+                          Last synced {new Date(sleeperLastSyncedAt).toLocaleString()}
+                        </p>
+                      )}
                     </div>
+                  </div>
+                  {activeIntegration === "sleeper" && canManage && (
+                    <Button variant="secondary" onClick={handleDisconnect} loading={isDisconnecting}>
+                      {isDisconnecting ? "Disconnecting..." : "Disconnect"}
+                    </Button>
                   )}
                 </div>
-              )}
 
-              {showUnavailableIntegrations && ([
-                { id: "espn", name: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
-                { id: "yahoo", name: "Yahoo", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
-              ] as const).map((provider) => (
-                <div key={provider.id} className="rounded-xl border border-slate-800/80 bg-slate-950/25 p-4 opacity-80">
-                  <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                    <div className="flex gap-3">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
-                      <div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <h3 className="text-lg font-black text-white">{provider.name}</h3>
-                          <CommandStatusBadge label="Coming Soon" tone="neutral" />
-                        </div>
-                        <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-500">{provider.copy}</p>
+                <form onSubmit={handleSleeperSync} className="mt-[var(--space-4)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
+                  <Field
+                    label="Sleeper League ID"
+                    controlId="sleeper-league-id"
+                    description="Sync is manual and only runs when you press this button."
+                  >
+                    <div className="flex flex-col gap-[var(--space-3)] sm:flex-row">
+                      <div className="min-w-0 flex-1">
+                        <Input
+                          inputMode="numeric"
+                          pattern="[0-9]*"
+                          placeholder="e.g. 123456789012345678"
+                          value={sleeperLeagueId}
+                          onChange={(event) => setSleeperLeagueId(event.target.value.replace(/\D/g, ""))}
+                          disabled={!canManage || isSyncingSleeper}
+                        />
+                      </div>
+                      <div className="shrink-0">
+                        <Button
+                          type="submit"
+                          scope="league"
+                          loading={isSyncingSleeper}
+                          disabled={!canManage || !sleeperLeagueId.trim()}
+                        >
+                          {isSyncingSleeper ? "Syncing..." : sleeperLastSyncedAt ? "Sync Again" : "Connect & Sync"}
+                        </Button>
                       </div>
                     </div>
+                  </Field>
+                </form>
+
+                {sleeperResult && (
+                  <div className="mt-[var(--space-4)] rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)] p-[var(--space-4)] text-sm">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <p className="font-bold text-[color:var(--color-text-primary)]">{sleeperResult.seasonYear} season</p>
+                      <StatusBadge status={sleeperResult.unmappedTeams.length > 0 ? "warning" : "success"}>
+                        {`${sleeperResult.mappedTeams}/${sleeperResult.totalTeams} Matched`}
+                      </StatusBadge>
+                    </div>
+                    <div className="mt-[var(--space-3)] flex flex-col gap-[var(--space-2)] leading-6">
+                      {sleeperResult.unmappedTeams.length > 0 && (
+                        <Alert status="warning">
+                          <span className="font-semibold">Unmatched Sleeper names:</span> {sleeperResult.unmappedTeams.join(", ")}
+                        </Alert>
+                      )}
+                      {sleeperResult.draftHqTeamNames && sleeperResult.draftHqTeamNames.length > 0 && (
+                        <p className="text-[color:var(--color-text-secondary)]">
+                          <span className="font-semibold text-[color:var(--color-text-primary)]">DraftHQ team names found:</span> {sleeperResult.draftHqTeamNames.join(", ")}
+                        </p>
+                      )}
+                      {sleeperResult.draftHqTeamNames?.length === 0 && (
+                        <Alert status="danger">
+                          No league teams found in DraftHQ for this league. Add teams on the Teams page first.
+                        </Alert>
+                      )}
+                      {sleeperResult.leagueTeamsError && (
+                        <Alert status="danger">
+                          <span className="font-semibold">DB error:</span> {sleeperResult.leagueTeamsError}
+                        </Alert>
+                      )}
+                      {sleeperResult.unmappedTeams.length > 0 && (sleeperResult.draftHqTeamNames?.length ?? 0) > 0 && (
+                        <p className="text-xs text-[color:var(--color-text-muted)]">
+                          Names are compared after lowercasing and removing spaces/punctuation. Update DraftHQ team names on the Teams page to match Sleeper, then sync again.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Only shown when nothing is connected, and labelled honestly —
+                these are not offered as working providers. */}
+            {showUnavailableIntegrations && ([
+              { id: "espn", name: "ESPN", copy: "Import ESPN Fantasy league history, standings, and champion once provider support is ready." },
+              { id: "yahoo", name: "Yahoo", copy: "Import Yahoo Fantasy league history, standings, and champion via OAuth once provider support is ready." },
+            ] as const).map((provider) => (
+              <div
+                key={provider.id}
+                className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-4)] opacity-80"
+              >
+                <div className="flex gap-[var(--space-3)]">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src={PROVIDER_ICONS[provider.id]} alt={provider.name} width={44} height={44} className="h-11 w-11 shrink-0 rounded-xl" />
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-lg font-black text-[color:var(--color-text-primary)]">{provider.name}</h3>
+                      <StatusBadge status="neutral">Coming Soon</StatusBadge>
+                    </div>
+                    <p className="mt-1 max-w-2xl text-sm leading-6 text-[color:var(--color-text-muted)]">{provider.copy}</p>
                   </div>
                 </div>
-              ))}
-            </div>
-          </CommandPanel>
-        </div>
+              </div>
+            ))}
+          </div>
+        </Panel>
       )}
 
       {tab === "general" && (
@@ -686,8 +698,7 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
             </div>
           </Panel>
 
-          <CommandPanel
-            eyebrow="Brand System"
+          <Panel
             title="League Branding"
             description="Customize the crest, banner, and broadcast colors that make this league feel distinct."
           >
@@ -725,24 +736,27 @@ export default function LeagueSettingsForm({ slug }: { slug: string }) {
                 />
               </div>
             </div>
-          </CommandPanel>
+          </Panel>
 
-          <div className="flex flex-col gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 p-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm leading-6 text-slate-400">
+          <div className="flex flex-col gap-[var(--space-3)] rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)] p-[var(--space-4)] sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
               Save Settings applies league identity and branding changes.
             </p>
             {canManage && (
-              <CommandButton
+              <Button
                 type="submit"
-                variant="primary"
-                disabled={isSaving || !hasUnsavedGeneral}
-                className="w-full sm:w-auto sm:min-w-40"
-                style={{ backgroundColor: primaryColor, color: secondaryColor }}
+                scope="league"
+                loading={isSaving}
+                disabled={!hasUnsavedGeneral}
               >
                 {isSaving ? "Saving..." : "Save Settings"}
-              </CommandButton>
+              </Button>
             )}
-            {!canManage && <p className="text-sm font-semibold text-slate-500">You do not have permission to edit this league.</p>}
+            {!canManage && (
+              <p className="text-sm font-semibold text-[color:var(--color-text-muted)]">
+                You do not have permission to edit this league.
+              </p>
+            )}
           </div>
         </form>
       )}

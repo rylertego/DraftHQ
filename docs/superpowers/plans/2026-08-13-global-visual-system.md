@@ -23,7 +23,8 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 3 — League Workspace Shell | 9 | ⚠️ Code complete; role + mobile QA outstanding |
 | 4 — League Operations | 10, 11, 12 | ✅ Desktop complete |
 | 4 — League Operations | 13 | ✅ Desktop complete |
-| 4 — League Operations | 14, 15 | ⬜ Not started |
+| 4 — League Operations | 14 | ✅ Desktop complete |
+| 4 — League Operations | 15 | ⬜ Not started |
 | 5–8 | 16–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
@@ -843,23 +844,35 @@ git commit -m "feat: migrate league membership management"
 - Consumes: `SettingsShell`, tabs, readable forms, wide member/integration surfaces, save state, upload controls.
 - Produces: General, Members, and Integrations tabs under one settings workspace.
 
-- [ ] **Step 1: Impact-check save, branding, member, and integration handlers**
+- [x] **Step 1: Impact-check save, branding, member, and integration handlers**
 
-- [ ] **Step 2: Migrate settings shell and General**
+- [x] **Step 2: Migrate settings shell and General**
 
 Use plain underline tabs with no boxed active tab. Remove Commissioner Access and Settings Status summaries. Keep league name, team count, logo, banner, colors, season data, and preview behavior. Forms use readable width; branding preview may use adjacent workspace width.
 
-- [ ] **Step 3: Migrate Members**
+- [x] **Step 3: Migrate Members**
 
 Reuse the compact member and portal-menu patterns from Task 13 without changing behavior.
 
-- [ ] **Step 4: Migrate Integrations**
+- [x] **Step 4: Migrate Integrations**
 
 Remove duplicate top-right connection summary. When one provider is active, show only that provider and its connection/sync controls; when none is active, show supported/available choices and honest unavailable states. Do not invent provider support.
 
-- [ ] **Step 5: Verify trust states and commit**
+- [ ] **Step 5: Verify trust states and commit** — PARTIAL
 
 Check manual save, saving, saved, validation, failure, upload, connection, sync, disconnect confirmation, no integration, and mobile tabs. Run phase gate.
+
+> Verified as commissioner at desktop: General renders identity and branding
+> with the Stepper primitive, Integrations shows only the connected provider
+> with its sync control in the league accent, Members reuses the Task 13
+> component unchanged.
+>
+> Not exercised: an actual save, a sync, a disconnect, upload and validation
+> failures, and the no-integration state (this league has Sleeper connected).
+> Mobile deferred with the rest.
+>
+> Two Step 2 removals needed no work — Commissioner Access and Settings Status
+> summaries were already gone, and the tabs were already plain underline.
 
 ```powershell
 git add -- src/app/leagues/[slug]/settings/LeagueSettingsForm.tsx src/components/SleeperImportForm.tsx
