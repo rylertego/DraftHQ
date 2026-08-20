@@ -145,12 +145,18 @@ export default function DraftLobby({
   const draftYear = draft.scheduledAt
     ? new Date(draft.scheduledAt).getFullYear()
     : yearInName ?? new Date(draft.createdAt).getFullYear();
-  // Owners have no business in draft settings — Back sends them to the league
-  // dashboard they came from. Commissioners keep the settings shortcut.
-  const backHref =
-    !isCommissioner && leagueSlug
+  // Only the commissioner gets the settings shortcut.
+  //
+  // The previous condition was `!isCommissioner && leagueSlug`, which quietly
+  // required a league to hold. A guest who joins by code has no leagueSlug, so
+  // they fell through to the else and were handed a link into Draft Settings —
+  // a screen they cannot use, whose controls fail on submit. Non-commissioners
+  // go to their league if they have one, and otherwise to the front page.
+  const backHref = isCommissioner
+    ? `/teams?draftId=${draft.id}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`
+    : leagueSlug
       ? `/leagues/${leagueSlug}`
-      : `/teams?draftId=${draft.id}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`;
+      : "/";
   const leagueDisplayLogo = leagueLogoUrl || "/branding/mark.svg";
 
   // ── Online presence ────────────────────────────────────────────────────────

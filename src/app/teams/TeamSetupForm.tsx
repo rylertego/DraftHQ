@@ -620,7 +620,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   }
 
   const isCommissioner = setup.currentUserId === setup.draft.commissionerUserId;
-  const canManageAssignments = setup.draft.status === "setup" || setup.draft.status === "paused";
+  // Both halves matter. assign_team() is commissioner-gated, so without the
+  // isCommissioner test a non-commissioner saw an enabled dropdown and got
+  // "Unable to assign team" on selecting anyone — the control offered something
+  // the database was always going to refuse.
+  const canManageAssignments =
+    isCommissioner && (setup.draft.status === "setup" || setup.draft.status === "paused");
   const draft = setup.draft;
   const joinUrl = typeof window !== "undefined"
     ? `${window.location.origin}/join/${draft.joinCode}`
