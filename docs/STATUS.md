@@ -634,7 +634,7 @@ Probed directly against project `kogyejhzzggrkekbcppm`.
 ---
 
 ## Known gaps
-### `update_team_details()` owner branch looks broken — `public.teams` has no `owner_user_id`
+### ~~`update_team_details()` owner branch broken~~ — FIXED, awaiting deploy
 
 Found 2026-08-19 while gating the Draft Settings image fields.
 
@@ -669,21 +669,21 @@ runtime "record v_team has no field owner_user_id" rather than authorising them.
 This is consistent with the reported symptom: edits from Draft Settings appear to
 do nothing.
 
-**Confirm before fixing** — one query settles it:
+**Confirmed 2026-08-19**: the query below returned no rows.
 
 ```sql
 select column_name from information_schema.columns
 where table_schema = 'public' and table_name = 'teams' and column_name = 'owner_user_id';
 ```
 
-Empty result confirms the diagnosis.
+Fix written in `supabase/migrations/20260819000000_fix_update_team_details_owner_check.sql`,
+authorising against `draft_participants`. **Needs `npx supabase db push`.**
 
-**Two possible fixes, and they are not equivalent.** Either add `owner_user_id`
-to `public.teams` and populate it wherever a participant is assigned to a team,
-or rewrite the guard to authorise off `draft_participants` — which is where
-draft-team ownership actually lives today. The second matches the current data
-model; the first changes it. Decide deliberately rather than picking whichever
-makes the error stop.
+**Chose draft_participants over adding a column.** `assign_team()` writes the
+user-to-team mapping into `draft_participants` and returns that row, so it is
+already the source of truth. Adding `owner_user_id` to `public.teams` would have
+duplicated that fact in two places, and two sources of truth for the same thing
+drift.
 
 **The UI now gates on `draft_participants`** (`isCommissioner || isSelf`),
 because that is the only ownership signal that exists client-side. If the guard
