@@ -1130,3 +1130,57 @@ export async function leaveLeague(leagueId: string): Promise<void> {
   const { error } = await supabase.rpc("leave_league", { p_league_id: leagueId });
   if (error) throw error;
 }
+
+/**
+ * League branding resolved from a draft rather than a slug.
+ *
+ * getLeagueBranding() needs a slug, and DraftRoom only had one when the URL
+ * carried leagueSlug. Someone who joins with a draft code lands on
+ * /draft/lobby?draftId=... with no slug, so the draft rendered in the product
+ * accent instead of the league's — the guest saw a different-looking draft from
+ * everyone else in it.
+ *
+ * Resolved in two steps rather than an embedded select so this does not depend
+ * on the PostgREST foreign-key relationship being exposed.
+ *
+ * RLS still applies. It returns null for anyone who cannot read the league,
+ * which is the correct outcome — join_draft() adds joiners to league_members,
+ * so a code-joiner can read it, and a genuine outsider gets no branding rather
+ * than an error.
+ */
+export async function getLeagueBrandingForDraft(
+  draftId: string,
+): Promise<LeagueBranding | null> {
+  const { data: draftRow, error: draftError } = await supabase
+    .from("drafts")
+    .select("league_id")
+    .eq("id", draftId)
+    .maybeSingle();
+
+  if (draftError || !draftRow) return null;
+
+  const leagueId = (draftRow as { league_id: string | null }).league_id;
+  if (!leagueId) return null;
+
+  const { data, error } = await supabase
+    .from("leagues")
+    .select("name,logo_url,primary_color,secondary_color")
+    .eq("id", leagueId)
+    .maybeSingle();
+
+  if (error || !data) return null;
+
+  const row = data as {
+    name: string;
+    logo_url: string | null;
+    primary_color: string | null;
+    secondary_color: string | null;
+  };
+
+  return {
+    name: row.name,
+    logoUrl: row.logo_url,
+    primaryColor: row.primary_color,
+    secondaryColor: row.secondary_color,
+  };
+}

@@ -44,7 +44,7 @@ import { formatLastSyncedAt } from "@/lib/draftRecovery";
 import { getDraftClockSeconds, formatDraftClock } from "@/lib/draftTimer";
 import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
-import { getLeagueBranding, type LeagueBranding } from "@/lib/leagueApi";
+import { getLeagueBranding, getLeagueBrandingForDraft, type LeagueBranding } from "@/lib/leagueApi";
 import DraftHQLogo from "@/components/DraftHQLogo";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
 import LandmineAnimation from "@/components/LandmineAnimation";
@@ -1073,14 +1073,24 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   }, [draftId, leagueSlug, lobbyOnly, router, snapshot]);
 
   useEffect(() => {
+    // Falls back to resolving the league from the draft itself. Someone who
+    // joins with a draft code arrives with no leagueSlug in the URL, and
+    // without this they saw the draft in the product accent while everyone
+    // else in the same draft saw the league's.
+    const apply = (b: LeagueBranding | null) => {
+      setLeagueBranding(b);
+      if (b?.primaryColor) setAccentColor(b.primaryColor);
+      if (b?.secondaryColor) setBgColor(b.secondaryColor);
+    };
+
     if (leagueSlug) {
-      void getLeagueBranding(leagueSlug).then((b) => {
-        setLeagueBranding(b);
-        if (b?.primaryColor) setAccentColor(b.primaryColor);
-        if (b?.secondaryColor) setBgColor(b.secondaryColor);
-      });
+      void getLeagueBranding(leagueSlug).then(apply);
+      return;
     }
-  }, [leagueSlug, setAccentColor, setBgColor]);
+    if (draftId) {
+      void getLeagueBrandingForDraft(draftId).then(apply);
+    }
+  }, [draftId, leagueSlug, setAccentColor, setBgColor]);
 
   // Load the landmine video pool once per draft (missing/empty → bomb fallback)
   useEffect(() => {
