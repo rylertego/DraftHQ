@@ -16,6 +16,16 @@ import {
   getYahooLeaguePreview,
 } from "@/lib/providerApi";
 import type { ProviderLeaguePreview } from "@/lib/providers/types";
+import {
+  Alert,
+  Button,
+  Field,
+  FormLayout,
+  Input,
+  Panel,
+  Section,
+  StatusBadge,
+} from "@/components/ui";
 
 type ProviderId = "sleeper" | "espn" | "fleaflicker" | "mfl" | "yahoo";
 
@@ -41,7 +51,6 @@ const PROVIDERS: ProviderCard[] = [
 export default function NewSeasonForm({ slug }: { slug: string }) {
   const router = useRouter();
   const { workspace, isLoading, error: loadError } = useWorkspace();
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
   const currentYear = new Date().getFullYear();
 
   const [year, setYear] = useState(currentYear);
@@ -109,42 +118,34 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
   };
 
   return (
-    <div className="w-full space-y-6">
-
-      <section>
-        <h2 className="text-2xl font-bold">New Season</h2>
-        <div className="mt-5 grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-year">Year</label>
-            <input
-              id="season-year"
+    <div className="flex w-full flex-col gap-[var(--space-5)]">
+      {/* Season identity is a readable column; the provider grid below opts back
+          out to workspace width because previews are wide. */}
+      <Section title="New Season">
+        <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+          <Field label="Year" controlId="season-year">
+            <Input
               type="number"
               min={2000}
               max={2100}
-              className="w-full"
               value={year}
               onChange={(e) => setYear(Number(e.target.value))}
             />
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-name">Season Name</label>
-            <input
-              id="season-name"
+          </Field>
+          <Field label="Season Name" controlId="season-name">
+            <Input
               required
               maxLength={100}
-              className="w-full"
               value={seasonName}
               onChange={(e) => setSeasonName(e.target.value)}
             />
-          </div>
+          </Field>
         </div>
-      </section>
+      </Section>
 
-      <section>
-        <h3 className="mb-3 text-lg font-semibold">Import from a provider</h3>
-
+      <Section title="Import from a provider">
         {!selectedProvider && (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-[var(--space-3)] sm:grid-cols-2 lg:grid-cols-3">
             {PROVIDERS.map((provider, index) => (
               <button
                 key={`${provider.id}-${index}`}
@@ -156,27 +157,29 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
                     : undefined
                 }
                 className={[
-                  "rounded-xl border p-4 text-left transition-colors",
-                  provider.available ? "cursor-pointer" : "border-slate-800 opacity-40 cursor-not-allowed",
+                  "rounded-[var(--radius-surface)] border p-[var(--space-3)] text-left transition-colors",
+                  provider.available
+                    ? "cursor-pointer border-[color:var(--color-border-subtle)] hover:border-[color:var(--color-league-accent)]"
+                    : "cursor-not-allowed border-[color:var(--color-border-subtle)] opacity-40",
                 ].join(" ")}
-                style={provider.available ? { borderColor: primary + "44" } : undefined}
               >
-                <div className="mb-3 flex items-center gap-3">
+                <div className="mb-[var(--space-2)] flex items-center gap-[var(--space-3)]">
                   <ProviderLogo domain={provider.logoDomain} label={provider.label} color={provider.logoColor} />
-                  <p className="font-semibold">{provider.label}</p>
+                  <p className="font-semibold text-[color:var(--color-text-primary)]">{provider.label}</p>
+                  {!provider.available && <StatusBadge status="neutral">Coming Soon</StatusBadge>}
                 </div>
-                <p className="text-sm text-slate-400">{provider.description}</p>
+                <p className="text-sm text-[color:var(--color-text-secondary)]">{provider.description}</p>
               </button>
             ))}
           </div>
         )}
 
         {selectedProvider === "sleeper" && (
-          <div className="mt-4">
-            <div className="mb-3">
-              <button type="button" onClick={resetProvider} className="text-sm text-slate-400 hover:text-white">
+          <div className="flex flex-col gap-[var(--space-3)]">
+            <div>
+              <Button variant="tertiary" onClick={resetProvider}>
                 ← Providers
-              </button>
+              </Button>
             </div>
             <SleeperImportForm seasonContext={seasonContext} leagueSlug={slug} />
           </div>
@@ -192,17 +195,14 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
         )}
 
         {selectedProvider && selectedProvider !== "sleeper" && providerPreview && (
-          <div className="rounded-2xl border border-slate-700 bg-slate-900 p-5">
-            <div className="mb-4 flex items-center gap-3">
-              <button
-                type="button"
-                onClick={() => setProviderPreview(null)}
-                className="text-sm text-slate-400 hover:text-white"
-              >
+          <Panel>
+            <div className="mb-[var(--space-3)] flex items-center gap-[var(--space-3)]">
+              <Button variant="tertiary" onClick={() => setProviderPreview(null)}>
                 ← Back
-              </button>
-              <span className="text-slate-700">|</span>
-              <span className="text-sm font-semibold capitalize">{selectedProvider}</span>
+              </Button>
+              <span className="text-sm font-semibold capitalize text-[color:var(--color-text-secondary)]">
+                {selectedProvider}
+              </span>
             </div>
             <ProviderImportForm
               preview={providerPreview}
@@ -210,74 +210,99 @@ export default function NewSeasonForm({ slug }: { slug: string }) {
               onBack={() => setProviderPreview(null)}
               leagueSlug={slug}
             />
-          </div>
+          </Panel>
         )}
-      </section>
+      </Section>
 
-      <div className="flex items-center gap-3 text-xs font-semibold uppercase tracking-wide text-slate-600">
-        <span className="h-px flex-1 bg-slate-800" />
+      <div className="flex items-center gap-[var(--space-3)] text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-muted)]">
+        <span className="h-px flex-1 bg-[var(--color-border-subtle)]" />
         Or create manually
-        <span className="h-px flex-1 bg-slate-800" />
+        <span className="h-px flex-1 bg-[var(--color-border-subtle)]" />
       </div>
 
-      <form className="space-y-5 rounded-2xl border border-slate-700 bg-slate-900 p-6" onSubmit={handleManualCreate}>
-        <div>
-          <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-draft-name">Draft Name</label>
-          <input id="season-draft-name" required maxLength={100} className="w-full" value={draftName} onChange={(e) => setDraftName(e.target.value)} />
-        </div>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-team-count">Teams</label>
-            <input
-              id="season-team-count"
-              type="number"
-              min={2}
-              max={20}
-              className="w-full disabled:opacity-60 disabled:cursor-not-allowed"
-              value={teamCount}
-              disabled={hasFranchises}
-              onChange={(e) => setTeamCount(Number(e.target.value))}
+      {/* The league-accent primary belongs to whichever creation path is
+          actually selected. Manual creation owns it here; the provider paths
+          carry their own submit inside their own forms. */}
+      <Panel>
+        <FormLayout
+          onSubmit={handleManualCreate}
+          actions={
+            <Button type="submit" scope="league" loading={isCreating}>
+              {isCreating ? "Creating..." : "Create Season and Draft"}
+            </Button>
+          }
+        >
+          <Field label="Draft Name" controlId="season-draft-name">
+            <Input
+              required
+              maxLength={100}
+              value={draftName}
+              onChange={(e) => setDraftName(e.target.value)}
             />
-            <p className="mt-1 text-xs text-slate-500">Set in league settings.</p>
-          </div>
-          <div>
-            <label className="mb-1.5 block text-xs font-semibold uppercase tracking-wide text-slate-400" htmlFor="season-rounds">Rounds</label>
-            <input id="season-rounds" type="number" min={1} max={30} className="w-full" value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
-          </div>
-        </div>
+          </Field>
 
-        {hasFranchises && (
-          <div>
-            <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-400">Franchises that will be linked</p>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {franchiseTeams.map((t) => (
-                <div key={t.id} className="flex items-center gap-2.5 rounded-xl border border-slate-800 bg-slate-800/40 px-3 py-2">
-                  <div
-                    className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg text-xs font-bold"
-                    style={{ backgroundColor: primary + "33" }}
-                  >
-                    {t.logoUrl
-                      // eslint-disable-next-line @next/next/no-img-element
-                      ? <img src={t.logoUrl} alt="" className="h-full w-full object-cover" />
-                      : <span style={{ color: primary }}>{(t.shortName || t.name).slice(0, 2).toUpperCase()}</span>
-                    }
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-white">{t.name}</p>
-                    {t.ownerName && <p className="truncate text-xs text-slate-400">{t.ownerName}</p>}
-                  </div>
-                </div>
-              ))}
-            </div>
+          <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+            <Field
+              label="Teams"
+              controlId="season-team-count"
+              description={hasFranchises ? "Set in league settings." : undefined}
+            >
+              <Input
+                type="number"
+                min={2}
+                max={20}
+                value={teamCount}
+                disabled={hasFranchises}
+                onChange={(e) => setTeamCount(Number(e.target.value))}
+              />
+            </Field>
+            <Field label="Rounds" controlId="season-rounds">
+              <Input
+                type="number"
+                min={1}
+                max={30}
+                value={rounds}
+                onChange={(e) => setRounds(Number(e.target.value))}
+              />
+            </Field>
           </div>
-        )}
-        {error && <p className="rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-sm text-red-400">{error}</p>}
-        <button type="submit" disabled={isCreating}
-          className="rounded-xl px-5 py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
-          style={{ backgroundColor: primary, color: secondary }}>
-          {isCreating ? "Creating..." : "Create Season and Draft"}
-        </button>
-      </form>
+
+          {hasFranchises && (
+            <div>
+              <p className="mb-[var(--space-2)] text-xs font-semibold uppercase tracking-wide text-[color:var(--color-text-secondary)]">
+                Franchises that will be linked
+              </p>
+              <div className="grid gap-[var(--space-2)] sm:grid-cols-2">
+                {franchiseTeams.map((t) => (
+                  <div
+                    key={t.id}
+                    className="flex items-center gap-2.5 rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-3)] py-2"
+                  >
+                    <div className="flex h-8 w-8 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-[color-mix(in_srgb,var(--color-league-accent)_20%,transparent)] text-xs font-bold">
+                      {t.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={t.logoUrl} alt="" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-[color:var(--color-league-accent)]">
+                          {(t.shortName || t.name).slice(0, 2).toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[color:var(--color-text-primary)]">{t.name}</p>
+                      {t.ownerName && (
+                        <p className="truncate text-xs text-[color:var(--color-text-secondary)]">{t.ownerName}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {error && <Alert status="danger">{error}</Alert>}
+        </FormLayout>
+      </Panel>
     </div>
   );
 }

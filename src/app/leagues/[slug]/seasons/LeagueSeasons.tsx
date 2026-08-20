@@ -1,61 +1,150 @@
 "use client";
 
-import Link from "next/link";
-import LeagueWorkspaceHeader from "@/components/LeagueWorkspaceHeader";
 import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
-import { useLeagueTheme } from "@/context/LeagueThemeContext";
+import {
+  Alert,
+  EmptyState,
+  LinkButton,
+  Panel,
+  Section,
+  Skeleton,
+  StatusBadge,
+} from "@/components/ui";
+import type { LeagueSeason } from "@/types/league";
+
+// One definition of the row geometry, shared by the header and every row. Two
+// copies drift — the teams table and the members list both did, and in both
+// cases an `auto` track sized to each grid's own content so the columns quietly
+// disagreed. Every track here is fixed or fractional for that reason.
+const SEASON_GRID =
+  "grid gap-4 md:grid-cols-[minmax(0,1fr)_9rem_9rem_6rem_11rem]";
+
+function providerLabel(season: LeagueSeason) {
+  return season.sleeperLeagueId ? "Sleeper" : "Manual";
+}
+
+function draftStateLabel(season: LeagueSeason) {
+  if (!season.draft) return "No draft";
+  if (season.draft.status === "setup") return "Pre-draft";
+  if (season.draft.status === "active") return "Live";
+  if (season.draft.status === "paused") return "Paused";
+  return "Complete";
+}
 
 export default function LeagueSeasons({ slug }: { slug: string }) {
   const { workspace, error, isLoading } = useLeagueWorkspace(slug);
-  const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
 
-  if (isLoading) return <main className="px-6 py-8 text-slate-400">Loading seasons...</main>;
-  if (error || !workspace) return <main className="px-6 py-8 text-red-400">{error || "League not found."}</main>;
+  if (isLoading) {
+    return (
+      <div className="flex flex-col gap-[var(--space-3)]" aria-label="Loading seasons">
+        {[0, 1, 2].map((i) => (
+          <Skeleton key={i} height="row" label={i === 0 ? "Loading seasons" : undefined} />
+        ))}
+      </div>
+    );
+  }
+
+  if (error || !workspace) {
+    return <Alert status="danger">{error || "League not found."}</Alert>;
+  }
+
+  const { seasons, canManage } = workspace;
 
   return (
-    <main className="w-full space-y-6 px-6 py-8">
-      <LeagueWorkspaceHeader league={workspace.league} canManage={workspace.canManage} />
-      <section>
-        <div className="flex items-center justify-between gap-4">
-          <h2 className="text-2xl font-bold text-white">Seasons</h2>
-          {workspace.canManage && (
-            <Link
-              href={`/leagues/${slug}/seasons/new`}
-              className="rounded-xl px-4 py-2.5 text-sm font-bold transition-opacity hover:opacity-90"
-              style={{ backgroundColor: primary, color: secondary }}
-            >
-              New Season
-            </Link>
-          )}
+    <Section
+      title="Seasons"
+      actions={
+        canManage ? (
+          <LinkButton href={`/leagues/${slug}/seasons/new`} variant="primary" scope="league">
+            New Season
+          </LinkButton>
+        ) : undefined
+      }
+    >
+      {seasons.length === 0 ? (
+        <div className="rounded-[var(--radius-panel)] border border-dashed border-[color:var(--color-border-strong)]">
+          <EmptyState
+            title="No seasons yet"
+            description="A season holds a draft and the standings that follow it. Create one to get started."
+            action={
+              canManage ? (
+                <LinkButton href={`/leagues/${slug}/seasons/new`} variant="primary" scope="league">
+                  Create the first season
+                </LinkButton>
+              ) : undefined
+            }
+          />
         </div>
-        <div className="mt-4 space-y-3">
-          {workspace.seasons.length === 0 && (
-            <p className="rounded-2xl border bg-slate-900 px-6 py-10 text-center text-sm text-slate-500" style={{ borderColor: primary + "44" }}>
-              No seasons yet. Create one to get started.
-            </p>
-          )}
-          {workspace.seasons.map((season) => (
-            <article key={season.id}
-              className="flex flex-col justify-between gap-3 rounded-2xl border bg-slate-900 p-5 sm:flex-row sm:items-center"
-              style={{ borderColor: primary + "44" }}
-            >
-              <div>
-                <h3 className="font-bold text-white">{season.name}</h3>
-                <p className="text-sm capitalize text-slate-400">{season.status}</p>
-              </div>
-              {season.draft && (
-                <Link
-                  className="text-sm font-medium transition-opacity hover:opacity-80"
-                  style={{ color: primary }}
-                  href={season.draft.status === "setup" ? `/teams?draftId=${season.draft.id}&tab=settings&leagueSlug=${slug}` : `/draft?draftId=${season.draft.id}&leagueSlug=${slug}`}
-                >
-                  {season.draft.status === "setup" ? "Configure Draft →" : "Open Draft →"}
-                </Link>
-              )}
-            </article>
-          ))}
-        </div>
-      </section>
-    </main>
+      ) : (
+        <Panel>
+          <div
+            className={`hidden border-b border-[color:var(--color-border-subtle)] pb-[var(--space-2)] text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)] md:grid ${SEASON_GRID}`}
+          >
+            <span>Season</span>
+            <span>Source</span>
+            <span>Draft</span>
+            <span>Teams</span>
+            <span className="text-right">Actions</span>
+          </div>
+
+          <div className="flex flex-col">
+            {seasons.map((season) => (
+              <article
+                key={season.id}
+                className={`items-center border-b border-[color:var(--color-border-subtle)] py-[var(--space-3)] last:border-b-0 ${SEASON_GRID}`}
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-bold text-[color:var(--color-text-primary)]">{season.name}</p>
+                  <p className="text-xs capitalize text-[color:var(--color-text-muted)]">{season.status}</p>
+                </div>
+
+                <span className="text-sm text-[color:var(--color-text-secondary)]">
+                  {providerLabel(season)}
+                </span>
+
+                <span>
+                  <StatusBadge
+                    status={
+                      season.draft?.status === "active"
+                        ? "success"
+                        : season.draft?.status === "paused"
+                          ? "warning"
+                          : season.draft
+                            ? "info"
+                            : "neutral"
+                    }
+                    dot={season.draft?.status === "active"}
+                  >
+                    {draftStateLabel(season)}
+                  </StatusBadge>
+                </span>
+
+                <span className="text-sm tabular-nums text-[color:var(--color-text-secondary)]">
+                  {season.draft ? season.draft.teamCount : "—"}
+                </span>
+
+                <div className="flex justify-start md:justify-end">
+                  {season.draft ? (
+                    <LinkButton
+                      href={
+                        season.draft.status === "setup"
+                          ? `/teams?draftId=${season.draft.id}&tab=settings&leagueSlug=${slug}`
+                          : `/draft?draftId=${season.draft.id}&leagueSlug=${slug}`
+                      }
+                      variant="secondary"
+                      scope="league"
+                    >
+                      {season.draft.status === "setup" ? "Configure Draft" : "Open Draft"}
+                    </LinkButton>
+                  ) : (
+                    <span className="text-sm text-[color:var(--color-text-muted)]">No draft yet</span>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        </Panel>
+      )}
+    </Section>
   );
 }

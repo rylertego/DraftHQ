@@ -24,8 +24,9 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 4 — League Operations | 10, 11, 12 | ✅ Desktop complete |
 | 4 — League Operations | 13 | ✅ Desktop complete |
 | 4 — League Operations | 14 | ✅ Desktop complete |
-| 4 — League Operations | 15 | ⬜ Not started |
-| 5–8 | 16–… | ⬜ Not started |
+| 4 — League Operations | 15 | ✅ Desktop complete |
+| 5 — Draft Configuration | 16, 17 | ⬜ Not started |
+| 6–8 | 18–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
 stalled. Steps below are left unticked until every slice lands:
@@ -889,19 +890,32 @@ git commit -m "feat: migrate league settings"
 - Consumes: Workspace data surfaces, readable forms, semantic statuses and actions.
 - Produces: Compact season history and create-season workflow.
 
-- [ ] **Step 1: Impact-check season creation and navigation handlers**
+- [x] **Step 1: Impact-check season creation and navigation handlers**
 
-- [ ] **Step 2: Migrate season list and empty state**
+- [x] **Step 2: Migrate season list and empty state**
 
 Use a wide, scannable list/table for season, provider, draft state, teams, and actions. Preserve provider selection, preview, import, manual creation, loading, and import failure states. Use one useful empty state when no seasons exist.
 
-- [ ] **Step 3: Migrate new-season form**
+- [x] **Step 3: Migrate new-season form**
 
 Use a readable form column for manual creation and workspace width for provider previews. Preserve all defaults, provider payloads, validation, and database behavior; use a league-scoped primary action only for the currently selected creation path.
 
-- [ ] **Step 4: Verify and commit**
+- [ ] **Step 4: Verify and commit** — PARTIAL
 
 Check no seasons, historical seasons, active season, validation, creation failure, and mobile. Run phase gate.
+
+> Verified at desktop with two seasons — one active with a pre-draft draft, one
+> complete Sleeper-sourced with none. Header and both rows resolve to a single
+> grid track set, checked by measurement rather than by eye.
+>
+> Not exercised: the no-seasons empty state, validation, creation failure, and
+> mobile.
+>
+> **LeagueWorkspaceHeader is now orphaned.** LeagueSeasons was its last
+> consumer, and it was dropped rather than migrated: it rendered a hero plus its
+> own Home/Teams/Settings nav *inside* the workspace shell that already provides
+> both. Task 9 said not to remove the component until usage was proven absent —
+> it now is, so deleting it belongs to Task 23.
 
 ```powershell
 git add -- src/app/leagues/[slug]/seasons/LeagueSeasons.tsx src/app/leagues/[slug]/seasons/new/NewSeasonForm.tsx
