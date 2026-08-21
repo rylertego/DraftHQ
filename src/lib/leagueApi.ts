@@ -816,13 +816,11 @@ interface LeagueTeamRow {
   last_season_pick_player: string | null;
   walk_up_songs: WalkUpSong[] | null;
   tts_name: string | null;
-  autodraft: boolean | null;
-  pre_draft_notes: string | null;
   created_at: string;
 }
 
 const LEAGUE_TEAM_COLUMNS =
-  "id,league_id,name,short_name,logo_url,owner_photo_url,owner_user_id,owner_name,archived_at,last_season_pick,last_season_record,last_season_playoffs,last_season_pick_player,walk_up_songs,tts_name,autodraft,pre_draft_notes,created_at";
+  "id,league_id,name,short_name,logo_url,owner_photo_url,owner_user_id,owner_name,archived_at,last_season_pick,last_season_record,last_season_playoffs,last_season_pick_player,walk_up_songs,tts_name,created_at";
 
 function mapLeagueTeamRow(
   row: LeagueTeamRow,
@@ -849,8 +847,6 @@ function mapLeagueTeamRow(
     lastSeasonPickPlayer: row.last_season_pick_player,
     walkUpSongs: Array.isArray(row.walk_up_songs) ? row.walk_up_songs : [],
     ttsName: row.tts_name,
-    autodraft: row.autodraft ?? false,
-    preDraftNotes: row.pre_draft_notes,
     createdAt: row.created_at,
   };
 }
@@ -1007,8 +1003,6 @@ export interface UpdateMyLeagueTeamDetailsData {
   ownerPhotoUrl: string | null;
   walkUpSongs: WalkUpSong[];
   ttsName: string | null;
-  autodraft: boolean;
-  preDraftNotes: string | null;
   lastSeasonPickPlayer: string | null;
   lastSeasonRecord: string | null;
   lastSeasonPlayoffs: boolean | null;
@@ -1031,8 +1025,6 @@ export async function updateMyLeagueTeamDetails(
     // Every field is sent on every save. The RPC reads null as "clear", not
     // "leave alone", so omitting one would wipe it.
     p_tts_name: data.ttsName?.trim() || null,
-    p_autodraft: data.autodraft,
-    p_pre_draft_notes: data.preDraftNotes?.trim() || null,
     p_last_season_pick_player: data.lastSeasonPickPlayer?.trim() || null,
     p_last_season_record: data.lastSeasonRecord?.trim() || null,
     p_last_season_playoffs: data.lastSeasonPlayoffs,

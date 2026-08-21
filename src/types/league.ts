@@ -96,11 +96,11 @@ export interface LeagueTeam {
   lastSeasonPlayoffs: boolean | null;
   lastSeasonPickPlayer: string | null;
   walkUpSongs: WalkUpSong[];
-  // Moved off the draft team: the league team is now the one place these are
-  // edited, and a trigger syncs them down into each linked draft team.
+  // Moved off the draft team: the league team is the one place this is edited,
+  // and a trigger syncs it down into each linked draft team. Autodraft and
+  // pre-draft notes deliberately did NOT move — they are decisions about one
+  // draft night, so they stay on the draft team.
   ttsName: string | null;
-  autodraft: boolean;
-  preDraftNotes: string | null;
   createdAt: string;
 }
 

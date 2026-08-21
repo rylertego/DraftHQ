@@ -13,7 +13,7 @@ import {
 } from "@/lib/leagueApi";
 import type { LeagueTeam } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
-import { Alert, Button, Checkbox, EmptyState, Field, IconButton, Input, Panel, Select, Textarea } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, IconButton, Input, Panel, Select } from "@/components/ui";
 
 function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
   return (
@@ -32,11 +32,11 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [shortName, setShortName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [walkUpSongs, setWalkUpSongs] = useState<WalkUpSong[]>([]);
-  // Moved here from Draft Settings. A trigger syncs them down to every draft
+  // Moved here from Draft Settings. A trigger syncs these down to every draft
   // team this franchise is linked to, so this is the only place they are set.
+  // Autodraft and pre-draft notes deliberately stayed behind — they are
+  // decisions about one draft night, not facts about the franchise.
   const [ttsName, setTtsName] = useState("");
-  const [autodraft, setAutodraft] = useState(false);
-  const [preDraftNotes, setPreDraftNotes] = useState("");
   const [lastSeasonPickPlayer, setLastSeasonPickPlayer] = useState("");
   const [lastSeasonRecord, setLastSeasonRecord] = useState("");
   const [lastSeasonPlayoffs, setLastSeasonPlayoffs] = useState<boolean | null>(null);
@@ -71,8 +71,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         setOwnerName(found.ownerName ?? "");
         setWalkUpSongs(Array.isArray(found.walkUpSongs) ? found.walkUpSongs : []);
         setTtsName(found.ttsName ?? "");
-        setAutodraft(found.autodraft);
-        setPreDraftNotes(found.preDraftNotes ?? "");
         setLastSeasonPickPlayer(found.lastSeasonPickPlayer ?? "");
         setLastSeasonRecord(found.lastSeasonRecord ?? "");
         setLastSeasonPlayoffs(found.lastSeasonPlayoffs);
@@ -143,8 +141,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         ownerPhotoUrl,
         walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
         ttsName: ttsName.trim() || null,
-        autodraft,
-        preDraftNotes: preDraftNotes.trim() || null,
         lastSeasonPickPlayer: lastSeasonPickPlayer.trim() || null,
         lastSeasonRecord: lastSeasonRecord.trim() || null,
         lastSeasonPlayoffs,
@@ -156,8 +152,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       setOwnerName(updated.ownerName ?? "");
       setWalkUpSongs(updated.walkUpSongs);
       setTtsName(updated.ttsName ?? "");
-      setAutodraft(updated.autodraft);
-      setPreDraftNotes(updated.preDraftNotes ?? "");
       setLastSeasonPickPlayer(updated.lastSeasonPickPlayer ?? "");
       setLastSeasonRecord(updated.lastSeasonRecord ?? "");
       setLastSeasonPlayoffs(updated.lastSeasonPlayoffs);
@@ -332,9 +326,9 @@ export default function MyTeamForm({ slug }: { slug: string }) {
 
           <Panel
             title="Draft Night"
-            description="These follow your franchise into every draft the league runs. The commissioner sets the order; everything about your team is yours."
+            description="How the announcer says your team, in every draft the league runs."
           >
-            <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+            <div className="grid gap-[var(--space-4)]">
               <Field
                 label="Text-to-speech name"
                 controlId="my-team-tts"
@@ -365,30 +359,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                     </svg>
                   </button>
                 </div>
-              </Field>
-
-              <Field
-                label="Autodraft"
-                controlId="my-team-autodraft"
-                description="Only applies to drafts that have not started yet."
-              >
-                <Checkbox
-                  checked={autodraft}
-                  onChange={(e) => { setAutodraft(e.target.checked); setSuccess(false); }}
-                  label="Auto-pick when on the clock"
-                />
-              </Field>
-            </div>
-
-            <div className="mt-[var(--space-4)]">
-              <Field label="Pre-draft notes" controlId="my-team-notes">
-                <Textarea
-                  rows={3}
-                  maxLength={2000}
-                  placeholder="Anything you want on hand during the draft."
-                  value={preDraftNotes}
-                  onChange={(e) => { setPreDraftNotes(e.target.value); setSuccess(false); }}
-                />
               </Field>
             </div>
           </Panel>
