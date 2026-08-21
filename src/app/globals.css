@@ -272,6 +272,13 @@ input[type="color"] {
   display: grid;
   gap: var(--space-1);
   min-width: 0;
+  /* Rows keep their natural height instead of sharing out the field's own.
+     Fields sit in grid rows that stretch every cell to the tallest, so a field
+     with a description made its neighbours — with one row fewer — inflate their
+     label and control rows to fill the difference. Three side-by-side fields
+     then had their labels aligned but their inputs sitting at three different
+     heights. Any leftover space now collects below the last row. */
+  align-content: start;
 }
 
 .ui-field__label,

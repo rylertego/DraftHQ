@@ -59,6 +59,15 @@ import type { DraftInvitation, RosterPosition, Team, TimerBehavior, WalkUpSong }
 
 const ROSTER_POSITIONS_COLLAPSED = 7;
 
+/**
+ * How far down the readiness sidebar pins: clear of the AccountNav header and
+ * this page's own sticky toolbar, both of which measure themselves and publish
+ * their heights, plus a gap. Named because it is used twice — once for `top`
+ * and once to work out how much viewport is left for the card.
+ */
+const SIDEBAR_STICKY_OFFSET =
+  "calc(var(--layout-header-height) + var(--layout-toolbar-height) + 1.5rem)";
+
 type Tab = "settings" | "teams" | "audio";
 
 interface TeamSetupFormProps {
@@ -1081,14 +1090,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         the league said 12 — with no indication which was real.
                         A standalone draft has no league to inherit from, so it
                         keeps the control. */}
-                    <Field
-                      label="Teams"
-                      controlId="draft-team-count"
-                      description={isLeagueDraft ? "Set in League Settings." : undefined}
-                    >
+                    {/* The "Set in League Settings" hint sits under the value,
+                        not in Field's description slot. As a description it
+                        rendered between the label and the control, and since
+                        the sibling fields have no description, it pushed this
+                        one control a line lower than the two selects beside
+                        it. */}
+                    <Field label="Teams" controlId="draft-team-count">
                       {isLeagueDraft ? (
                         <>
-                          <div className="flex min-h-11 items-center gap-[var(--space-2)]">
+                          <div className="flex min-h-10 items-center gap-[var(--space-2)]">
                             <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
                               {teamCount} teams
                             </span>
@@ -1102,6 +1113,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               </Link>
                             )}
                           </div>
+                          <p className="mt-[var(--space-1)] text-xs text-[color:var(--color-text-muted)]">
+                            Set in League Settings.
+                          </p>
                           {teamCountDiffersFromLeague && (
                             <p className="mt-[var(--space-1)] text-xs text-[color:var(--color-warning-text)]">
                               League Settings says {leagueTeamCount} teams. This draft was created
@@ -2912,10 +2926,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               page's own sticky toolbar, both of which measure and publish their
               heights. It was previously a literal 108px measured against an
               older, shorter header, so the card's heading scrolled up
-              underneath the toolbar. */}
+              underneath the toolbar.
+
+              Capped and scrollable because pinning alone is not enough to keep
+              it on screen: the header and toolbar eat ~180px before the card
+              starts, and the card is ~370px, so on a laptop viewport its bottom
+              ran off the screen with no way to reach it — the page scrolls, but
+              a sticky element does not move with it. */}
           <aside
-            className="hidden lg:sticky lg:block lg:self-start"
-            style={{ top: "calc(var(--layout-header-height) + var(--layout-toolbar-height) + 1.5rem)" }}
+            className="hidden lg:sticky lg:block lg:self-start lg:overflow-y-auto lg:overscroll-contain"
+            style={{
+              top: SIDEBAR_STICKY_OFFSET,
+              maxHeight: `calc(100vh - ${SIDEBAR_STICKY_OFFSET} - 1.5rem)`,
+            }}
           >
             <div className={cardCls}>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
