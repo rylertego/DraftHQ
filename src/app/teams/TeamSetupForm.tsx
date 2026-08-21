@@ -32,7 +32,7 @@ import {
   type DraftSetup,
   type LandmineVideo,
 } from "@/lib/draftApi";
-import { localTimeZone, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
+import { formatScheduledDate, formatTimeZoneName, localTimeZone, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
 import { moveDraftTeam } from "@/lib/teamSetupLogic";
@@ -175,7 +175,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [isSavingTeamCount, setIsSavingTeamCount] = useState(false);
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledTime, setScheduledTime] = useState("");
+  // Defaults to this machine's zone and is then whatever the draft was saved
+  // with. There is no picker: see the Draft Date panel.
   const [scheduledTimezone, setScheduledTimezone] = useState(localTimeZone);
+  // Held separately so the panel can say "this draft is set in Eastern, you are
+  // in Pacific" instead of quietly showing a time that means something else.
+  const [viewerTimeZone] = useState(localTimeZone);
   const [isSavingSchedule, setIsSavingSchedule] = useState(false);
   const [rosterPositions, setRosterPositions] = useState<RosterPosition[]>(DEFAULT_ROSTER_POSITIONS);
   const [showAllPositions, setShowAllPositions] = useState(false);
@@ -222,11 +227,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   const { accentColor: primary, bgColor: secondary, setAccentColor, setBgColor } = useLeagueTheme();
 
+  // The league's own team count, so Draft Settings can show where the number
+  // comes from instead of offering a second place to set it. Null for a
+  // standalone draft, which has no league to inherit from.
+  const [leagueTeamCount, setLeagueTeamCount] = useState<number | null>(null);
+
   useEffect(() => {
     if (!leagueSlug) return;
     void getLeagueBranding(leagueSlug).then((b) => {
       if (b?.primaryColor) setAccentColor(b.primaryColor);
       if (b?.secondaryColor) setBgColor(b.secondaryColor);
+      setLeagueTeamCount(b?.teamCount ?? null);
     });
   }, [leagueSlug, setAccentColor, setBgColor]);
 
@@ -617,6 +628,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const canManageAssignments =
     isCommissioner && (setup.draft.status === "setup" || setup.draft.status === "paused");
   const draft = setup.draft;
+  // Keyed off the draft's own league_id rather than the leagueSlug query param,
+  // which is caller-supplied and absent on some entry paths.
+  const isLeagueDraft = Boolean(draft.leagueId);
+  // A league draft is seeded from the league's count at creation, so these
+  // agree unless someone changed League Settings afterwards. Surfaced rather
+  // than silently resized: shrinking the draft deletes team rows, names and
+  // logos included, which is not something to do behind the commissioner's back
+  // on page load.
+  const teamCountDiffersFromLeague =
+    isLeagueDraft && leagueTeamCount !== null && leagueTeamCount !== draft.teamCount;
   const joinUrl = typeof window !== "undefined"
     ? `${window.location.origin}/join/${draft.joinCode}`
     : `/join/${draft.joinCode}`;
@@ -1017,36 +1038,71 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 <Panel
                   title="Draft Format"
-                  description="Set the team count, number of rounds, and the rankings profile players are drafted against."
+                  description="Set the number of rounds and the rankings profile players are drafted against."
                 >
 
                   <div className="mb-[var(--space-5)] grid gap-[var(--space-5)] sm:grid-cols-3">
-                    <Field label="Teams" controlId="draft-team-count">
-                      <div className="flex items-center gap-[var(--space-2)]">
-                        <Select
-                          disabled={!isCommissioner || isSavingTeamCount}
-                          value={teamCount}
-                          onChange={(e) => {
-                            const val = Number(e.target.value);
-                            setTeamCount(val);
-                            if (draftId && setup) {
-                              setIsSavingTeamCount(true);
-                              updateDraftTeamCount(draftId, val)
-                                .then((updated) => import("@/lib/draftApi").then((m) => m.getDraftSetup(draftId)).then((fresh) => {
-                                  setSetup({ ...fresh, draft: updated });
-                                  setTeams(fresh.teams);
-                                }))
-                                .catch((e) => { setError(e instanceof Error ? e.message : "Unable to update teams."); setTeamCount(setup.draft.teamCount); })
-                                .finally(() => setIsSavingTeamCount(false));
-                            }
-                          }}
-                        >
-                          {Array.from({ length: 23 }, (_, i) => i + 2).map((n) => (
-                            <option key={n} value={n}>{n} teams</option>
-                          ))}
-                        </Select>
-                        {isSavingTeamCount && <span className="shrink-0 text-xs text-[color:var(--color-text-muted)]">Saving...</span>}
-                      </div>
+                    {/* Read-only for a league draft. The league is the one place
+                        that answers "how many teams are we", and a second
+                        control here let a commissioner set a draft to 10 while
+                        the league said 12 — with no indication which was real.
+                        A standalone draft has no league to inherit from, so it
+                        keeps the control. */}
+                    <Field
+                      label="Teams"
+                      controlId="draft-team-count"
+                      description={isLeagueDraft ? "Set in League Settings." : undefined}
+                    >
+                      {isLeagueDraft ? (
+                        <>
+                          <div className="flex min-h-11 items-center gap-[var(--space-2)]">
+                            <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
+                              {teamCount} teams
+                            </span>
+                            {leagueSlug && isCommissioner && (
+                              <Link
+                                href={`/leagues/${leagueSlug}/settings`}
+                                className="text-xs transition-opacity hover:opacity-80"
+                                style={{ color: primary }}
+                              >
+                                Change ↗
+                              </Link>
+                            )}
+                          </div>
+                          {teamCountDiffersFromLeague && (
+                            <p className="mt-[var(--space-1)] text-xs text-[color:var(--color-warning-text)]">
+                              League Settings says {leagueTeamCount} teams. This draft was created
+                              with {teamCount} and keeps that until you rebuild it.
+                            </p>
+                          )}
+                        </>
+                      ) : (
+                        <div className="flex items-center gap-[var(--space-2)]">
+                          <Select
+                            disabled={!isCommissioner || isSavingTeamCount}
+                            value={teamCount}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setTeamCount(val);
+                              if (draftId && setup) {
+                                setIsSavingTeamCount(true);
+                                updateDraftTeamCount(draftId, val)
+                                  .then((updated) => import("@/lib/draftApi").then((m) => m.getDraftSetup(draftId)).then((fresh) => {
+                                    setSetup({ ...fresh, draft: updated });
+                                    setTeams(fresh.teams);
+                                  }))
+                                  .catch((e) => { setError(e instanceof Error ? e.message : "Unable to update teams."); setTeamCount(setup.draft.teamCount); })
+                                  .finally(() => setIsSavingTeamCount(false));
+                              }
+                            }}
+                          >
+                            {Array.from({ length: 23 }, (_, i) => i + 2).map((n) => (
+                              <option key={n} value={n}>{n} teams</option>
+                            ))}
+                          </Select>
+                          {isSavingTeamCount && <span className="shrink-0 text-xs text-[color:var(--color-text-muted)]">Saving...</span>}
+                        </div>
+                      )}
                     </Field>
                     <Field label="Rounds" controlId="draft-rounds">
                       <div className="flex items-center gap-[var(--space-2)]">
@@ -1195,38 +1251,31 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           }}
                         />
                       </Field>
+                      {/* Not a control any more. The zone is whatever the
+                          commissioner's machine reports when the draft is first
+                          scheduled, and the stored zone thereafter — so editing
+                          the time later from a different machine still means the
+                          same wall clock in the zone the draft was set in,
+                          rather than silently re-anchoring the instant.
+
+                          The ten-entry dropdown that used to live here could
+                          only ever be wrong for anyone outside those ten zones,
+                          and made every commissioner confirm a fact the browser
+                          already knew. */}
                       <Field label="Timezone" controlId="draft-scheduled-timezone">
-                        <Select
-                          disabled={!isCommissioner || isSavingSchedule}
-                          value={scheduledTimezone}
-                          onChange={(e) => {
-                            setScheduledTimezone(e.target.value);
-                            if (!draftId || !setup || !scheduledDate) return;
-                            setIsSavingSchedule(true);
-                            // Re-anchor the same wall clock to the newly picked
-                            // zone: 7pm Eastern becomes 7pm Pacific, not 4pm.
-                            const iso = zonedWallClockToUtc(scheduledDate, scheduledTime, e.target.value);
-                            updateDraftSchedule(draftId, iso, e.target.value)
-                              .then((updated) => setSetup({ ...setup, draft: updated }))
-                              .catch((e) => setError(e instanceof Error ? e.message : "Unable to save timezone."))
-                              .finally(() => setIsSavingSchedule(false));
-                          }}
-                        >
-                          {[
-                            "America/New_York",
-                            "America/Chicago",
-                            "America/Denver",
-                            "America/Los_Angeles",
-                            "America/Phoenix",
-                            "America/Anchorage",
-                            "Pacific/Honolulu",
-                            "Europe/London",
-                            "Europe/Paris",
-                            "Australia/Sydney",
-                          ].map((tz) => (
-                            <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
-                          ))}
-                        </Select>
+                        <div className="flex min-h-11 flex-col justify-center">
+                          <span
+                            id="draft-scheduled-timezone"
+                            className="text-sm font-semibold text-[color:var(--color-text-primary)]"
+                          >
+                            {formatTimeZoneName(scheduledTimezone)}
+                          </span>
+                          <span className="text-xs text-[color:var(--color-text-muted)]">
+                            {scheduledTimezone === viewerTimeZone
+                              ? "Your timezone"
+                              : `Detected ${formatTimeZoneName(viewerTimeZone)} — set when this draft was scheduled`}
+                          </span>
+                        </div>
                       </Field>
                     </div>
                     {scheduledDate && (
@@ -2867,8 +2916,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     fact not already repeated here. */}
                 <div className="col-span-2">
                   <dt className="text-xs text-slate-500">Draft date</dt>
+                  {/* Was printing scheduledTimezone, so a row labelled "Draft
+                      date" read "America/New York" and never showed the date. */}
                   <dd className="mt-0.5 text-sm font-semibold text-white">
-                    {scheduledDate ? scheduledTimezone.replace(/_/g, " ") : "Not scheduled"}
+                    {scheduledDate
+                      ? `${formatScheduledDate(scheduledDate, scheduledTime)} ${formatTimeZoneName(scheduledTimezone)}`
+                      : "Not scheduled"}
                   </dd>
                 </div>
               </dl>

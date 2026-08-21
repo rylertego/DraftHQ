@@ -171,20 +171,37 @@ export interface LeagueBranding {
   logoUrl: string | null;
   primaryColor: string | null;
   secondaryColor: string | null;
+  /**
+   * The league's configured team count. Draft Settings shows this rather than
+   * letting the commissioner set a per-draft number, so the league is the one
+   * place that answers "how many teams are we".
+   */
+  teamCount: number;
+}
+
+interface LeagueBrandingRow {
+  name: string;
+  logo_url: string | null;
+  primary_color: string | null;
+  secondary_color: string | null;
+  team_count: number | null;
 }
 
 export async function getLeagueBranding(slug: string): Promise<LeagueBranding | null> {
   const { data, error } = await supabase
     .from("leagues")
-    .select("name,logo_url,primary_color,secondary_color")
+    .select("name,logo_url,primary_color,secondary_color,team_count")
     .eq("slug", slug)
     .maybeSingle();
   if (error || !data) return null;
+  const row = data as LeagueBrandingRow;
   return {
-    name: (data as { name: string; logo_url: string | null; primary_color: string | null; secondary_color: string | null }).name,
-    logoUrl: (data as { name: string; logo_url: string | null; primary_color: string | null; secondary_color: string | null }).logo_url,
-    primaryColor: (data as { name: string; logo_url: string | null; primary_color: string | null; secondary_color: string | null }).primary_color,
-    secondaryColor: (data as { name: string; logo_url: string | null; primary_color: string | null; secondary_color: string | null }).secondary_color,
+    name: row.name,
+    logoUrl: row.logo_url,
+    primaryColor: row.primary_color,
+    secondaryColor: row.secondary_color,
+    // Matches mapLeague's default for rows predating the column.
+    teamCount: row.team_count ?? 12,
   };
 }
 
@@ -1164,23 +1181,19 @@ export async function getLeagueBrandingForDraft(
 
   const { data, error } = await supabase
     .from("leagues")
-    .select("name,logo_url,primary_color,secondary_color")
+    .select("name,logo_url,primary_color,secondary_color,team_count")
     .eq("id", leagueId)
     .maybeSingle();
 
   if (error || !data) return null;
 
-  const row = data as {
-    name: string;
-    logo_url: string | null;
-    primary_color: string | null;
-    secondary_color: string | null;
-  };
+  const row = data as LeagueBrandingRow;
 
   return {
     name: row.name,
     logoUrl: row.logo_url,
     primaryColor: row.primary_color,
     secondaryColor: row.secondary_color,
+    teamCount: row.team_count ?? 12,
   };
 }

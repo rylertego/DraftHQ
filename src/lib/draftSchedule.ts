@@ -85,3 +85,54 @@ export function utcToZonedWallClock(
 export function localTimeZone(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
 }
+
+/**
+ * A tz database name → something a commissioner reads without decoding it,
+ * e.g. "America/New_York" → "New York (EDT)".
+ *
+ * The abbreviation is resolved for *now*, not for the scheduled instant, so a
+ * draft set in August and viewed in December reads "EST". That is the correct
+ * label for the zone; the stored instant is unaffected either way.
+ */
+export function formatTimeZoneName(timeZone: string): string {
+  const city = timeZone.split("/").pop()?.replace(/_/g, " ") ?? timeZone;
+  try {
+    const abbreviation = new Intl.DateTimeFormat("en-US", { timeZone, timeZoneName: "short" })
+      .formatToParts(new Date())
+      .find((part) => part.type === "timeZoneName")?.value;
+    // Intl falls back to offsets like "GMT-4" for zones with no common
+    // abbreviation, which is still more use than the raw identifier.
+    return abbreviation ? `${city} (${abbreviation})` : city;
+  } catch {
+    // An unknown identifier (a hand-edited row, an older stored value) throws
+    // rather than returning anything, so fall back to the readable half.
+    return city;
+  }
+}
+
+const MONTH_ABBREVIATIONS = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+/**
+ * The date/time input values → a short label, e.g. "Oct 3, 7:00 PM".
+ *
+ * Formats the strings directly instead of going through `new Date(...)`, which
+ * would reinterpret a wall clock already expressed in the draft's zone as an
+ * instant in the viewer's zone and shift it.
+ */
+export function formatScheduledDate(date: string, time: string): string {
+  const [year, month, day] = date.split("-").map(Number);
+  if (!year || !month || !day || month < 1 || month > 12) return date;
+
+  const dayLabel = `${MONTH_ABBREVIATIONS[month - 1]} ${day}`;
+  if (!time) return dayLabel;
+
+  const [hours, minutes] = time.split(":").map(Number);
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return dayLabel;
+
+  const period = hours >= 12 ? "PM" : "AM";
+  const hour12 = hours % 12 === 0 ? 12 : hours % 12;
+  return `${dayLabel}, ${hour12}:${String(minutes).padStart(2, "0")} ${period}`;
+}

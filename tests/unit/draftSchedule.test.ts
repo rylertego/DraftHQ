@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
+import { formatScheduledDate, formatTimeZoneName, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
 
 describe("zonedWallClockToUtc", () => {
   it("applies the selected zone rather than the browser's", () => {
@@ -80,5 +80,47 @@ describe("utcToZonedWallClock", () => {
         expect(utcToZonedWallClock(iso, zone)).toEqual({ date, time });
       }
     }
+  });
+});
+
+describe("formatScheduledDate", () => {
+  it("formats a date and 24h time as a short 12h label", () => {
+    expect(formatScheduledDate("2026-10-03", "19:00")).toBe("Oct 3, 7:00 PM");
+  });
+
+  it("renders midnight and noon as 12, not 0", () => {
+    expect(formatScheduledDate("2026-10-03", "00:30")).toBe("Oct 3, 12:30 AM");
+    expect(formatScheduledDate("2026-10-03", "12:05")).toBe("Oct 3, 12:05 PM");
+  });
+
+  it("omits the time when none is set", () => {
+    expect(formatScheduledDate("2026-01-09", "")).toBe("Jan 9");
+  });
+
+  it("does not shift the day, whatever zone the test machine is in", () => {
+    // The inputs are already wall-clock in the draft's zone. Routing them
+    // through `new Date(...)` would re-read them as UTC and print Oct 2 for a
+    // viewer west of Greenwich.
+    expect(formatScheduledDate("2026-10-03", "00:00")).toContain("Oct 3");
+  });
+
+  it("returns the raw value for input it cannot parse", () => {
+    expect(formatScheduledDate("not-a-date", "19:00")).toBe("not-a-date");
+    expect(formatScheduledDate("2026-13-01", "19:00")).toBe("2026-13-01");
+  });
+});
+
+describe("formatTimeZoneName", () => {
+  it("names the city and its current abbreviation", () => {
+    expect(formatTimeZoneName("America/New_York")).toMatch(/^New York \((EDT|EST)\)$/);
+  });
+
+  it("underscores become spaces", () => {
+    expect(formatTimeZoneName("America/Los_Angeles")).toContain("Los Angeles");
+  });
+
+  it("falls back to the readable half for an unknown zone", () => {
+    // Intl throws on an unrecognised identifier rather than returning anything.
+    expect(formatTimeZoneName("Mars/Olympus_Mons")).toBe("Olympus Mons");
   });
 });
