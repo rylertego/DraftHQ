@@ -35,7 +35,7 @@ import {
 import { formatScheduledDate, formatTimeZoneName, localTimeZone, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
 import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
-import { moveDraftTeam } from "@/lib/teamSetupLogic";
+import { moveDraftTeam, reorderDraftTeams } from "@/lib/teamSetupLogic";
 import { supabase } from "@/lib/supabase";
 import { getLeagueBranding, inviteLeagueMember } from "@/lib/leagueApi";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
@@ -207,6 +207,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   // comes from instead of offering a second place to set it. Null for a
   // standalone draft, which has no league to inherit from.
   const [leagueTeamCount, setLeagueTeamCount] = useState<number | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dropIndex, setDropIndex] = useState<number | null>(null);
 
   // Publishes this toolbar's height, the same way AccountNav publishes its own,
   // so the readiness sidebar can stack under both without a magic number. The
@@ -383,6 +385,21 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   function moveTeam(index: number, offset: -1 | 1) {
     setTeams((prev) => moveDraftTeam(prev, index, offset));
     setOrderDirty(true);
+  }
+
+  // Native HTML5 drag rather than a drag-and-drop library: this is one vertical
+  // list, and the up/down buttons stay as the keyboard path, so a dependency
+  // would buy nothing that matters here.
+  //
+  // dropIndex is tracked separately from dragIndex so the row under the cursor
+  // can show where the team would land. Both are cleared on dragend, which
+  // fires even when the drop is cancelled.
+  function handleDrop(toIndex: number) {
+    if (dragIndex === null) return;
+    setTeams((prev) => reorderDraftTeams(prev, dragIndex, toIndex));
+    if (dragIndex !== toIndex) setOrderDirty(true);
+    setDragIndex(null);
+    setDropIndex(null);
   }
 
   async function refreshParticipants() {
@@ -1654,13 +1671,31 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       const avatarColor = avatarColors[index % avatarColors.length];
                       const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
 
+                      const isDragging = dragIndex === index;
+                      const isDropTarget = dropIndex === index && dragIndex !== null && dragIndex !== index;
+
                       return (
-                        <div key={team.id}>
+                        <div
+                          key={team.id}
+                          // The row is the drop target, but only the grip starts a
+                          // drag. Making the whole row draggable turns every click
+                          // on a control inside it into an accidental drag.
+                          onDragOver={(e) => {
+                            if (dragIndex === null) return;
+                            e.preventDefault();
+                            setDropIndex(index);
+                          }}
+                          onDrop={(e) => { e.preventDefault(); handleDrop(index); }}
+                          className={isDragging ? "opacity-40" : undefined}
+                        >
                           {/* Collapsed row — div[role=button] so the reorder arrows can be real buttons inside */}
                           <div
                             role="button"
                             tabIndex={0}
-                            className="w-full flex cursor-pointer items-center gap-4 px-5 py-4 text-left hover:bg-slate-800/40 transition-colors"
+                            className={`w-full flex cursor-pointer items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[var(--color-surface-2)] ${
+                              isDropTarget ? "bg-[var(--color-surface-2)]" : ""
+                            }`}
+                            style={isDropTarget ? { boxShadow: `inset 0 2px 0 0 ${primary}` } : undefined}
                             onClick={() => setExpandedTeamId(isExpanded ? null : team.id)}
                             onKeyDown={(e) => {
                               if (e.key === "Enter" || e.key === " ") {
@@ -1669,7 +1704,31 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               }
                             }}
                           >
-                            <span className="w-5 shrink-0 text-sm font-bold text-slate-500 text-center">{index + 1}</span>
+                            {isCommissioner && canManageAssignments && (
+                              <span
+                                draggable
+                                onDragStart={(e) => {
+                                  setDragIndex(index);
+                                  setDropIndex(index);
+                                  e.dataTransfer.effectAllowed = "move";
+                                  // Firefox refuses to start a drag without data set.
+                                  e.dataTransfer.setData("text/plain", team.id);
+                                }}
+                                onDragEnd={() => { setDragIndex(null); setDropIndex(null); }}
+                                // Stops the grip from also toggling the row open.
+                                onClick={(e) => e.stopPropagation()}
+                                aria-hidden="true"
+                                title={`Drag to reorder ${team.name}`}
+                                className="flex h-8 w-4 shrink-0 cursor-grab items-center justify-center text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-text-primary)] active:cursor-grabbing"
+                              >
+                                <svg viewBox="0 0 8 16" fill="currentColor" className="h-4 w-2">
+                                  <circle cx="2" cy="3" r="1.2" /><circle cx="6" cy="3" r="1.2" />
+                                  <circle cx="2" cy="8" r="1.2" /><circle cx="6" cy="8" r="1.2" />
+                                  <circle cx="2" cy="13" r="1.2" /><circle cx="6" cy="13" r="1.2" />
+                                </svg>
+                              </span>
+                            )}
+                            <span className="w-5 shrink-0 text-center text-sm font-bold text-[color:var(--color-text-muted)]">{index + 1}</span>
                             {team.logoUrl ? (
                               // eslint-disable-next-line @next/next/no-img-element
                               <img src={team.logoUrl} alt="" className="h-14 w-14 shrink-0 object-contain" />
