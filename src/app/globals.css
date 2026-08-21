@@ -18,6 +18,10 @@
      worse than one that starts flush and settles. */
   --layout-header-height: 0px;
 
+  /* Same arrangement for the Draft Settings toolbar, which is itself sticky
+     beneath the header. The readiness sidebar stacks under both. */
+  --layout-toolbar-height: 0px;
+
   --color-canvas: #020617;
   --color-shell: #0F172A;
   --color-surface-1: #0F172A;

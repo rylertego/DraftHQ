@@ -232,6 +232,36 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   // standalone draft, which has no league to inherit from.
   const [leagueTeamCount, setLeagueTeamCount] = useState<number | null>(null);
 
+  // Publishes this toolbar's height, the same way AccountNav publishes its own,
+  // so the readiness sidebar can stack under both without a magic number. The
+  // sidebar was pinned at a literal top-[108px] measured against an older
+  // header, and had been sliding under the toolbar ever since the header grew.
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  // Gated on a boolean rather than on `setup` itself: the toolbar does not
+  // exist during the loading return, so a mount-only effect would find a null
+  // ref and never publish — but depending on `setup` would tear the observer
+  // down and back up on every autosave.
+  const hasLoadedSetup = !isLoading && Boolean(setup);
+  useEffect(() => {
+    const el = toolbarRef.current;
+    if (!el) return;
+    const publish = () => {
+      document.documentElement.style.setProperty(
+        "--layout-toolbar-height",
+        `${Math.round(el.getBoundingClientRect().height)}px`
+      );
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      // Nothing else on the page has a toolbar, so leaving a stale height set
+      // would offset whatever renders next.
+      document.documentElement.style.setProperty("--layout-toolbar-height", "0px");
+    };
+  }, [hasLoadedSetup]);
+
   useEffect(() => {
     if (!leagueSlug) return;
     void getLeagueBranding(leagueSlug).then((b) => {
@@ -811,7 +841,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           varying by breakpoint. AccountNav now measures itself and publishes
           --layout-header-height, so this follows whatever the header actually
           is. */}
-      <div className="sticky top-[var(--layout-header-height)] z-30 border-b border-[color:var(--color-border-subtle)] bg-[var(--color-canvas)]/85 backdrop-blur">
+      <div
+        ref={toolbarRef}
+        className="sticky top-[var(--layout-header-height)] z-30 border-b border-[color:var(--color-border-subtle)] bg-[var(--color-canvas)]/85 backdrop-blur"
+      >
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href={backHref}
@@ -964,7 +997,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           </div>
         )}
 
-        <div className={`grid gap-8 ${tab === "settings" ? "lg:grid-cols-[1fr_260px]" : ""}`}>
+        <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
 
           {/* ── Main content ── */}
           <div className="min-w-0">
@@ -2870,12 +2903,26 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
           </div>
 
-          {/* ── Sidebar (desktop only, settings tab only) ── */}
-          <aside className={`hidden lg:sticky lg:top-[108px] lg:self-start ${tab === "settings" ? "lg:block" : ""}`}>
+          {/* ── Sidebar (desktop only) ──
+              Shown on every tab, not just General: it summarises the draft as a
+              whole, and it was the Teams & Order tab where you most wanted to
+              see the team count while rearranging the order.
+
+              The top offset stacks it under the AccountNav header and this
+              page's own sticky toolbar, both of which measure and publish their
+              heights. It was previously a literal 108px measured against an
+              older, shorter header, so the card's heading scrolled up
+              underneath the toolbar. */}
+          <aside
+            className="hidden lg:sticky lg:block lg:self-start"
+            style={{ top: "calc(var(--layout-header-height) + var(--layout-toolbar-height) + 1.5rem)" }}
+          >
             <div className={cardCls}>
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
-              <p className="mt-1 text-sm font-bold text-white">Draft Setup Summary</p>
-              <p className="mt-1 mb-4 text-xs leading-5 text-slate-500">General settings autosave as each control changes. Team order changes are saved from the Teams & Order tab.</p>
+              {/* The paragraph that sat here explained that settings autosave.
+                  It described the mechanism of a form the reader is already
+                  using, above the summary it was pushing down the page. */}
+              <p className="mt-1 mb-4 text-sm font-bold text-white">Draft Setup Summary</p>
 
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5">
                 <div>
