@@ -46,11 +46,11 @@ import { DEFAULT_ROSTER_POSITIONS } from "@/lib/rosterPositions";
 import ClockSettings from "@/components/ClockSettings";
 import {
   CommandButton,
-  CommandPanel,
   CommandStatusBadge,
   commandInputClass,
   commandLabelClass,
 } from "@/components/CommandCenterUI";
+import { Button, Field, Input, Panel, Select, StatusBadge } from "@/components/ui";
 import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
@@ -126,16 +126,6 @@ function DraftMetric({
     </div>
   );
 }
-
-function SectionIntro({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="mb-5">
-      <p className="text-base font-bold text-white">{title}</p>
-      <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">{description}</p>
-    </div>
-  );
-}
-
 
 export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const router = useRouter();
@@ -962,55 +952,55 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {tab === "settings" && (
               <div className="space-y-5">
 
-                <CommandPanel
-                  eyebrow="Core Configuration"
+                <Panel
                   title="Draft Details"
                   description="Name the draft and share the owner join link before draft night."
                 >
 
-                  <div className="grid gap-5 sm:grid-cols-2">
-                    <div>
-                      <label htmlFor="draft-name" className={labelCls}>Draft name</label>
-                      <div className="flex gap-2">
-                        <input
+                  <div className="grid gap-[var(--space-5)] sm:grid-cols-2">
+                    <Field label="Draft name" controlId="draft-name">
+                      <div className="flex gap-[var(--space-2)]">
+                        <Input
                           id="draft-name"
                           ref={nameInputRef}
                           type="text"
                           maxLength={80}
                           disabled={!isCommissioner || isSavingName}
-                          className={inputCls}
                           value={draftName}
                           onChange={(e) => setDraftName(e.target.value)}
                           onBlur={() => { if (isDraftNameDirty) void saveDraftName(); }}
                           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void saveDraftName(); nameInputRef.current?.blur(); } }}
                         />
+                        {/* Blur already saves; this button exists for the mouse
+                            user who wants to see the save happen. It stays
+                            accent-tinted rather than using Button's primary,
+                            because it is a save affordance inside a field, not
+                            the panel's action. */}
                         {isDraftNameDirty && (
                           <button
                             type="button"
                             disabled={isSavingName}
                             onClick={() => void saveDraftName()}
-                            className="shrink-0 rounded-lg px-3 text-xs font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                            className="shrink-0 rounded-[var(--radius-control)] px-[var(--space-3)] text-xs font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
                             style={{ backgroundColor: primary, color: secondary }}
                           >
                             {isSavingName ? "..." : "Save"}
                           </button>
                         )}
                       </div>
-                    </div>
+                    </Field>
 
-                    <div>
-                      <p className={labelCls}>Join code</p>
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span className="max-w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 font-mono text-sm font-bold tracking-[0.18em] text-white sm:text-lg sm:tracking-[0.25em]">
+                    <Field label="Join code" controlId="draft-join-code">
+                      <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+                        <span
+                          id="draft-join-code"
+                          className="max-w-full rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-3)] py-[var(--space-2)] font-mono text-sm font-bold tracking-[0.18em] text-[color:var(--color-text-primary)] sm:text-lg sm:tracking-[0.25em]"
+                        >
                           {draft.joinCode}
                         </span>
-                        <button
-                          type="button"
-                          onClick={copyJoinLink}
-                          className="rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700 transition-colors"
-                        >
+                        <Button variant="secondary" onClick={copyJoinLink}>
                           Copy link
-                        </button>
+                        </Button>
                         <a
                           href={joinUrl}
                           target="_blank"
@@ -1021,23 +1011,20 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           Open ↗
                         </a>
                       </div>
-                    </div>
+                    </Field>
                   </div>
-                </CommandPanel>
+                </Panel>
 
-                <div className={cardCls}>
-                  <SectionIntro
-                    title="Draft Format"
-                    description="Control the team count, number of rounds, rankings profile, draft style, pick clock, and scheduled start time."
-                  />
+                <Panel
+                  title="Draft Format"
+                  description="Set the team count, number of rounds, and the rankings profile players are drafted against."
+                >
 
-                  <div className="grid gap-5 sm:grid-cols-3 mb-5">
-                    <div>
-                      <label className={labelCls}>Teams</label>
-                      <div className="flex items-center gap-2">
-                        <select
+                  <div className="mb-[var(--space-5)] grid gap-[var(--space-5)] sm:grid-cols-3">
+                    <Field label="Teams" controlId="draft-team-count">
+                      <div className="flex items-center gap-[var(--space-2)]">
+                        <Select
                           disabled={!isCommissioner || isSavingTeamCount}
-                          className="w-full disabled:opacity-50"
                           value={teamCount}
                           onChange={(e) => {
                             const val = Number(e.target.value);
@@ -1057,16 +1044,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           {Array.from({ length: 23 }, (_, i) => i + 2).map((n) => (
                             <option key={n} value={n}>{n} teams</option>
                           ))}
-                        </select>
-                        {isSavingTeamCount && <span className="shrink-0 text-xs text-slate-500">Saving...</span>}
+                        </Select>
+                        {isSavingTeamCount && <span className="shrink-0 text-xs text-[color:var(--color-text-muted)]">Saving...</span>}
                       </div>
-                    </div>
-                    <div>
-                      <label className={labelCls}>Rounds</label>
-                      <div className="flex items-center gap-2">
-                        <select
+                    </Field>
+                    <Field label="Rounds" controlId="draft-rounds">
+                      <div className="flex items-center gap-[var(--space-2)]">
+                        <Select
                           disabled={!isCommissioner || isSavingRounds}
-                          className="w-full disabled:opacity-50"
                           value={rounds}
                           onChange={(e) => {
                             const val = Number(e.target.value);
@@ -1083,15 +1068,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           {Array.from({ length: 50 }, (_, i) => i + 1).map((n) => (
                             <option key={n} value={n}>{n} rounds</option>
                           ))}
-                        </select>
-                        {isSavingRounds && <span className="shrink-0 text-xs text-slate-500">Saving...</span>}
+                        </Select>
+                        {isSavingRounds && <span className="shrink-0 text-xs text-[color:var(--color-text-muted)]">Saving...</span>}
                       </div>
-                    </div>
-                    <div>
-                      <label className={labelCls}>Player Rankings</label>
-                      <select
+                    </Field>
+                    <Field label="Player Rankings" controlId="draft-scoring-type">
+                      <Select
                         disabled={!isCommissioner}
-                        className="w-full disabled:opacity-50"
                         value={scoringType}
                         onChange={(e) => {
                           const val = e.target.value as typeof scoringType;
@@ -1106,21 +1089,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         <option value="ppr">PPR</option>
                         <option value="half_ppr">Half-PPR</option>
                         <option value="superflex">Superflex</option>
-                      </select>
-                    </div>
+                      </Select>
+                    </Field>
                   </div>
+                </Panel>
 
-                  <hr className="mb-5 border-slate-800" />
-
-                  <div id="draft-date-section" className="scroll-mt-6">
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className={labelCls} style={{ marginBottom: 0 }}>Draft style</p>
-                      {fromDraft && (
-                        <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                          Locked during draft
-                        </span>
-                      )}
-                    </div>
+                <Panel
+                  title="Draft Style"
+                  description="How picks are made. Only regular snake drafts are supported today."
+                  actions={fromDraft ? <StatusBadge>Locked during draft</StatusBadge> : undefined}
+                >
+                  <div>
                     <div className={`space-y-2 ${fromDraft ? "pointer-events-none opacity-50" : ""}`}>
                       {/* Regular / Snake — active */}
                       <div className="flex items-start gap-3 rounded-xl border px-4 py-3" style={{ borderColor: primary + "55", backgroundColor: primary + "15" }}>
@@ -1128,62 +1107,64 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           <div className="h-2 w-2 rounded-full" style={{ backgroundColor: primary }} />
                         </div>
                         <div className="flex-1">
-                          <p className="text-sm font-semibold text-white">Regular</p>
-                          <p className="text-xs text-slate-500">Teams take turns selecting players (snake/serpentine order).</p>
+                          <p className="text-sm font-semibold text-[color:var(--color-text-primary)]">Regular</p>
+                          <p className="text-xs text-[color:var(--color-text-muted)]">Teams take turns selecting players (snake/serpentine order).</p>
                         </div>
                       </div>
                       {/* Auction — coming soon */}
-                      <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 opacity-50 cursor-not-allowed">
-                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-slate-600" />
+                      <div className="flex cursor-not-allowed items-start gap-[var(--space-3)] rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)] opacity-50">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--color-border-strong)]" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-400">Auction</p>
-                            <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coming soon</span>
+                            <p className="text-sm font-semibold text-[color:var(--color-text-secondary)]">Auction</p>
+                            <StatusBadge>Coming soon</StatusBadge>
                           </div>
-                          <p className="text-xs text-slate-600">Teams bid on players during nominations.</p>
+                          <p className="text-xs text-[color:var(--color-text-muted)]">Teams bid on players during nominations.</p>
                         </div>
                       </div>
                       {/* Combo — coming soon */}
-                      <div className="flex items-start gap-3 rounded-xl border border-slate-800 bg-slate-900/40 px-4 py-3 opacity-50 cursor-not-allowed">
-                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-slate-600" />
+                      <div className="flex cursor-not-allowed items-start gap-[var(--space-3)] rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)] opacity-50">
+                        <div className="mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded-full border-2 border-[color:var(--color-border-strong)]" />
                         <div className="flex-1">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-semibold text-slate-400">Combo / Half-and-Half</p>
-                            <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-400">Coming soon</span>
+                            <p className="text-sm font-semibold text-[color:var(--color-text-secondary)]">Combo / Half-and-Half</p>
+                            <StatusBadge>Coming soon</StatusBadge>
                           </div>
-                          <p className="text-xs text-slate-600">Auction rounds followed by regular snake rounds.</p>
+                          <p className="text-xs text-[color:var(--color-text-muted)]">Auction rounds followed by regular snake rounds.</p>
                         </div>
                       </div>
                     </div>
                   </div>
+                </Panel>
 
-                  <hr className="my-5 border-slate-800" />
-
+                <Panel
+                  title="Pick Clock"
+                  description="How long each team has to pick, how many extensions they get, and what happens when the clock runs out."
+                >
                   <div>
-                    <p className={labelCls}>Clock settings</p>
                     <ClockSettings
                       draft={draft}
                       disabled={isSavingClock}
                       onSave={(s) => void saveClockSettings(s)}
                     />
-                    {isSavingClock && <p className="mt-2 text-xs text-slate-500">Saving...</p>}
+                    {isSavingClock && <p className="mt-[var(--space-2)] text-xs text-[color:var(--color-text-muted)]">Saving...</p>}
                   </div>
+                </Panel>
 
-                  <hr className="my-5 border-slate-800" />
-
-                  <div>
-                    <div className="flex items-center gap-2 mb-1">
-                      <p className={labelCls} style={{ marginBottom: 0 }}>Draft date</p>
-                      <span className="mb-1.5 inline-flex h-4 w-4 cursor-help items-center justify-center rounded-full border border-slate-600 text-[10px] text-slate-400" title="Optional — set a date/time to share with team owners">?</span>
-                    </div>
-                    <p className="mb-3 text-xs text-slate-500">Optional — set a date/time to share with owners.</p>
-                    <div className="grid gap-4 sm:grid-cols-3">
-                      <div>
-                        <label className={labelCls}>Date</label>
-                        <input
+                {/* The hover "?" that used to sit beside this heading said
+                    exactly what the description says, so it was a tooltip no
+                    one needed to open. */}
+                <Panel
+                  id="draft-date-section"
+                  title="Draft Date"
+                  description="Optional — set a date and time to share with owners."
+                >
+                  <div className="scroll-mt-6">
+                    <div className="grid gap-[var(--space-4)] sm:grid-cols-3">
+                      <Field label="Date" controlId="draft-scheduled-date">
+                        <Input
                           type="date"
                           disabled={!isCommissioner || isSavingSchedule}
-                          className={inputCls}
                           value={scheduledDate}
                           onChange={(e) => setScheduledDate(e.target.value)}
                           onBlur={() => {
@@ -1196,13 +1177,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               .finally(() => setIsSavingSchedule(false));
                           }}
                         />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Time</label>
-                        <input
+                      </Field>
+                      <Field label="Time" controlId="draft-scheduled-time">
+                        <Input
                           type="time"
                           disabled={!isCommissioner || isSavingSchedule || !scheduledDate}
-                          className={inputCls}
                           value={scheduledTime}
                           onChange={(e) => setScheduledTime(e.target.value)}
                           onBlur={() => {
@@ -1215,12 +1194,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               .finally(() => setIsSavingSchedule(false));
                           }}
                         />
-                      </div>
-                      <div>
-                        <label className={labelCls}>Timezone</label>
-                        <select
+                      </Field>
+                      <Field label="Timezone" controlId="draft-scheduled-timezone">
+                        <Select
                           disabled={!isCommissioner || isSavingSchedule}
-                          className="w-full disabled:opacity-50"
                           value={scheduledTimezone}
                           onChange={(e) => {
                             setScheduledTimezone(e.target.value);
@@ -1249,13 +1226,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           ].map((tz) => (
                             <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
                           ))}
-                        </select>
-                      </div>
+                        </Select>
+                      </Field>
                     </div>
                     {scheduledDate && (
                       <button
                         type="button"
-                        className="mt-2 text-xs text-slate-500 hover:text-red-400 transition-colors"
+                        className="mt-[var(--space-2)] text-xs text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-danger-text)]"
                         onClick={() => {
                           setScheduledDate(""); setScheduledTime("");
                           if (!draftId || !setup) return;
@@ -1266,13 +1243,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         Clear date
                       </button>
                     )}
-                    {isSavingSchedule && <p className="mt-1 text-xs text-slate-500">Saving...</p>}
+                    {isSavingSchedule && <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">Saving...</p>}
                   </div>
-                </div>
+                </Panel>
 
                 {/* ── Roster Positions ── */}
-                <CommandPanel
-                  eyebrow="Roster Model"
+                <Panel
                   title="Roster Positions"
                   description="Choose which positions exist and how many players can be rostered at each slot."
                 >
@@ -1381,11 +1357,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </svg>
                     {showAllPositions ? "Show fewer positions" : "Show more positions"}
                   </button>
-                </CommandPanel>
+                </Panel>
 
                 {/* ── Visibility & extras ── */}
-                <CommandPanel
-                  eyebrow="Advanced"
+                <Panel
                   title="Visibility & Extras"
                   description="Optional controls that affect what owners see and how special draft-night moments behave."
                 >
@@ -1531,7 +1506,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </div>
 
                   </div>
-                </CommandPanel>
+                </Panel>
 
               </div>
             )}
