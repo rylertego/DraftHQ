@@ -44,11 +44,6 @@ import { fetchAnnouncerClipUrl, getStoredElevenLabsKey, listElevenLabsVoices, st
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
 import { DEFAULT_ROSTER_POSITIONS } from "@/lib/rosterPositions";
 import ClockSettings from "@/components/ClockSettings";
-import {
-  CommandButton,
-  CommandStatusBadge,
-  commandInputClass,
-} from "@/components/CommandCenterUI";
 import { Alert, Button, Checkbox, Field, Input, Panel, Select, StatusBadge, Textarea } from "@/components/ui";
 import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
@@ -700,8 +695,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     { id: "audio", label: "Audio & Presentation" },
   ];
 
-  const inputCls = commandInputClass;
-  const cardCls = "rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]";
 
   return (
     <>
@@ -866,7 +859,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     disagreeing about that is worse than either choice. The
                     "next setup requirement" line below states what to do.
                     Read Only stays: it is an exception, not a status. */}
-                {!isCommissioner && <CommandStatusBadge label="Read Only" tone="neutral" />}
+                {!isCommissioner && <StatusBadge>Read Only</StatusBadge>}
               </div>
               <h1 className="mt-3 text-3xl font-black tracking-tight text-white sm:text-4xl">{draft.name}</h1>
               <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-400">
@@ -878,19 +871,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 </p>
               )}
               <div className="mt-5 flex flex-wrap gap-3">
-                <CommandButton
+                <button
                   type="button"
-                  variant="primary"
                   onClick={handlePrimaryAction}
                   disabled={isSaving}
+                  className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-control)] px-5 py-3 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
                   style={{ backgroundColor: primary, color: secondary }}
                 >
                   {isSaving ? "Saving..." : primaryActionLabel}
-                </CommandButton>
+                </button>
                 {fromDraft && backToDraftHref && (
                   <Link
                     href={backToDraftHref}
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-5 py-3 text-sm font-bold text-slate-200 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                    className="inline-flex min-h-11 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-5 py-3 text-sm font-bold text-[color:var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-3)]"
                   >
                     Back to Draft
                   </Link>
@@ -2145,25 +2138,32 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {/* AUDIO / VIDEO TAB */}
             {tab === "audio" && (
               <div className="space-y-5">
-                <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-                  <div className="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                      <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Broadcast Package</p>
-                      <h2 className="mt-1 text-base font-bold text-white">Audio & Presentation</h2>
-                      <p className="mt-1 max-w-3xl text-sm leading-6 text-slate-400">Tune draft-night sounds, announcer voice, team walk-up music, and celebration moments without losing operational clarity.</p>
-                    </div>
-                    <CommandStatusBadge label={settingsSaveState === "saving" ? "Saving" : settingsSaveState === "saved" ? "Saved" : "Auto Save"} tone={settingsSaveState === "saving" ? "warning" : settingsSaveState === "saved" ? "complete" : "neutral"} />
-                  </div>
-                </div>
+                <Panel
+                  title="Audio & Presentation"
+                  description="Tune draft-night sounds, announcer voice, team walk-up music, and celebration moments without losing operational clarity."
+                  actions={
+                    <StatusBadge status={settingsSaveState === "saved" ? "success" : "neutral"} dot={settingsSaveState === "saving"}>
+                      {settingsSaveState === "saving" ? "Saving" : settingsSaveState === "saved" ? "Saved" : "Autosaves"}
+                    </StatusBadge>
+                  }
+                >
+                  {/* Everything on this tab writes on change; the badge is the
+                      only report of that, so the panel exists to carry it. */}
+                  <p className="text-sm text-[color:var(--color-text-secondary)]">
+                    Changes here save as you make them.
+                  </p>
+                </Panel>
 
                 {/* ── Announcer Voice ── */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Announcer</p>
-                  <p className="mt-1 text-base font-bold text-white">Pick Announcements</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">
-                    Choose the voice used for pick announcements.
-                    {isAiAnnouncerEnabled() && " AI announcers are generated in the cloud and sound the same on every device."}
-                  </p>
+                <Panel
+                  title="Pick Announcements"
+                  description={
+                    <>
+                      Choose the voice used for pick announcements.
+                      {isAiAnnouncerEnabled() && " AI announcers are generated in the cloud and sound the same on every device."}
+                    </>
+                  }
+                >
                   <div className="flex items-center gap-3">
                     <select
                       disabled={!isCommissioner}
@@ -2318,13 +2318,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     )}
                   </div>
                   )}
-                </div>
+                </Panel>
 
                 {/* ── Draft Presentation ── */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Presentation Cues</p>
-                  <p className="mt-1 text-base font-bold text-white">Draft Presentation</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Configure pick announcements, draft start audio, and future player-video moments.</p>
+                <Panel
+                  title="Draft Presentation"
+                  description="Configure pick announcements, draft start audio, and future player-video moments."
+                >
 
                   <div className="space-y-5">
                     {/* Pick is in toggle + custom SFX */}
@@ -2501,13 +2501,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <span className="rounded-full border border-slate-700 bg-slate-800 px-2.5 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">Coming soon</span>
                     </div>
                   </div>
-                </div>
+                </Panel>
 
                 {/* ── Walk-Up Music Behavior ── */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Walk-Up Music</p>
-                  <p className="mt-1 text-base font-bold text-white">Between-Turn Behavior</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Control what happens to a team&apos;s walk-up song when they return to the clock in a later round.</p>
+                <Panel
+                  title="Between-Turn Behavior"
+                  description="Control what happens to a team&apos;s walk-up song when they return to the clock in a later round."
+                >
 
                   <div className="space-y-2">
                     {([
@@ -2538,13 +2538,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </label>
                     ))}
                   </div>
-                </div>
+                </Panel>
 
                 {/* ── End of Round Slide ── */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Round Breaks</p>
-                  <p className="mt-1 text-base font-bold text-white">End of Round Slide</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Show a recap at the end of each round before the next round begins.</p>
+                <Panel
+                  title="End of Round Slide"
+                  description="Show a recap at the end of each round before the next round begins."
+                >
 
                   <label className="flex cursor-pointer items-center gap-3 mb-4">
                     <input
@@ -2617,13 +2617,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </label>
                     </div>
                   )}
-                </div>
+                </Panel>
 
                 {/* Custom Sound Effects */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Commissioner Controls</p>
-                  <p className="mt-1 text-base font-bold text-white">Custom Sound Effects</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">Audio clips played when SFX 1 or SFX 2 are clicked on the pick reveal card. Upload an MP3, WAV, or OGG, max 8 MB.</p>
+                <Panel
+                  title="Custom Sound Effects"
+                  description="Audio clips played when SFX 1 or SFX 2 are clicked on the pick reveal card. Upload an MP3, WAV, or OGG, max 8 MB."
+                >
 
                   <div className="space-y-4">
                     {([
@@ -2721,15 +2721,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </div>
                     ))}
                   </div>
-                </div>
+                </Panel>
 
                 {/* Awards Ceremony Music */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Finale</p>
-                  <p className="mt-1 text-base font-bold text-white">Awards Ceremony Music</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">
-                    The song that plays during the end-of-draft awards ceremony. Pick anything from YouTube, or leave the DraftHQ default.
-                  </p>
+                <Panel
+                  title="Awards Ceremony Music"
+                  description="The song that plays during the end-of-draft awards ceremony. Pick anything from YouTube, or leave the DraftHQ default."
+                >
 
                   {awardsSong ? (
                     <div className="flex items-center gap-3 rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2.5">
@@ -2782,13 +2780,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       {awardsSong ? "Change song" : "Choose a song"}
                     </button>
                   )}
-                </div>
+                </Panel>
 
                 {/* Voice Reactions */}
-                <div className={cardCls}>
-                  <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Reactions</p>
-                  <p className="mt-1 text-base font-bold text-white">Voice Reactions</p>
-                  <p className="mt-1 mb-4 text-sm leading-6 text-slate-400">TTS phrases spoken when reaction buttons are clicked. One phrase is chosen at random.</p>
+                <Panel
+                  title="Voice Reactions"
+                  description="TTS phrases spoken when reaction buttons are clicked. One phrase is chosen at random."
+                >
 
                   <div className="grid gap-4 sm:grid-cols-2">
                     {/* Positive */}
@@ -2797,16 +2795,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <div className="space-y-2">
                         {posReactions.map((phrase, i) => (
                           <div key={i} className="flex gap-2">
-                            <input
+                            <Input
                               type="text"
                               value={phrase}
                               onChange={(e) => setPosReactions((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
-                              className={inputCls}
+                              aria-label={`Positive reaction phrase ${i + 1}`}
                               disabled={!isCommissioner}
                             />
                             <button type="button" title="Preview"
                               onClick={() => { const u = new SpeechSynthesisUtterance(phrase); window.speechSynthesis?.speak(u); }}
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[color:var(--color-text-secondary)] transition-colors hover:text-[color:var(--color-text-primary)]">
                               <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M2 2l8 4-8 4z"/></svg>
                             </button>
                           </div>
@@ -2820,16 +2818,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <div className="space-y-2">
                         {negReactions.map((phrase, i) => (
                           <div key={i} className="flex gap-2">
-                            <input
+                            <Input
                               type="text"
                               value={phrase}
                               onChange={(e) => setNegReactions((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
-                              className={inputCls}
+                              aria-label={`Negative reaction phrase ${i + 1}`}
                               disabled={!isCommissioner}
                             />
                             <button type="button" title="Preview"
                               onClick={() => { const u = new SpeechSynthesisUtterance(phrase); window.speechSynthesis?.speak(u); }}
-                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 hover:text-white transition-colors">
+                              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[color:var(--color-text-secondary)] transition-colors hover:text-[color:var(--color-text-primary)]">
                               <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M2 2l8 4-8 4z"/></svg>
                             </button>
                           </div>
@@ -2857,7 +2855,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       {isSavingAudio ? "Saving…" : "Save Reactions"}
                     </button>
                   )}
-                </div>
+                </Panel>
 
 
               </div>
@@ -2890,12 +2888,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               maxHeight: `calc(100vh - ${SIDEBAR_STICKY_OFFSET} - 1.5rem)`,
             }}
           >
-            <div className={cardCls}>
-              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
+            {/* Not a Panel: Panel's header is a bordered band, and this card is
+                a single block whose heading reads as part of the content. */}
+            <div className="rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)] p-[var(--space-4)]">
+              <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[color:var(--color-text-muted)]">Readiness</p>
               {/* The paragraph that sat here explained that settings autosave.
                   It described the mechanism of a form the reader is already
                   using, above the summary it was pushing down the page. */}
-              <p className="mt-1 mb-4 text-sm font-bold text-white">Draft Setup Summary</p>
+              <p className="mt-1 mb-4 text-sm font-bold text-[color:var(--color-text-primary)]">Draft Setup Summary</p>
 
               <dl className="grid grid-cols-2 gap-x-4 gap-y-3.5">
                 <div>
