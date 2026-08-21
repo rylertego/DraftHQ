@@ -8,7 +8,7 @@
 > and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
 > whose checkboxes are the progress ledger for the visual-system work.
 
-_Last updated: 2026-08-19._
+_Last updated: 2026-08-20._
 _Everything is merged to `main`. No long-lived feature branch; work on short
 branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
@@ -20,10 +20,10 @@ branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
 ## Read this first
 
-**Handing back to Codex on 2026-08-19.** Codex ran out of weekly quota mid-task
-on 2026-08-13; everything between then and now is Claude's. Start with the
-**2026-08-19** section below — it covers where the plan stands, the deviations
-taken, and what has and has not been verified.
+**Last worked 2026-08-20 by Claude.** Codex ran out of weekly quota mid-task on
+2026-08-13 and has not run since; everything after that date is Claude's. Start
+with the **2026-08-20** section below — it covers where the plan stands, the
+deviations taken, and what has and has not been verified.
 
 Both agents' commits carry the same git identity (`Tyler`), so authorship cannot
 be read from `git log`. The commit-message style separates them:
@@ -50,6 +50,150 @@ visual-system work:
 Claude cannot see Codex's session, reasoning, or subagents — only what Codex
 writes to disk or git. The reverse is presumably also true. **Anything one agent
 needs the other to know has to land in a file.**
+
+---
+
+## 2026-08-20 — Phase 5 complete, team profile moved to My Team
+
+Draft Settings is fully migrated (Tasks 16 and 17), and team identity moved out
+of it into My Team. `TeamSetupForm` no longer imports `CommandCenterUI` at all.
+
+### Draft Settings is off the old design system
+
+All three tabs now use `Panel` / `Field` / `Input` / `Select` / `Checkbox` /
+`Textarea` / `Button` / `Alert` / `StatusBadge`. The uppercase eyebrows are gone,
+matching League Settings.
+
+Panels were split rather than transcribed. "Draft Format" had been one panel
+holding four unrelated concerns separated by `<hr>`s, each titled by a
+field-label class — an uppercase micro-label doing a heading's job at the same
+weight as the field labels under it. It is now four panels: Draft Format, Draft
+Style, Pick Clock, Draft Date.
+
+Three sets of metric tiles were deleted because they restated their neighbours:
+the Draft Settings hero (Teams/Rounds/Pick Clock duplicated the readiness
+sidebar; only Draft Date was unique, and it moved into the sidebar), and two of
+the three tiles above the team list ("Order: Unsaved" restated the Save order
+button directly above it, "Locked State" restated the banner directly below it).
+
+### Bugs found while migrating, not by looking for them
+
+- **"Schedule Draft" scrolled to the wrong section.** The readiness action
+  scrolls to `#draft-date-section`, but that id sat on the draft *style* block,
+  landing the commissioner two sections above the date fields. Splitting the
+  panels put the id where its name always claimed it was.
+- **The readiness sidebar's "Draft date" row printed the timezone.** It read
+  "America/New York" and never showed a date. Introduced in `aee9c48`, fixed the
+  same day.
+- **`.ui-field` stretched its own rows.** It is a grid, and fields sit in grid
+  rows that stretch every cell to the tallest — so a field with a description
+  made its neighbours inflate their label and control rows to fill the gap. On
+  Draft Format the three labels aligned but the controls sat at 625/639/646px.
+  Two identical `Select`s disagreed with each other. Fixed in the primitive with
+  `align-content: start`, so it is fixed everywhere, League Settings included.
+- **The readiness sidebar ran off the bottom of the screen.** Pinning is not
+  enough: header + toolbar take ~180px before the card starts and the card is
+  ~370px, so on a laptop viewport its lower half sat below the fold with no way
+  to reach it — a sticky element does not move when the page scrolls. It now
+  caps at the remaining viewport and scrolls internally.
+- **Owners could not edit their own team.** Every field in the expanded team
+  panel was `disabled={!isCommissioner}`, while the image uploads and Save button
+  beside them used `canEditTeam`. An assigned owner saw a panel where they could
+  replace the team logo but not type the team's name, and a Save button with
+  nothing left to save. The database had been owner-aware since `20260819000000`
+  — the UI was refusing what Postgres was willing to accept.
+
+### The magic-number lesson, third occurrence
+
+The sidebar was pinned at a literal `top-[108px]` measured against an older,
+shorter header — the same coupling that had already broken the sticky tab bar
+when the nav logo became responsive. Rather than swap one literal for another,
+the Draft Settings toolbar now measures itself and publishes
+`--layout-toolbar-height` alongside `AccountNav`'s `--layout-header-height`.
+**Nothing on this page hardcodes a header offset any more.** If you add another
+sticky layer, publish its height the same way.
+
+The measuring effect is gated on a `hasLoadedSetup` boolean, not on `setup`: the
+toolbar does not exist during the loading return, so a mount-only effect finds a
+null ref and never publishes, while depending on `setup` rebuilds the
+ResizeObserver on every autosave.
+
+### Team identity moved to My Team
+
+**The plumbing already existed and did not need rebuilding.**
+`league_team_seasons` joins `league_team_id` to `draft_team_id`, and the trigger
+`sync_league_team_to_draft_teams` has pushed name, short_name, logo_url,
+owner_name, owner_photo_url and walk_up_songs down into linked draft teams since
+`20260812000000`. `teams.walk_up_songs_overridden` protects a per-draft song list.
+**`teams` has no `league_team_id` column** — the join table is the only link.
+
+What moved: `tts_name` and `last_season_pick_player` were added to
+`league_teams`, and the trigger widened to carry them plus the `last_season_*`
+columns it already had but never synced. My Team edits them; the draft inherits.
+
+What deliberately did **not** move: **autodraft and pre-draft notes**. They were
+moved on 2026-08-20 and moved back the same day, at the user's call — both are
+decisions about one draft night rather than facts about a franchise, and
+autodraft left on in a league profile would silently arm itself for every future
+draft. Their columns are dropped from `league_teams`, so each field still has
+exactly one home.
+
+Also fixed a real hole in `materialize_league_season`: it resolved each draft
+team to a league team by last season's slot, then by offset into
+`league_teams`, and the link insert sat inside `if v_league_team_id is not null`.
+When both lookups missed, that draft team was skipped with no error and no link.
+Reachable today — a league with 8 franchises creating a 12-team draft passes the
+existing guard (which only rejects the opposite case) and orphans positions 9-12.
+Since the link is the only thing carrying a My Team edit into a draft, those
+teams would have silently stopped syncing. A miss now creates the franchise.
+
+### Draft order is drag-and-drop
+
+The grip is the drag handle; the row is the drop target. Making the whole row
+draggable turns every click on a control inside it into a maybe-drag, which is
+what would have made putting autodraft and notes back on this screen a problem.
+The up/down buttons stay as the keyboard and assistive-technology path — native
+HTML5 drag has none — which is also why this needs no drag-and-drop dependency.
+
+`reorderDraftTeams` is a new pure helper, not a reuse of `moveDraftTeam`: a swap
+and a move differ. Drop team 1 onto position 5 with a swap and teams 2-4 stay put
+while team 5 jumps to the top. Six tests, one walking every from/to pair.
+
+### Migrations applied 2026-08-20 (all applied to production)
+
+| Version | What |
+| --- | --- |
+| `20260821022246` | `league_teams` gains tts_name / autodraft / pre_draft_notes / last_season_pick_player; sync trigger widened |
+| `20260821022809` | `materialize_league_season` links every draft team |
+| `20260821022934` | `update_my_league_team` carries the full profile |
+| `20260821023723` | autodraft + pre_draft_notes return to the draft; both columns dropped from `league_teams` |
+
+Versions are UTC, hence 08-21 filenames for 08-20 work. **Local filenames were
+renamed to match the recorded versions** — `apply_migration` assigns its own
+timestamp, and a mismatched filename makes `db push` re-run the migration.
+
+**`create or replace` does not replace a function when you add a parameter** — it
+creates a second overload, and every existing call becomes ambiguous.
+`update_my_league_team` is dropped and recreated by exact signature, both
+statements in one transaction. `20260821023723` also had to update
+`materialize_league_season` and the sync trigger *before* dropping the columns:
+plpgsql resolves column references at execution, so dropping first leaves both
+functions compiling fine and failing the next time anyone creates a season.
+
+### Not verified
+
+- **The drag itself has never been exercised with a pointer.** Code is
+  typechecked, linted, built, and unit-tested; the interaction is not confirmed.
+- The dev server on `:3000` stopped hydrating `/teams` — no React fiber, no
+  console errors, all chunks 200. **It is a stale Turbopack route cache, not a
+  code fault: the same commit served from `next start` hydrates correctly**, and
+  it reproduces with the drag change stashed. `rm -rf .next && npm run dev`.
+  This is the second stale-dev-server incident; the first served a stale CSS
+  bundle across three restarts and is recorded in the plan's Task 6 note.
+  **Suspect the dev server before the code.**
+- The owner-side view of the permission fix still has not been exercised against
+  production. It needs a second account.
+- Everything on Draft Settings and My Team has only been seen at desktop width.
 
 ---
 
@@ -970,17 +1114,23 @@ not enforce draft rules. Do not use localStorage as authoritative draft state.
    the right zone; an owner saving My Team and the row actually changing; and no
    kicker topping the pick grades at the end.
 2. **Finish the visual-system plan** —
-   `docs/superpowers/plans/2026-08-13-global-visual-system.md`. **Phases 0-4 are
-   complete; resume at Task 16** (Draft Settings shell and General controls).
-   That is Phase 5, and it is also the screen most visibly inconsistent with the
-   rest of the site. Its Step 1 marks the draft lifecycle paths — timer, reset —
-   as a stop-and-report gate; treat them that way.
+   `docs/superpowers/plans/2026-08-13-global-visual-system.md`. **Phases 0-5 are
+   complete; resume at Task 18** (draft lobby), which begins Phase 6 — Draft
+   Night. From here on the tasks touch the draft lifecycle itself: timer, picks,
+   realtime. Those are marked as stop-and-report gates in the plan; treat them
+   that way, and do not migrate a live-draft surface without a mock draft to
+   check it against.
 3. **ADP saturation.** Replace the distinct-value guard with a distribution-shape
    check, or normalize ADP against draft size in the grader.
 4. **Export / sync back to Sleeper** — still the biggest strategic gap. The
    companion thesis is import → great draft night → back to your platform, and
    only a CSV download exists.
-5. **Smaller:** make the draft simulation a permanent `scripts/` tool; grader v2
+5. **Finish the Teams tab restructure.** Team editing has moved to My Team and
+   the order list is drag-and-drop, but the expanded per-team editor is still
+   rendered for league drafts. It should be stripped there and kept only for
+   standalone drafts, which have no My Team to move it to. Autodraft and
+   pre-draft notes stay on this screen by design.
+6. **Smaller:** make the draft simulation a permanent `scripts/` tool; grader v2
    construction penalty; `league_events` table so League Activity shows leaves as
    well as joins; logo-dimension warning on upload (now worth doing, since logos
    are finally stored at full resolution); transactional email.

@@ -25,7 +25,8 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 4 — League Operations | 13 | ✅ Desktop complete |
 | 4 — League Operations | 14 | ✅ Desktop complete |
 | 4 — League Operations | 15 | ✅ Desktop complete |
-| 5 — Draft Configuration | 16, 17 | ⬜ Not started |
+| 5 — Draft Configuration | 16 | ✅ Desktop complete |
+| 5 — Draft Configuration | 17 | ✅ Desktop complete |
 | 6–8 | 18–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
@@ -937,19 +938,19 @@ git commit -m "feat: migrate season management"
 - Consumes: Workspace toolbar, settings shell, fields, league actions, confirmation dialog.
 - Produces: General draft configuration and lifecycle controls with unchanged draft behavior.
 
-- [ ] **Step 1: Impact-check `TeamSetupForm`, clock handlers, and reset handlers**
+- [x] **Step 1: Impact-check `TeamSetupForm`, clock handlers, and reset handlers**
 
 Treat high-risk draft lifecycle paths as a stop-and-report gate.
 
-- [ ] **Step 2: Migrate shell and General tab**
+- [x] **Step 2: Migrate shell and General tab**
 
 Keep existing tab names and routing/query behavior. Use compact settings sections, 30px maximum operational title, readable configuration width, and league-scoped Save/Configure actions.
 
-- [ ] **Step 3: Migrate clock and reset controls**
+- [x] **Step 3: Migrate clock and reset controls**
 
 Keep timer duration, pause/expiry behavior, validation, permissions, and reset confirmation exact. Reset remains danger even with a league accent.
 
-- [ ] **Step 4: Verify state and commit**
+- [x] **Step 4: Verify state and commit**
 
 Check draft absent/created/scheduled/active/completed, validation, unsaved/saving/saved/failure, and reset confirmation. Run phase gate.
 
@@ -970,17 +971,17 @@ git commit -m "feat: migrate draft configuration shell"
 - Consumes: Wide data surfaces, compact rows, form controls, overlays, league accent.
 - Produces: Complete Draft Settings experience across all existing tabs.
 
-- [ ] **Step 1: Impact-check participant, order, audio, and presentation handlers**
+- [x] **Step 1: Impact-check participant, order, audio, and presentation handlers**
 
-- [ ] **Step 2: Migrate Teams and Order**
+- [x] **Step 2: Migrate Teams and Order**
 
 Use wide workspace layouts for team/order management. Keep drag/reorder or existing sequencing behavior, assignments, draft positions, permissions, and all available actions.
 
-- [ ] **Step 3: Migrate Audio and Presentation**
+- [x] **Step 3: Migrate Audio and Presentation**
 
 Use compact controls and honest connection/loading/error states. Preserve search, preview, selection, upload, removal, and playback behavior.
 
-- [ ] **Step 4: Verify all tabs and commit**
+- [x] **Step 4: Verify all tabs and commit**
 
 Browser-check every tab at desktop/mobile, all empty/loading/error states, keyboard controls, and retained values after navigation. Run phase gate.
 
