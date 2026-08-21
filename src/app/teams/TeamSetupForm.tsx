@@ -874,12 +874,15 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <DraftMetric label="Teams" value={`${namedTeams}/${draft.teamCount}`} detail={`${assignedTeams} assigned`} tone={namedTeams === draft.teamCount ? "complete" : "warning"} />
-              <DraftMetric label="Rounds" value={String(draft.rounds)} detail={`${draft.rounds * draft.teamCount} picks`} />
-              <DraftMetric label="Pick Clock" value={formatClock(draft.pickSeconds)} detail={BEHAVIOR_LABELS[draft.timerBehavior] ?? "Manual"} />
-              <DraftMetric label="Draft Date" value={scheduledDate ? "Set" : "Missing"} detail={scheduledDate ? scheduledTimezone.replace(/_/g, " ") : "Schedule needed"} tone={scheduledDate ? "complete" : "warning"} />
-            </div>
+            {/* The four metric tiles that sat here are gone. Teams, Rounds and
+                Pick Clock were already in the Draft Setup Summary on the same
+                screen — the hero repeated three of six sidebar rows, and the
+                tile's "Nothing happens" detail restated the summary's "On
+                expiry". Draft Date was the only fact unique to the hero, so it
+                moved into the summary rather than being dropped.
+
+                The hero now does what the league command center's does: name
+                the thing and offer the primary action. */}
           </div>
 
           {/* Plain underline tabs, matching League Settings. These were boxed
@@ -2885,6 +2888,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </dd>
                   </div>
                 )}
+                {/* Moved down from the hero, which is where it was the only
+                    fact not already repeated here. */}
+                <div className="col-span-2">
+                  <dt className="text-xs text-slate-500">Draft date</dt>
+                  <dd className="mt-0.5 text-sm font-semibold text-white">
+                    {scheduledDate ? scheduledTimezone.replace(/_/g, " ") : "Not scheduled"}
+                  </dd>
+                </div>
               </dl>
 
               {/* Save state indicator */}
