@@ -812,9 +812,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             League Command
           </Link>
           {isCommissioner && leagueSlug && (
-            <CommandButton type="button" variant="danger" onClick={() => setShowResetDraft(true)} className="min-h-10 px-4 py-2 text-xs">
+            // Same outline treatment as the Reset Draft trigger in the league
+            // command center. This was a solid red block, so the identical
+            // action looked different depending on which screen you opened it
+            // from — and the loud version overstates a control nobody should be
+            // drawn toward. The confirmation dialog it opens is where the
+            // emphasis belongs.
+            <button
+              type="button"
+              onClick={() => setShowResetDraft(true)}
+              className="inline-flex min-h-10 items-center justify-center rounded-xl border border-[color:var(--color-danger)]/30 px-4 text-xs font-bold text-[color:var(--color-danger-border)] transition-colors hover:border-[color:var(--color-danger)]/50 hover:bg-[color-mix(in_srgb,var(--color-danger)_10%,transparent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-danger-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)]"
+            >
               Reset Draft
-            </CommandButton>
+            </button>
           )}
         </div>
       </div>
@@ -872,8 +882,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             </div>
           </div>
 
-          <div className="border-t border-slate-800/80 px-5 py-3">
-            <nav className="grid grid-cols-1 gap-2 sm:grid-cols-3" role="tablist" aria-label="Draft settings sections">
+          {/* Plain underline tabs, matching League Settings. These were boxed
+              cards carrying a second uppercase label — Format / Order /
+              Broadcast — under each name. Two labels per tab restated the same
+              thing, and the boxes read as three buttons rather than one
+              selector, which is why this screen felt unlike the rest of the
+              app. */}
+          <div className="border-t border-[color:var(--color-border-subtle)] px-5">
+            <nav className="flex gap-6" role="tablist" aria-label="Draft settings sections">
               {TABS.map((t) => {
                 const active = tab === t.id;
                 return (
@@ -883,17 +899,21 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setTab(t.id)}
-                    className={`rounded-xl border px-4 py-3 text-left transition-colors ${
+                    className={`group relative py-4 text-sm font-black transition-colors focus-visible:outline-none ${
                       active
-                        ? "border-blue-400/45 bg-blue-500/12 text-white"
-                        : "border-slate-800 bg-slate-950/20 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                        ? "text-[color:var(--color-text-primary)]"
+                        : "text-[color:var(--color-text-muted)] hover:text-[color:var(--color-text-secondary)]"
                     }`}
-                    style={active ? { borderColor: primary + "66", backgroundColor: primary + "16" } : undefined}
                   >
-                    <span className="block text-sm font-black">{t.label}</span>
-                    <span className="block text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">
-                      {t.id === "settings" ? "Format" : t.id === "teams" ? "Order" : "Broadcast"}
-                    </span>
+                    {t.label}
+                    <span
+                      className={`absolute inset-x-0 bottom-0 h-0.5 rounded-full transition-opacity ${
+                        active
+                          ? "opacity-100"
+                          : "opacity-0 group-hover:opacity-40 group-focus-visible:opacity-100"
+                      }`}
+                      style={{ backgroundColor: primary }}
+                    />
                   </button>
                 );
               })}
