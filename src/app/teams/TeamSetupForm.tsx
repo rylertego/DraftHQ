@@ -48,9 +48,8 @@ import {
   CommandButton,
   CommandStatusBadge,
   commandInputClass,
-  commandLabelClass,
 } from "@/components/CommandCenterUI";
-import { Button, Field, Input, Panel, Select, StatusBadge } from "@/components/ui";
+import { Alert, Button, Checkbox, Field, Input, Panel, Select, StatusBadge, Textarea } from "@/components/ui";
 import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
@@ -108,33 +107,6 @@ const BEHAVIOR_LABELS: Record<string, string> = {
   skip: "Skip pick",
   auto_draft: "Auto-draft",
 };
-
-function DraftMetric({
-  label,
-  value,
-  detail,
-  tone = "neutral",
-}: {
-  label: string;
-  value: string;
-  detail?: string;
-  tone?: "neutral" | "ready" | "warning" | "complete";
-}) {
-  const toneClass = {
-    neutral: "text-white",
-    ready: "text-blue-100",
-    warning: "text-amber-100",
-    complete: "text-emerald-100",
-  }[tone];
-
-  return (
-    <div className="min-w-0 rounded-xl bg-slate-950/35 px-4 py-3 ring-1 ring-white/10">
-      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-slate-500">{label}</p>
-      <p className={`mt-1 truncate text-xl font-black tabular-nums ${toneClass}`}>{value}</p>
-      {detail && <p className="mt-1 truncate text-xs text-slate-500">{detail}</p>}
-    </div>
-  );
-}
 
 export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const router = useRouter();
@@ -729,7 +701,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   ];
 
   const inputCls = commandInputClass;
-  const labelCls = commandLabelClass;
   const cardCls = "rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]";
 
   return (
@@ -1610,45 +1581,33 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {/* TEAMS TAB */}
             {tab === "teams" && (
               <div className="space-y-5">
-                <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div>
-                    <p className="text-[11px] font-black uppercase tracking-[0.18em] text-slate-500">Operational Control</p>
-                    <h2 className="mt-1 text-base font-bold text-white">Teams & Draft Order</h2>
-                    <p className="mt-1 max-w-2xl text-sm leading-6 text-slate-400">Assign owners, tune team details, and maintain the live draft order from one compact command list.</p>
-                  </div>
-                  {isCommissioner && (
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={isRefreshing}
-                        className="min-h-10 rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 text-xs font-bold text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800 disabled:opacity-50"
-                        onClick={refreshParticipants}
-                      >
+                <Panel
+                  title="Teams & Draft Order"
+                  description="Assign owners, tune team details, and maintain the live draft order from one compact command list."
+                  actions={isCommissioner ? (
+                    <div className="flex flex-wrap items-center gap-[var(--space-2)]">
+                      <Button variant="secondary" loading={isRefreshing} onClick={refreshParticipants}>
                         {isRefreshing ? "Refreshing..." : "Refresh"}
-                      </button>
-                      <button
-                        type="button"
-                        className="min-h-10 rounded-xl border border-slate-700/80 bg-slate-950/40 px-3 text-xs font-bold text-slate-300 transition-colors hover:border-slate-600 hover:bg-slate-800"
+                      </Button>
+                      <Button
+                        variant="secondary"
                         onClick={() => {
                           setTeams((prev) => [...prev].sort(() => Math.random() - 0.5));
                           setOrderDirty(true);
                         }}
                       >
                         Randomize order
-                      </button>
-                      <button
-                        type="button"
-                        className="min-h-10 rounded-xl border px-3 text-xs font-bold transition-colors hover:bg-slate-800"
-                        style={{ borderColor: primary + "66", color: primary }}
-                        onClick={() => setShowOrderRace(true)}
-                      >
+                      </Button>
+                      <Button variant="tertiary" scope="league" onClick={() => setShowOrderRace(true)}>
                         Draft order race
-                      </button>
+                      </Button>
+                      {/* Keeps its inline accent: this is the tab's primary
+                          action and Button's league scope tints tertiary, not
+                          primary. Same treatment as the other accent CTAs. */}
                       <button
                         type="button"
                         disabled={!orderDirty || savingTeamId === "order"}
-                        className="min-h-10 rounded-xl px-4 text-xs font-black disabled:opacity-40 transition-opacity hover:opacity-90"
+                        className="min-h-10 rounded-[var(--radius-control)] px-4 text-xs font-black transition-opacity hover:opacity-90 disabled:opacity-40"
                         style={{ backgroundColor: primary, color: secondary }}
                         onClick={async () => {
                           setSavingTeamId("order");
@@ -1663,24 +1622,28 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         {savingTeamId === "order" ? "Saving..." : orderDirty ? "Save order" : "Order saved"}
                       </button>
                     </div>
-                  )}
-                  </div>
-                  <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                    <DraftMetric label="Assigned" value={`${assignedTeams}/${teams.length}`} detail="Owner seats" tone={assignedTeams === teams.length ? "complete" : "warning"} />
-                    <DraftMetric label="Order" value={orderDirty ? "Unsaved" : "Saved"} detail="Manual order" tone={orderDirty ? "warning" : "complete"} />
-                    <DraftMetric label="Locked State" value={canManageAssignments ? "Editable" : "Locked"} detail={canManageAssignments ? "Setup controls on" : "Pause to edit"} tone={canManageAssignments ? "complete" : "warning"} />
-                  </div>
-                </div>
+                  ) : undefined}
+                >
+                  {/* One stat, not three. "Order: Unsaved" restated the Save
+                      order button directly above it, and "Locked State: Locked"
+                      restated the banner directly below it — each said the same
+                      thing twice, at twice the size. Owner seats is the only
+                      one of the three that nothing else on the tab reports. */}
+                  <p className="text-sm text-[color:var(--color-text-secondary)]">
+                    <span className="font-black tabular-nums text-[color:var(--color-text-primary)]">
+                      {assignedTeams}/{teams.length}
+                    </span>{" "}
+                    owner seats assigned
+                  </p>
+                </Panel>
 
                 {isCommissioner && !canManageAssignments && (
-                  <div className="rounded-lg border border-amber-800/50 bg-amber-950/30 px-4 py-2 text-sm text-amber-400">
-                    Pause the draft to change team assignments.
-                  </div>
+                  <Alert status="warning">Pause the draft to change team assignments.</Alert>
                 )}
 
                 {/* Accordion team list */}
-                <div className="overflow-hidden rounded-xl border border-slate-800/90 bg-slate-900/72 shadow-[0_18px_50px_rgba(0,0,0,0.22)]">
-                  <div className="divide-y divide-slate-800">
+                <div className="overflow-hidden rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)]">
+                  <div className="divide-y divide-[color:var(--color-border-subtle)]">
                     {teams.map((team, index) => {
                       const owner = setup.participants.find((p) => p.teamId === team.id);
                       const pending = setup.invitations.find((inv) => inv.teamId === team.id && inv.status === "pending");
@@ -1775,38 +1738,36 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                 {/* Left — Team identity */}
                                 <div className="space-y-4">
                                   <div className="flex items-center justify-between">
-                                    <p className="text-sm font-bold text-white">Team identity</p>
-                                    <span className="text-xs text-slate-500">Core details</span>
+                                    <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Team identity</p>
                                   </div>
 
                                   <div className="grid gap-3 sm:grid-cols-2">
-                                    <div>
-                                      <label className={labelCls}>Team name</label>
-                                      <input type="text" disabled={!isCommissioner} className={inputCls} value={team.name} onChange={(e) => updateTeam(team.id, e.target.value)} />
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>Short name</label>
-                                      <input
+                                    <Field label="Team name" controlId={`team-name-${team.id}`}>
+                                      <Input type="text" disabled={!canEditTeam} value={team.name} onChange={(e) => updateTeam(team.id, e.target.value)} />
+                                    </Field>
+                                    <Field label="Short name" controlId={`team-short-${team.id}`}>
+                                      <Input
                                         type="text"
-                                        disabled={!isCommissioner}
+                                        disabled={!canEditTeam}
                                         maxLength={10}
-                                        className={inputCls}
                                         value={team.shortName ?? ""}
                                         placeholder="e.g. Rockets"
                                         onChange={(e) => updateTeamField(team.id, "shortName", e.target.value)}
                                       />
-                                    </div>
+                                    </Field>
                                   </div>
 
                                   <div className="grid gap-3 sm:grid-cols-2">
-                                    <div>
-                                      <label className={labelCls}>Text-to-speech name <span className="normal-case font-normal text-slate-500">(Optional)</span></label>
-                                      <div className="flex gap-2">
-                                        <input
+                                    <Field
+                                      label="Text-to-speech name"
+                                      controlId={`team-tts-${team.id}`}
+                                      description="Optional — how the announcer should pronounce the team."
+                                    >
+                                      <div className="flex gap-[var(--space-2)]">
+                                        <Input
                                           type="text"
-                                          disabled={!isCommissioner}
+                                          disabled={!canEditTeam}
                                           maxLength={60}
-                                          className={inputCls + " flex-1"}
                                           value={team.ttsName ?? ""}
                                           placeholder="Pronunciation for announcer"
                                           onChange={(e) => updateTeamField(team.id, "ttsName", e.target.value)}
@@ -1814,7 +1775,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                         <button
                                           type="button"
                                           title="Preview voice"
-                                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white transition-colors"
+                                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[color:var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
                                           onClick={() => {
                                             if (typeof window === "undefined" || !window.speechSynthesis) return;
                                             window.speechSynthesis.cancel();
@@ -1830,34 +1791,27 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           </svg>
                                         </button>
                                       </div>
-                                    </div>
-                                    <div>
-                                      <label className={labelCls}>Autodraft</label>
-                                      <label className="mt-2 flex cursor-pointer items-center gap-2.5">
-                                        <input
-                                          type="checkbox"
-                                          disabled={!isCommissioner}
-                                          checked={team.autodraft ?? false}
-                                          onChange={(e) => updateTeamField(team.id, "autodraft", e.target.checked)}
-                                          className="h-4 w-4 rounded accent-[var(--color-league-accent)] disabled:opacity-40"
-                                        />
-                                        <span className="text-sm text-slate-300">Auto-pick when on clock</span>
-                                      </label>
-                                    </div>
+                                    </Field>
+                                    <Field label="Autodraft" controlId={`team-autodraft-${team.id}`}>
+                                      <Checkbox
+                                        disabled={!canEditTeam}
+                                        checked={team.autodraft ?? false}
+                                        onChange={(e) => updateTeamField(team.id, "autodraft", e.target.checked)}
+                                        label="Auto-pick when on clock"
+                                      />
+                                    </Field>
                                   </div>
 
-                                  <div>
-                                    <label className={labelCls}>Pre-draft notes</label>
-                                    <textarea
-                                      disabled={!isCommissioner}
+                                  <Field label="Pre-draft notes" controlId={`team-notes-${team.id}`}>
+                                    <Textarea
+                                      disabled={!canEditTeam}
                                       rows={3}
                                       maxLength={2000}
-                                      className={inputCls + " resize-y disabled:opacity-40"}
                                       value={team.preDraftNotes ?? ""}
                                       placeholder="Notes visible to the commissioner before the draft."
                                       onChange={(e) => updateTeamField(team.id, "preDraftNotes", e.target.value)}
                                     />
-                                  </div>
+                                  </Field>
 
                                   {/* Last season (collapsible) */}
                                   <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
@@ -1882,43 +1836,37 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     {lastSeasonOpen.has(team.id) && (
                                       <div className="border-t border-slate-800 px-4 pb-4 pt-4">
                                         <div className="grid gap-3 sm:grid-cols-3">
-                                          <div>
-                                            <label className={labelCls}>First round pick</label>
-                                            <input
+                                          <Field label="First round pick" controlId={`team-lastpick-${team.id}`}>
+                                            <Input
                                               type="text"
                                               maxLength={80}
-                                              disabled={!isCommissioner}
-                                              className={inputCls + " disabled:opacity-40"}
+                                              disabled={!canEditTeam}
                                               value={team.lastSeasonPickPlayer ?? ""}
                                               placeholder="e.g. Justin Jefferson"
                                               onChange={(e) => updateTeamField(team.id, "lastSeasonPickPlayer", e.target.value || undefined)}
                                             />
-                                          </div>
-                                          <div>
-                                            <label className={labelCls}>Record</label>
-                                            <input
+                                          </Field>
+                                          <Field label="Record" controlId={`team-lastrecord-${team.id}`}>
+                                            <Input
                                               type="text"
                                               maxLength={20}
-                                              disabled={!isCommissioner}
-                                              className={inputCls + " disabled:opacity-40"}
+                                              disabled={!canEditTeam}
                                               value={team.lastSeasonRecord ?? ""}
                                               placeholder="e.g. 9-4"
                                               onChange={(e) => updateTeamField(team.id, "lastSeasonRecord", e.target.value)}
                                             />
-                                          </div>
-                                          <div>
-                                            <label className={labelCls}>Made playoffs</label>
-                                            <select
-                                              disabled={!isCommissioner}
-                                              className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white disabled:opacity-40"
+                                          </Field>
+                                          <Field label="Made playoffs" controlId={`team-lastplayoffs-${team.id}`}>
+                                            <Select
+                                              disabled={!canEditTeam}
                                               value={team.lastSeasonPlayoffs === undefined ? "" : team.lastSeasonPlayoffs ? "yes" : "no"}
                                               onChange={(e) => updateTeamField(team.id, "lastSeasonPlayoffs", e.target.value === "" ? undefined : e.target.value === "yes")}
                                             >
                                               <option value="">Unknown</option>
                                               <option value="yes">Yes</option>
                                               <option value="no">No</option>
-                                            </select>
-                                          </div>
+                                            </Select>
+                                          </Field>
                                         </div>
                                       </div>
                                     )}
@@ -1972,7 +1920,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                                     <div className="border-t border-slate-800 px-4 pb-4 pt-3 space-y-2">
                                       {(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length === 0 ? (
-                                        <p className="rounded-lg border border-slate-700/50 bg-slate-800/40 px-4 py-3 text-sm text-slate-500">
+                                        <p className="rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)] text-sm text-[color:var(--color-text-muted)]">
                                           No walk-up songs added yet.
                                         </p>
                                       ) : (
@@ -1982,10 +1930,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                               <path d="M6 2v9.27A3 3 0 1 0 7 14V5h5V2H6z"/>
                                             </svg>
                                             <span className="flex-1 truncate text-sm text-slate-300">{song.title || song.url}</span>
-                                            {isCommissioner && (
+                                            {canEditTeam && (
                                               <button
                                                 type="button"
-                                                className="shrink-0 text-slate-500 hover:text-red-400 transition-colors"
+                                                aria-label={`Remove ${song.title || song.url}`}
+                                                className="shrink-0 text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-danger-text)]"
                                                 onClick={() => {
                                                   const next = (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).filter((_, i) => i !== si);
                                                   updateTeamField(team.id, "walkUpSongs", next);
@@ -2000,7 +1949,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           </div>
                                         ))
                                       )}
-                                      {isCommissioner && (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length < MAX_WALK_UP_SONGS && (
+                                      {canEditTeam && (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length < MAX_WALK_UP_SONGS && (
                                         <button
                                           type="button"
                                           onClick={() => setSongPickerTeamId(team.id)}
@@ -2021,19 +1970,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                                   {/* Owner */}
                                   <div className="space-y-3">
-                                    <p className="text-sm font-bold text-white">Owner</p>
-                                    <div>
-                                      <label className={labelCls}>Owner name</label>
-                                      <input
+                                    <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Owner</p>
+                                    <Field label="Owner name" controlId={`team-owner-name-${team.id}`}>
+                                      <Input
                                         type="text"
-                                        disabled={!isCommissioner}
+                                        disabled={!canEditTeam}
                                         maxLength={100}
-                                        className={inputCls}
                                         value={team.ownerName ?? ""}
                                         placeholder={owner ? owner.displayName : "e.g. Tyler"}
                                         onChange={(e) => updateTeamField(team.id, "ownerName", e.target.value)}
                                       />
-                                    </div>
+                                    </Field>
                                     {owner ? (
                                       <>
                                         <div className="rounded-lg border border-slate-700 bg-slate-800/40 px-3 py-2.5">
@@ -2041,9 +1988,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           <p className="text-sm text-slate-300 truncate">{owner.displayName}</p>
                                         </div>
                                         {isCommissioner && canManageAssignments && !isCommissionerTeam && (
-                                          <button type="button" className="w-full rounded-lg border border-slate-700 py-2 text-xs font-semibold text-slate-400 hover:border-red-700 hover:text-red-400 transition-colors" onClick={() => void updateAssignment(owner.id, "")}>
+                                          <Button variant="danger" fullWidth onClick={() => void updateAssignment(owner.id, "")}>
                                             Remove owner
-                                          </button>
+                                          </Button>
                                         )}
                                       </>
                                     ) : pending ? (
@@ -2057,19 +2004,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     ) : (
                                       <div className="space-y-2">
                                         {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").length > 0 && (
-                                          <select aria-label="Assign existing member" className="w-full disabled:opacity-50" value="" disabled={!canManageAssignments}
+                                          <Select aria-label="Assign existing member" value="" disabled={!canManageAssignments}
                                             onChange={(e) => { const p = setup.participants.find((m) => m.id === e.target.value); if (p) void updateAssignment(p.id, team.id); }}>
                                             <option value="">Assign existing member…</option>
                                             {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").map((p) => (
                                               <option key={p.id} value={p.id}>{p.displayName}</option>
                                             ))}
-                                          </select>
+                                          </Select>
                                         )}
                                         {isCommissioner && (
-                                          <input
+                                          <Input
                                             type="email"
                                             maxLength={320}
-                                            className={inputCls}
+                                            aria-label={`Invite an owner to ${team.name} by email`}
                                             placeholder="Invite by email"
                                             value={inviteTeamId === team.id ? inviteEmail : ""}
                                             onChange={(e) => { setInviteTeamId(team.id); setInviteEmail(e.target.value); }}
@@ -2082,12 +2029,12 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                   {/* Images */}
                                   <div className="space-y-2">
                                     <div className="flex items-center justify-between">
-                                      <p className="text-sm font-bold text-white">Images</p>
-                                      <span className="text-xs text-slate-500">4MB max</span>
+                                      <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Images</p>
+                                      <span className="text-xs text-[color:var(--color-text-muted)]">4MB max</span>
                                     </div>
                                     <div className="grid grid-cols-2 gap-3">
                                       <div>
-                                        <label className={labelCls}>Team logo</label>
+                                        <label className="mb-[var(--space-1)] block text-sm font-[var(--font-weight-control)] text-[color:var(--color-text-primary)]">Team logo</label>
                                         <label className={canEditTeam ? "block cursor-pointer group" : "block cursor-not-allowed opacity-50"}>
                                           <input type="file" accept="image/*" className="sr-only" disabled={!canEditTeam} onChange={async (e) => {
                                             const file = e.target.files?.[0];
@@ -2106,7 +2053,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                         </label>
                                       </div>
                                       <div>
-                                        <label className={labelCls}>Owner photo</label>
+                                        <label className="mb-[var(--space-1)] block text-sm font-[var(--font-weight-control)] text-[color:var(--color-text-primary)]">Owner photo</label>
                                         <label className={canEditTeam ? "block cursor-pointer group" : "block cursor-not-allowed opacity-50"}>
                                           <input type="file" accept="image/*" className="sr-only" disabled={!canEditTeam} onChange={async (e) => {
                                             const file = e.target.files?.[0];
@@ -2130,11 +2077,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                                   {/* Actions */}
                                   <div className="space-y-2 pt-1">
-                                    <p className="text-sm font-bold text-white">Actions</p>
+                                    <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Actions</p>
                                     <button
                                       type="button"
                                       disabled={savingTeamId === team.id || !canEditTeam}
-                                      className="w-full rounded-xl py-2.5 text-sm font-bold disabled:opacity-50 transition-opacity hover:opacity-90"
+                                      className="w-full rounded-[var(--radius-control)] py-2.5 text-sm font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
                                       style={{ backgroundColor: primary, color: secondary }}
                                       onClick={() => void saveTeam(team.id)}
                                     >
@@ -2142,15 +2089,19 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     </button>
                                     {isCommissioner && !owner && !pending && (
                                       <form onSubmit={(e) => void sendEmailInvitation(e, team.id)}>
-                                        <button
+                                        {/* type="submit" and data-delivery are load-bearing:
+                                            the form's submit handler reads the delivery mode
+                                            off the button. Button forwards both. */}
+                                        <Button
                                           type="submit"
+                                          variant="secondary"
+                                          fullWidth
                                           data-delivery="email"
+                                          loading={isInviting && inviteTeamId === team.id}
                                           disabled={isInviting || !inviteEmail || inviteTeamId !== team.id}
-                                          className="w-full rounded-xl border py-2.5 text-sm font-semibold disabled:opacity-40 transition-opacity hover:opacity-80"
-                                          style={{ borderColor: primary + "66", color: primary }}
                                         >
                                           {isInviting && inviteTeamId === team.id ? "Sending..." : "Save team & invite owner"}
-                                        </button>
+                                        </Button>
                                       </form>
                                     )}
                                   </div>
@@ -2167,27 +2118,26 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
                 {/* Pending invitations summary */}
                 {setup.invitations.length > 0 && (
-                  <div className={cardCls}>
-                    <p className="text-sm font-bold text-white mb-3">Pending invitations</p>
+                  <Panel title="Pending invitations">
                     <div className="space-y-1.5">
                       {setup.invitations.map((inv) => (
-                        <div key={inv.id} className="flex items-center justify-between rounded-lg border border-slate-800 bg-slate-950/40 px-3 py-2 text-sm">
-                          <span className="text-slate-300">
+                        <div key={inv.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-3)] py-[var(--space-2)] text-sm">
+                          <span className="text-[color:var(--color-text-secondary)]">
                             {inv.email}
-                            {inv.teamId && <span className="ml-2 text-slate-600">— {teams.find((t) => t.id === inv.teamId)?.name}</span>}
+                            {inv.teamId && <span className="ml-2 text-[color:var(--color-text-muted)]">— {teams.find((t) => t.id === inv.teamId)?.name}</span>}
                           </span>
-                          <div className="flex items-center gap-2">
-                            <span className="capitalize text-xs text-slate-600">{inv.status}</span>
+                          <div className="flex items-center gap-[var(--space-2)]">
+                            <StatusBadge status={inv.status === "pending" ? "warning" : "neutral"}>{inv.status}</StatusBadge>
                             {inv.status === "pending" && inv.teamId && (
-                              <button type="button" className="rounded border border-slate-700 bg-slate-800 px-2 py-0.5 text-xs text-slate-400 hover:text-white transition-colors" onClick={() => copyOwnerInvite(inv.id)}>
+                              <Button variant="secondary" onClick={() => copyOwnerInvite(inv.id)}>
                                 Copy
-                              </button>
+                              </Button>
                             )}
                           </div>
                         </div>
                       ))}
                     </div>
-                  </div>
+                  </Panel>
                 )}
               </div>
             )}
