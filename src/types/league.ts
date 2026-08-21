@@ -94,7 +94,13 @@ export interface LeagueTeam {
   lastSeasonPick: number | null;
   lastSeasonRecord: string | null;
   lastSeasonPlayoffs: boolean | null;
+  lastSeasonPickPlayer: string | null;
   walkUpSongs: WalkUpSong[];
+  // Moved off the draft team: the league team is now the one place these are
+  // edited, and a trigger syncs them down into each linked draft team.
+  ttsName: string | null;
+  autodraft: boolean;
+  preDraftNotes: string | null;
   createdAt: string;
 }
 

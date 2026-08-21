@@ -13,7 +13,7 @@ import {
 } from "@/lib/leagueApi";
 import type { LeagueTeam } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
-import { Alert, Button, EmptyState, Field, IconButton, Input, Panel } from "@/components/ui";
+import { Alert, Button, Checkbox, EmptyState, Field, IconButton, Input, Panel, Select, Textarea } from "@/components/ui";
 
 function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
   return (
@@ -32,6 +32,14 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [shortName, setShortName] = useState("");
   const [ownerName, setOwnerName] = useState("");
   const [walkUpSongs, setWalkUpSongs] = useState<WalkUpSong[]>([]);
+  // Moved here from Draft Settings. A trigger syncs them down to every draft
+  // team this franchise is linked to, so this is the only place they are set.
+  const [ttsName, setTtsName] = useState("");
+  const [autodraft, setAutodraft] = useState(false);
+  const [preDraftNotes, setPreDraftNotes] = useState("");
+  const [lastSeasonPickPlayer, setLastSeasonPickPlayer] = useState("");
+  const [lastSeasonRecord, setLastSeasonRecord] = useState("");
+  const [lastSeasonPlayoffs, setLastSeasonPlayoffs] = useState<boolean | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [ownerPhotoPreview, setOwnerPhotoPreview] = useState<string | null>(null);
@@ -62,6 +70,12 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         setShortName(found.shortName ?? "");
         setOwnerName(found.ownerName ?? "");
         setWalkUpSongs(Array.isArray(found.walkUpSongs) ? found.walkUpSongs : []);
+        setTtsName(found.ttsName ?? "");
+        setAutodraft(found.autodraft);
+        setPreDraftNotes(found.preDraftNotes ?? "");
+        setLastSeasonPickPlayer(found.lastSeasonPickPlayer ?? "");
+        setLastSeasonRecord(found.lastSeasonRecord ?? "");
+        setLastSeasonPlayoffs(found.lastSeasonPlayoffs);
         setLogoPreview(found.logoUrl);
         setOwnerPhotoPreview(found.ownerPhotoUrl);
       })
@@ -128,6 +142,12 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         logoUrl,
         ownerPhotoUrl,
         walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
+        ttsName: ttsName.trim() || null,
+        autodraft,
+        preDraftNotes: preDraftNotes.trim() || null,
+        lastSeasonPickPlayer: lastSeasonPickPlayer.trim() || null,
+        lastSeasonRecord: lastSeasonRecord.trim() || null,
+        lastSeasonPlayoffs,
       });
 
       setTeam(updated);
@@ -135,6 +155,12 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       setShortName(updated.shortName ?? "");
       setOwnerName(updated.ownerName ?? "");
       setWalkUpSongs(updated.walkUpSongs);
+      setTtsName(updated.ttsName ?? "");
+      setAutodraft(updated.autodraft);
+      setPreDraftNotes(updated.preDraftNotes ?? "");
+      setLastSeasonPickPlayer(updated.lastSeasonPickPlayer ?? "");
+      setLastSeasonRecord(updated.lastSeasonRecord ?? "");
+      setLastSeasonPlayoffs(updated.lastSeasonPlayoffs);
       setLogoPreview(updated.logoUrl);
       setOwnerPhotoPreview(updated.ownerPhotoUrl);
       setLogoFile(null);
@@ -301,6 +327,106 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                   )}
                 </div>
               </div>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Draft Night"
+            description="These follow your franchise into every draft the league runs. The commissioner sets the order; everything about your team is yours."
+          >
+            <div className="grid gap-[var(--space-4)] sm:grid-cols-2">
+              <Field
+                label="Text-to-speech name"
+                controlId="my-team-tts"
+                description="How the announcer says your team. Leave blank to use the team name."
+              >
+                <div className="flex gap-[var(--space-2)]">
+                  <Input
+                    maxLength={60}
+                    placeholder="Pronunciation for announcer"
+                    value={ttsName}
+                    onChange={(e) => { setTtsName(e.target.value); setSuccess(false); }}
+                  />
+                  <button
+                    type="button"
+                    title="Preview voice"
+                    aria-label="Preview how the announcer says your team name"
+                    className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[color:var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
+                    onClick={() => {
+                      if (typeof window === "undefined" || !window.speechSynthesis) return;
+                      window.speechSynthesis.cancel();
+                      window.speechSynthesis.speak(
+                        new SpeechSynthesisUtterance(ttsName.trim() || name.trim())
+                      );
+                    }}
+                  >
+                    <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4" aria-hidden="true">
+                      <path d="M3 3.5l10 4.5-10 4.5V3.5z" />
+                    </svg>
+                  </button>
+                </div>
+              </Field>
+
+              <Field
+                label="Autodraft"
+                controlId="my-team-autodraft"
+                description="Only applies to drafts that have not started yet."
+              >
+                <Checkbox
+                  checked={autodraft}
+                  onChange={(e) => { setAutodraft(e.target.checked); setSuccess(false); }}
+                  label="Auto-pick when on the clock"
+                />
+              </Field>
+            </div>
+
+            <div className="mt-[var(--space-4)]">
+              <Field label="Pre-draft notes" controlId="my-team-notes">
+                <Textarea
+                  rows={3}
+                  maxLength={2000}
+                  placeholder="Anything you want on hand during the draft."
+                  value={preDraftNotes}
+                  onChange={(e) => { setPreDraftNotes(e.target.value); setSuccess(false); }}
+                />
+              </Field>
+            </div>
+          </Panel>
+
+          <Panel
+            title="Last Season"
+            description="Shown on draft-night presentation screens. Optional."
+          >
+            <div className="grid gap-[var(--space-4)] sm:grid-cols-3">
+              <Field label="First round pick" controlId="my-team-last-pick">
+                <Input
+                  maxLength={80}
+                  placeholder="e.g. Justin Jefferson"
+                  value={lastSeasonPickPlayer}
+                  onChange={(e) => { setLastSeasonPickPlayer(e.target.value); setSuccess(false); }}
+                />
+              </Field>
+              <Field label="Record" controlId="my-team-last-record">
+                <Input
+                  maxLength={20}
+                  placeholder="e.g. 9-4"
+                  value={lastSeasonRecord}
+                  onChange={(e) => { setLastSeasonRecord(e.target.value); setSuccess(false); }}
+                />
+              </Field>
+              <Field label="Made playoffs" controlId="my-team-last-playoffs">
+                <Select
+                  value={lastSeasonPlayoffs === null ? "" : lastSeasonPlayoffs ? "yes" : "no"}
+                  onChange={(e) => {
+                    setLastSeasonPlayoffs(e.target.value === "" ? null : e.target.value === "yes");
+                    setSuccess(false);
+                  }}
+                >
+                  <option value="">Unknown</option>
+                  <option value="yes">Yes</option>
+                  <option value="no">No</option>
+                </Select>
+              </Field>
             </div>
           </Panel>
 
