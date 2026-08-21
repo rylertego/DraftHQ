@@ -12,6 +12,12 @@
 
 /* ── Brand tokens ──────────────────────────────────────────────────────── */
 :root {
+  /* Published at runtime by AccountNav, which measures itself. Declared here so
+     it resolves to something sane during SSR and before that effect runs —
+     0 rather than a guess, since a sticky bar flashing at the wrong offset is
+     worse than one that starts flush and settles. */
+  --layout-header-height: 0px;
+
   --color-canvas: #020617;
   --color-shell: #0F172A;
   --color-surface-1: #0F172A;

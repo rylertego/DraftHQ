@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { User } from "@supabase/supabase-js";
 import { supabase } from "@/lib/supabase";
 import DraftHQLogo from "@/components/DraftHQLogo";
@@ -18,6 +18,39 @@ export default function AccountNav() {
 
   const hideNav = pathname.startsWith("/draft");
   const [user, setUser] = useState<User | null>(null);
+  const headerRef = useRef<HTMLElement>(null);
+
+  // Publishes this header's height as --layout-header-height so anything that
+  // has to sit below it can stop guessing.
+  //
+  // Draft Settings' sticky tab bar previously hardcoded top-[113px], measured
+  // once against this header. That coupling was noted as fragile and then
+  // promptly broke: making the nav logo responsive (h-14 / sm:h-20 / lg:h-24)
+  // changed the header's height per breakpoint, so the literal was only correct
+  // at large widths and the bar sat wrong everywhere else.
+  //
+  // Measured rather than recomputed in CSS, because the height depends on the
+  // logo, the padding and the font — three things that can each change without
+  // anyone remembering this exists.
+  useEffect(() => {
+    const el = headerRef.current;
+    const root = document.documentElement;
+
+    if (hideNav || !el) {
+      // The draft room hides the nav entirely, so nothing should be offset.
+      root.style.setProperty("--layout-header-height", "0px");
+      return;
+    }
+
+    const publish = () => {
+      root.style.setProperty("--layout-header-height", `${Math.round(el.getBoundingClientRect().height)}px`);
+    };
+
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [hideNav]);
 
   // Reset theme when leaving league pages
   useEffect(() => {
@@ -61,7 +94,7 @@ export default function AccountNav() {
   if (hideNav) return null;
 
   return (
-    <header className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950">
+    <header ref={headerRef} className="sticky top-0 z-40 border-b border-slate-800 bg-slate-950">
       <nav className="flex items-center gap-6 px-6 py-0">
 
         {/* Logo */}

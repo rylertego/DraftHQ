@@ -791,12 +791,16 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
           scroll, so the backdrop goes full-bleed here and the inner div
           restores the content width.
 
-          top-[113px] stacks it under the global AccountNav header, which is
+          The offset stacks it under the global AccountNav header, which is
           itself `sticky top-0 z-40`. At top-0 this bar pins correctly but sits
-          completely hidden behind that 113px header. The offset is a real
-          coupling to AccountNav's height — if that header is retokenised, this
-          becomes a shared layout variable. */}
-      <div className="sticky top-[113px] z-30 border-b border-slate-800/60 bg-slate-950/85 backdrop-blur">
+          hidden behind that header.
+
+          This was a hardcoded top-[113px], measured once. That coupling broke
+          the moment AccountNav's logo became responsive and its height started
+          varying by breakpoint. AccountNav now measures itself and publishes
+          --layout-header-height, so this follows whatever the header actually
+          is. */}
+      <div className="sticky top-[var(--layout-header-height)] z-30 border-b border-[color:var(--color-border-subtle)] bg-[var(--color-canvas)]/85 backdrop-blur">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-6 lg:px-8">
           <Link
             href={backHref}
