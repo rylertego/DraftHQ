@@ -5,7 +5,7 @@ import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import SongPicker from "@/components/SongPicker";
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
-import { disconnectSpotify, initiateSpotifyPopup, isSpotifyConnected } from "@/lib/spotifyAuth";
+import { disconnectSpotify, initiateSpotifyPopup, isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import {
   getLeagueTeams,
   updateMyLeagueTeamDetails,
@@ -20,6 +20,14 @@ function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
   return (
     <span className="rounded-full border border-slate-700/80 bg-slate-950/60 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
       {platform}
+    </span>
+  );
+}
+
+export function SongPlaybackBadge() {
+  return (
+    <span className="rounded-full border border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-[color:var(--color-warning)]">
+      Reconnect to play
     </span>
   );
 }
@@ -480,6 +488,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                       <div className="flex items-center gap-2">
                         <p className="truncate text-sm font-black text-[color:var(--color-text-primary)]">{song.title}</p>
                         <SongSourceBadge platform={song.platform} />
+                        {needsSpotifyReconnect(song, spotifyConnected) && <SongPlaybackBadge />}
                       </div>
                       <p className="truncate text-xs text-[color:var(--color-text-muted)]">{song.artist || "Unknown artist"}</p>
                     </div>

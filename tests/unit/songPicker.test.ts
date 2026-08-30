@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseYouTubeVideoId } from "@/components/SongPicker";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SpotifyConnectionPanel } from "@/app/leagues/[slug]/my-team/MyTeamForm";
+import { SpotifyConnectionPanel, SongPlaybackBadge } from "@/app/leagues/[slug]/my-team/MyTeamForm";
 import { needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import type { WalkUpSong } from "@/types/draft";
 
@@ -106,5 +106,12 @@ describe("needsSpotifyReconnect", () => {
 
   it("treats null fallbacks as absent", () => {
     expect(needsSpotifyReconnect({ ...spotifySong, youtubeTrackId: null, previewUrl: null }, false)).toBe(true);
+  });
+});
+
+describe("SongPlaybackBadge", () => {
+  it("tells the owner the song needs Spotify reconnected", () => {
+    const html = renderToStaticMarkup(createElement(SongPlaybackBadge));
+    expect(html).toContain("Reconnect to play");
   });
 });
