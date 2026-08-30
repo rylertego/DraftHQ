@@ -168,7 +168,7 @@ function CreateDraftModal({
               onChange={(e) => setTeamCount(Number(e.target.value))}
             />
           </Field>
-          <Field label="Rounds" controlId="create-draft-rounds">
+          <Field label="Rounds" controlId="create-draft-rounds" description="Set for this draft.">
             <Input type="number" min={1} max={30} value={rounds} onChange={(e) => setRounds(Number(e.target.value))} />
           </Field>
         </div>

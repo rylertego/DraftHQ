@@ -73,7 +73,9 @@ export default function DraftTicker({
   // duration scale with the content so the speed itself stays put. The observer
   // also fires when picks widen the track, so no manual re-measure is needed.
   const contentRef = useRef<HTMLSpanElement>(null);
+  const tickerViewportRef = useRef<HTMLDivElement>(null);
   const [contentWidth, setContentWidth] = useState(0);
+  const [tickerViewportWidth, setTickerViewportWidth] = useState(0);
   useEffect(() => {
     const el = contentRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -82,23 +84,31 @@ export default function DraftTicker({
     return () => observer.disconnect();
   }, []);
 
+  useEffect(() => {
+    const el = tickerViewportRef.current;
+    if (!el || typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(() => setTickerViewportWidth(el.offsetWidth));
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   const duration =
     contentWidth > 0
-      ? contentWidth / SPEEDS_PX_PER_SEC[speedIndex]
+      ? (contentWidth + tickerViewportWidth) / SPEEDS_PX_PER_SEC[speedIndex]
       : FALLBACK_DURATION_S;
 
-  // Build rich JSX ticker segments (rendered twice for seamless loop)
+  // Build rich JSX ticker segments.
   function renderTickerContent(key: string, ref?: React.Ref<HTMLSpanElement>) {
     return (
       <span key={key} ref={ref} className="flex items-center">
         {/* League intro */}
         <span className="flex items-center gap-3 px-10">
           <img src="/branding/mark.svg" alt="DraftHQ" className="h-7 w-auto" />
-          <span className="text-sm font-semibold text-slate-300">
+          <span className="text-sm font-semibold text-[color:var(--color-text-secondary)]">
             Welcome to this year&apos;s {leagueName ?? draftName} Draft!
           </span>
         </span>
-        <span className="text-slate-700 px-2">·</span>
+        <span className="px-2 text-[color:var(--color-text-muted)]">·</span>
         {sorted.map((p, i) => {
           const posColor = POS_COLORS[p.playerPosition] ?? "#94A3B8";
           const round = Math.ceil(p.overallPickNumber / (teams.length || 12));
@@ -110,12 +120,12 @@ export default function DraftTicker({
                 {round}.{pickInRound}
               </span>
               {/* Team name slightly dimmed */}
-              <span className="mx-2 text-sm text-slate-400 font-semibold">
+              <span className="mx-2 text-sm font-semibold text-[color:var(--color-text-secondary)]">
                 {teamMap.get(p.teamId) ?? "—"}
               </span>
-              <span className="text-slate-600 mr-2">/</span>
+              <span className="mr-2 text-[color:var(--color-text-muted)]">/</span>
               {/* Player name bright */}
-              <span className="text-sm font-bold text-white mr-1.5">
+              <span className="mr-1.5 text-sm font-bold text-[color:var(--color-text-primary)]">
                 {p.playerName}
               </span>
               {/* NFL team + position in position color */}
@@ -126,7 +136,7 @@ export default function DraftTicker({
                 {p.playerPosition}
               </span>
               {i < sorted.length - 1 && (
-                <span className="mx-8 text-slate-700">·</span>
+                <span className="mx-8 text-[color:var(--color-text-muted)]">·</span>
               )}
             </span>
           );
@@ -137,24 +147,24 @@ export default function DraftTicker({
   }
 
   return (
-    <div className="shrink-0 flex items-stretch border-t border-white/8 bg-black" style={{ height: "58px" }}>
+    <div className="flex shrink-0 items-stretch border-t border-[color:var(--color-border-subtle)] bg-[color:var(--color-canvas)]" style={{ height: "58px" }}>
 
       {/* ── Left: DraftHQ brand + chat button ── */}
-      <div className="flex shrink-0 items-center gap-3 border-r border-white/8 px-5">
+      <div className="flex shrink-0 items-center gap-3 border-r border-[color:var(--color-border-subtle)] px-5">
         <DraftHQLogo accentColor={accentColor} className="h-10 w-auto" />
 
         <button
           type="button"
           aria-label={isChatOpen ? "Close chat" : "Open chat"}
           onClick={onChatToggle}
-          className="relative ml-1 flex h-8 w-8 items-center justify-center rounded-lg transition-colors"
-          style={isChatOpen ? { backgroundColor: `${accentColor}30`, color: accentColor } : { color: "#64748b" }}
+          className="relative ml-1 flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] transition-colors"
+          style={isChatOpen ? { backgroundColor: `${accentColor}30`, color: accentColor } : { color: "var(--color-text-muted)" }}
         >
           <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
             <path fillRule="evenodd" d="M2 5a2 2 0 012-2h12a2 2 0 012 2v7a2 2 0 01-2 2H6l-4 4V5z" clipRule="evenodd"/>
           </svg>
           {unread > 0 && !isChatOpen && (
-            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-red-500 text-[9px] font-black text-white">
+            <span className="absolute -right-1 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-[var(--color-danger)] text-[9px] font-black text-[color:var(--color-danger-foreground)]">
               {unread > 9 ? "9+" : unread}
             </span>
           )}
@@ -163,19 +173,22 @@ export default function DraftTicker({
 
       {/* ── Center: ticker or nav buttons ── */}
       {mode === "ticker" ? (
-        <div className="min-w-0 flex-1 overflow-hidden">
+        <div ref={tickerViewportRef} className="min-w-0 flex-1 overflow-hidden">
           <div
             className="flex h-full w-max items-center whitespace-nowrap"
-            style={{ animation: `ticker ${duration}s linear infinite`, willChange: "transform" }}
+            style={{
+              "--ticker-start": `${tickerViewportWidth}px`,
+              animation: `ticker-crawl ${duration}s linear infinite`,
+              willChange: "transform",
+            } as React.CSSProperties}
             aria-live="off"
           >
             {renderTickerContent("a", contentRef)}
-            {renderTickerContent("b")}
           </div>
         </div>
       ) : (
         /* Nav mode: position pills | divider | board view pills */
-        <div className="min-w-0 flex-1 flex items-center gap-1.5 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <div className="flex min-w-0 flex-1 items-center gap-1.5 overflow-x-auto px-3 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {/* Position filter buttons */}
           {posButtons.map((pos) => {
             const key = pos === "All" ? "ALL" : pos;
@@ -185,10 +198,10 @@ export default function DraftTicker({
               <button
                 key={pos}
                 type="button"
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                className={`shrink-0 rounded-[var(--radius-control)] border px-3 py-1 text-xs font-bold transition-colors ${
                   active
-                    ? "border-white/30 bg-white text-slate-950"
-                    : "border-white/8 bg-white/5 hover:bg-white/10"
+                    ? "border-[color:var(--color-league-accent-border)] bg-[var(--color-league-accent)] text-[color:var(--color-league-accent-foreground)]"
+                    : "border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] hover:bg-[color:var(--color-surface-3)]"
                 }`}
                 style={!active && color ? { color } : {}}
                 onClick={() => {
@@ -202,7 +215,7 @@ export default function DraftTicker({
           })}
 
           {/* divider */}
-          <span className="shrink-0 h-5 w-px bg-white/10 mx-1" />
+          <span className="mx-1 h-5 w-px shrink-0 bg-[color:var(--color-border-subtle)]" />
 
           {/* Board view buttons */}
           {BOARD_BUTTONS.map(({ label, value }) => {
@@ -211,10 +224,10 @@ export default function DraftTicker({
               <button
                 key={value}
                 type="button"
-                className={`shrink-0 rounded-full border px-3 py-1 text-xs font-bold transition-colors ${
+                className={`shrink-0 rounded-[var(--radius-control)] border px-3 py-1 text-xs font-bold transition-colors ${
                   active
-                    ? "border-white/30 bg-white text-slate-950"
-                    : "border-white/8 bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white"
+                    ? "border-[color:var(--color-league-accent-border)] bg-[var(--color-league-accent)] text-[color:var(--color-league-accent-foreground)]"
+                    : "border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
                 }`}
                 onClick={() => onBoardViewChange?.(value)}
               >
@@ -227,16 +240,16 @@ export default function DraftTicker({
 
       {/* ── Right: speed controls (ticker only) ── */}
       {mode === "ticker" && (
-        <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-l border-white/8 px-3">
+        <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-l border-[color:var(--color-border-subtle)] px-3">
           <button type="button" title="Speed up"
             disabled={speedIndex >= SPEEDS_PX_PER_SEC.length - 1}
-            className="flex h-5 w-6 items-center justify-center text-slate-600 hover:text-slate-300 disabled:opacity-20 transition-colors"
+            className="flex h-5 w-6 items-center justify-center text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-text-secondary)] disabled:opacity-20"
             onClick={() => setSpeedIndex((i) => Math.min(i + 1, SPEEDS_PX_PER_SEC.length - 1))}>
             <svg viewBox="0 0 10 6" fill="currentColor" className="h-2.5 w-3"><polygon points="5,0 10,6 0,6"/></svg>
           </button>
           <button type="button" title="Slow down"
             disabled={speedIndex <= 0}
-            className="flex h-5 w-6 items-center justify-center text-slate-600 hover:text-slate-300 disabled:opacity-20 transition-colors"
+            className="flex h-5 w-6 items-center justify-center text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-text-secondary)] disabled:opacity-20"
             onClick={() => setSpeedIndex((i) => Math.max(i - 1, 0))}>
             <svg viewBox="0 0 10 6" fill="currentColor" className="h-2.5 w-3"><polygon points="5,6 10,0 0,0"/></svg>
           </button>

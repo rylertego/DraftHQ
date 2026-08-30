@@ -8,7 +8,7 @@
 > and [`superpowers/plans/2026-08-13-global-visual-system.md`](superpowers/plans/2026-08-13-global-visual-system.md)
 > whose checkboxes are the progress ledger for the visual-system work.
 
-_Last updated: 2026-08-20._
+_Last updated: 2026-08-30._
 _Everything is merged to `main`. No long-lived feature branch; work on short
 branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 
@@ -19,6 +19,50 @@ branches off `main`. The `.worktrees/global-visual-system` worktree is stale._
 ---
 
 ## Read this first
+
+**2026-08-30 Codex continuation.** My Team now exposes the existing Spotify
+OAuth popup flow directly beside Draft Night Walk-Up Songs, so every assigned
+owner can link Spotify from their own team edit page and immediately get
+Spotify-first song search on that device. This still uses browser-local tokens;
+no Spotify tokens are stored in DraftHQ tables. Draft-night playback still
+belongs to whichever browser/device is running the draft room, with YouTube or
+preview fallback when no Spotify playback device is available.
+
+League creation is also moving into the league-first onboarding direction. The
+create-league form should no longer expose a URL slug field; slugs are derived
+from the league name. New leagues now route into a dedicated
+`/leagues/[slug]/import` setup page where commissioners can import from Sleeper,
+ESPN, or Yahoo, add teams manually, skip for now, and invite league members once
+teams exist. This reuses the existing provider import logic rather than adding a
+second import implementation.
+
+**2026-08-21 Codex continuation.** Task 18 is code-migrated but not fully gated:
+the Draft Lobby now follows the user-directed simplified anatomy with no
+Draft/Connection/Audio widgets, no readiness strip, larger featured team card,
+transparent league marks outside the card, and commissioner "Seat owners" wired
+to `CommissionerParticipantManager`. Browser QA against localhost was blocked by
+Codex browser URL policy, so desktop/mobile visual verification remains owed.
+Also applied `20260821052700_qualify_team_setup_constraint.sql` after the
+`update_team_setup` RPC failed under `search_path = ''`; the function now uses
+`set constraints public.teams_draft_id_draft_position_key deferred`.
+
+Task 19 is code-migrated, not fully gated. Impact checks for `DraftRoom`,
+`DraftBoard`, `DraftTimer`, `PlayerListView`, `RosterBoardView`, and
+`RoundSummaryView` were LOW. The current slice migrated `DraftTimer`, the Draft
+Board shell/popup, live board toolbar/header chrome, alert strip, Player Board,
+Roster Board, and Round Summary to shared surface/radius/border/text tokens.
+Browser viewport checks are still owed.
+
+Task 20 is also code-migrated, not fully gated. Impact checks for `PickModal`,
+`RecentPicks`, `DraftChat`, `DraftTicker`, and `EditPickModal` were LOW. Those
+pick/chat/ticker interaction surfaces now use shared shell/form/action tokens
+while preserving existing realtime chat, ticker ordering, pick search, and
+commissioner edit-pick behavior. Browser interaction QA is still owed.
+
+Task 21 is started only. Impact checks for the listed presentation components
+were LOW. The read-only `DraftGradesBoard` slice has been migrated to shared
+surface/border/text tokens; TV Mode, pick reveal, draft order race, awards,
+landmine, and reduced-motion work remain open.
 
 **Last worked 2026-08-20 by Claude.** Codex ran out of weekly quota mid-task on
 2026-08-13 and has not run since; everything after that date is Claude's. Start
@@ -821,17 +865,18 @@ Spotify account.
 
 - **One app registration** (`SPOTIFY_CLIENT_ID`/`SECRET`) — the only shared part.
 - **Search uses client credentials.** `/api/music/spotify-search` gets an
-  app-level token, so **any owner can search and pick songs without connecting a
-  Spotify account at all.** The My Team page needs no connect flow.
+  app-level token, so search itself does not require a personal Spotify token.
+  As of 2026-08-30, My Team still offers a per-owner Spotify connect action so
+  owners can make Spotify the first song source from their own edit page.
 - **Playback uses each user's own OAuth token** (`scope=streaming ...`) via the
   Web Playback SDK. That scope **requires Spotify Premium**, and the token
   belongs to whoever connected *on that device*.
 - **YouTube is the fallback** — `WalkUpPlayer` uses `youtubeTrackId` when no
   Spotify device is available.
 
-Practically: on draft night the music comes out of the host/TV device using
-whichever Spotify account is connected there. Owners picking songs on phones need
-nothing.
+Practically: owners can connect Spotify while editing their team, but on draft
+night the music comes out of the host/TV device using whichever Spotify account
+is connected there.
 
 ---
 

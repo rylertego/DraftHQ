@@ -10,7 +10,6 @@ import {
   assignTeam,
   configureDraftTimer,
   getDraftSetup,
-  inviteOwner,
   resetDraft,
   updateDraftName,
   updateDraftExtras,
@@ -24,8 +23,6 @@ import {
   updateDraftTeamCount,
   updateTeamDetails,
   updateTeamSetup,
-  uploadDraftTeamLogo,
-  uploadDraftOwnerPhoto,
   uploadLandmineVideo,
   listLandmineVideos,
   deleteLandmineVideo,
@@ -33,23 +30,25 @@ import {
   type LandmineVideo,
 } from "@/lib/draftApi";
 import { formatScheduledDate, formatTimeZoneName, localTimeZone, utcToZonedWallClock, zonedWallClockToUtc } from "@/lib/draftSchedule";
-import { buildOwnerInvitationMessage } from "@/lib/ownerInvitation";
 import { shouldRefreshDraftOnVisibility } from "@/lib/draftRecovery";
-import { moveDraftTeam, reorderDraftTeams } from "@/lib/teamSetupLogic";
+import {
+  autosaveDroppedDraftOrder,
+  canEditDraftSettings,
+  moveDraftTeam,
+  reorderDraftTeams,
+} from "@/lib/teamSetupLogic";
 import { supabase } from "@/lib/supabase";
-import { getLeagueBranding, inviteLeagueMember } from "@/lib/leagueApi";
+import { getLeagueBranding } from "@/lib/leagueApi";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { AI_ANNOUNCER_PERSONAS, ELEVENLABS_VOICE_PREFIX, getAiAnnouncerId, getAnnouncerVoiceProfile, getElevenLabsVoiceId, isAiAnnouncerEnabled, resolveAnnouncerVoice } from "@/lib/speech";
 import { fetchAnnouncerClipUrl, getStoredElevenLabsKey, listElevenLabsVoices, storeElevenLabsKey, type ElevenLabsVoice } from "@/lib/announcerClient";
-import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
 import { DEFAULT_ROSTER_POSITIONS } from "@/lib/rosterPositions";
 import ClockSettings from "@/components/ClockSettings";
 import { Alert, Button, Checkbox, Field, Input, Panel, Select, StatusBadge, Textarea } from "@/components/ui";
 import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
-import { initiateSpotifyPopup, isSpotifyConnected, disconnectSpotify, consumeSpotifyCallback } from "@/lib/spotifyAuth";
-import type { DraftInvitation, RosterPosition, Team, TimerBehavior, WalkUpSong } from "@/types/draft";
+import type { RosterPosition, Team, TimerBehavior, WalkUpSong } from "@/types/draft";
 
 const ROSTER_POSITIONS_COLLAPSED = 7;
 
@@ -116,7 +115,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     ? `/draft/lobby?draftId=${draftId}${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`
     : null;
   const [tab, setTab] = useState<Tab>(initialTab);
-  const [orderDirty, setOrderDirty] = useState(false);
   const [showOrderRace, setShowOrderRace] = useState(false);
   const [setup, setSetup] = useState<DraftSetup | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
@@ -124,9 +122,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [copyStatus, setCopyStatus] = useState("");
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteTeamId, setInviteTeamId] = useState("");
-  const [isInviting, setIsInviting] = useState(false);
   const [isSavingClock, setIsSavingClock] = useState(false);
   const [showResetDraft, setShowResetDraft] = useState(false);
 
@@ -136,15 +131,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const nameInputRef = useRef<HTMLInputElement>(null);
   const [expandedTeamId, setExpandedTeamId] = useState<string | null>(null);
   const [savingTeamId, setSavingTeamId] = useState<string | null>(null);
-  const [lastSeasonOpen, setLastSeasonOpen] = useState<Set<string>>(new Set());
-  const [songPickerTeamId, setSongPickerTeamId] = useState<string | null>(null);
-  const [spotifyConnected, setSpotifyConnected] = useState(false);
-  useEffect(() => {
-    // Consume OAuth tokens from URL fragment after redirect back from Spotify
-    const connected = consumeSpotifyCallback() || isSpotifyConnected();
-    const timer = window.setTimeout(() => setSpotifyConnected(connected), 0);
-    return () => window.clearTimeout(timer);
-  }, []);
   const [rounds, setRounds] = useState(15);
   const [isSavingRounds, setIsSavingRounds] = useState(false);
   const [teamCount, setTeamCount] = useState(10);
@@ -374,17 +360,44 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     };
   }, [draftId]);
 
-  function updateTeam(teamId: string, value: string) {
-    setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, name: value } : t));
-  }
-
   function updateTeamField<K extends keyof typeof teams[number]>(teamId: string, field: K, value: typeof teams[number][K]) {
     setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, [field]: value } : t));
   }
 
+  function hasSameDraftOrder(nextTeams: typeof teams) {
+    return nextTeams.length === teams.length &&
+      nextTeams.every((team, index) => team.id === teams[index]?.id);
+  }
+
+  async function saveDraftOrder(nextTeams: typeof teams, rethrow = false) {
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
+    setSavingTeamId("order");
+    try {
+      if (draftId) await updateTeamSetup(draftId, nextTeams);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to save order.");
+      if (rethrow) throw e;
+    } finally {
+      setSavingTeamId(null);
+    }
+  }
+
+  async function autosaveDraftOrder(nextTeams: typeof teams, rethrow = false) {
+    if (savingTeamId === "order") return;
+    if (hasSameDraftOrder(nextTeams)) return;
+    setTeams(nextTeams);
+    await saveDraftOrder(nextTeams, rethrow);
+  }
+
   function moveTeam(index: number, offset: -1 | 1) {
-    setTeams((prev) => moveDraftTeam(prev, index, offset));
-    setOrderDirty(true);
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
+    void autosaveDraftOrder(moveDraftTeam(teams, index, offset));
   }
 
   // Native HTML5 drag rather than a drag-and-drop library: this is one vertical
@@ -394,12 +407,32 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   // dropIndex is tracked separately from dragIndex so the row under the cursor
   // can show where the team would land. Both are cleared on dragend, which
   // fires even when the drop is cancelled.
-  function handleDrop(toIndex: number) {
+  async function handleDrop(toIndex: number) {
     if (dragIndex === null) return;
-    setTeams((prev) => reorderDraftTeams(prev, dragIndex, toIndex));
-    if (dragIndex !== toIndex) setOrderDirty(true);
+    if (!canCurrentUserEditDraftSettings()) {
+      setDragIndex(null);
+      setDropIndex(null);
+      reportLockedDraftSettings();
+      return;
+    }
+    const fromIndex = dragIndex;
     setDragIndex(null);
     setDropIndex(null);
+
+    if (!draftId) {
+      setTeams((prev) => reorderDraftTeams(prev, fromIndex, toIndex));
+      return;
+    }
+
+    try {
+      await autosaveDroppedDraftOrder(teams, fromIndex, toIndex, async (nextTeams) => {
+        setTeams(nextTeams);
+        await saveDraftOrder(nextTeams, true);
+      });
+    } catch {
+      // saveDraftOrder reports the user-facing error while keeping the
+      // reordered list visible so the commissioner can adjust it again.
+    }
   }
 
   async function refreshParticipants() {
@@ -417,6 +450,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function saveDraftName() {
     if (!draftId || !setup) return;
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      setDraftName(setup.draft.name);
+      return;
+    }
     const trimmed = draftName.trim();
     if (!trimmed || trimmed === setup.draft.name) return;
     setIsSavingName(true);
@@ -434,6 +472,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function updateAssignment(participantId: string, teamId: string) {
     if (!draftId || !setup) return;
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
     try {
       const updated = await assignTeam(draftId, participantId, teamId || null);
       setSetup({ ...setup, participants: setup.participants.map((p) => p.id === participantId ? updated : p) });
@@ -449,73 +491,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     setTimeout(() => setCopyStatus(""), 2500);
   }
 
-  async function sendEmailInvitation(event: React.FormEvent<HTMLFormElement>, teamIdOverride?: string) {
-    event.preventDefault();
-    const submitter = (event.nativeEvent as SubmitEvent).submitter;
-    const sendEmail = submitter?.getAttribute("data-delivery") !== "manual";
-    const targetTeamId = teamIdOverride ?? inviteTeamId;
-    if (!draftId || !setup || !inviteEmail.trim() || !targetTeamId) return;
-    setIsInviting(true);
-    try {
-      // Save the team state first so name changes are persisted
-      await updateTeamSetup(draftId, teams);
-
-      if (setup.draft.leagueId) {
-        const leagueInvitation = await inviteLeagueMember(
-          setup.draft.leagueId,
-          inviteEmail.trim(),
-          { draftTeamId: targetTeamId }
-        );
-        const invitedTeam = teams.find((team) => team.id === targetTeamId);
-        if (!sendEmail && invitedTeam) {
-          const message = `You are invited to join ${setup.draft.name} in DraftHQ as ${invitedTeam.name}.\n\nOpen DraftHQ to accept or decline:\n${leagueInvitation.inviteUrl}`;
-          setCopyStatus((await copyText(message)) ? `Invite for ${inviteEmail.trim()} copied.` : `Copy manually:\n${message}`);
-        } else {
-          setCopyStatus(leagueInvitation.warning ?? "League invitation sent. They must accept before joining or receiving the team.");
-        }
-        setInviteEmail("");
-        setInviteTeamId("");
-        setTimeout(() => setCopyStatus(""), 4500);
-        return;
-      }
-
-      const result = await inviteOwner(draftId, inviteEmail.trim(), targetTeamId, { sendEmail });
-      const { invitation } = result;
-      const invitedTeam = teams.find((t) => t.id === invitation.teamId);
-      const idx = setup.invitations.findIndex((i) => i.id === invitation.id);
-      const invitations = idx === -1
-        ? [...setup.invitations, invitation]
-        : setup.invitations.map((i) => i.id === invitation.id ? invitation : i);
-      setSetup({ ...setup, invitations });
-      setInviteEmail(""); setInviteTeamId("");
-      if (!sendEmail && invitedTeam) {
-        await copyOwnerInviteDetails(invitation, invitedTeam);
-      } else {
-        setCopyStatus(result.warning ? `${result.warning} Use Copy Invite below.` : "Invitation sent.");
-        setTimeout(() => setCopyStatus(""), 3000);
-      }
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to send invitation.");
-    } finally {
-      setIsInviting(false);
-    }
-  }
-
-  async function copyOwnerInvite(invitationId: string) {
-    const inv = setup?.invitations.find((i) => i.id === invitationId);
-    const team = teams.find((t) => t.id === inv?.teamId);
-    if (!setup || !inv || !team) return;
-    await copyOwnerInviteDetails(inv, team);
-  }
-
-  async function copyOwnerInviteDetails(invitation: DraftInvitation, team: Team) {
-    if (!setup) return;
-    const url = `${window.location.origin}/join/${setup.draft.joinCode}`;
-    const msg = buildOwnerInvitationMessage({ draftName: setup.draft.name, teamName: team.name, email: invitation.email, joinUrl: url });
-    setCopyStatus((await copyText(msg)) ? `Invite for ${invitation.email} copied.` : `Copy manually:\n${msg}`);
-    setTimeout(() => setCopyStatus(""), 3000);
-  }
-
   async function saveClockSettings(settings: {
     pickSeconds: number;
     timerBehavior: TimerBehavior;
@@ -523,6 +498,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     maxClockExtensions: number;
   }) {
     if (!draftId || !setup) return;
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
     setIsSavingClock(true);
     setSettingsSaveState("saving");
     try {
@@ -543,6 +522,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function saveTeam(teamId: string) {
     if (!draftId) return;
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
     setSavingTeamId(teamId);
     try {
       const team = teams.find((t) => t.id === teamId);
@@ -571,15 +554,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     }
   }
 
-  async function saveWalkUpSongs(teamId: string, songs: WalkUpSong[]) {
-    if (!draftId) return;
-    try {
-      await updateTeamDetails(draftId, teamId, { walkUpSongs: songs.slice(0, MAX_WALK_UP_SONGS) });
-    } catch (e) {
-      setError(e instanceof Error ? e.message : (e as { message?: string })?.message ?? "Unable to save songs.");
-    }
-  }
-
   function flashSaved() {
     if (settingsSaveTimerRef.current) clearTimeout(settingsSaveTimerRef.current);
     setSettingsSaveState("saved");
@@ -587,6 +561,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   }
 
   function saveRosterPositions(updated: RosterPosition[]) {
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
     setRosterPositions(updated);
     if (!draftId || !setup) return;
     setSettingsSaveState("saving");
@@ -597,6 +575,10 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
 
   async function saveTeams() {
     if (!draftId) return;
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
     if (teams.some((t) => !t.name.trim())) { setError("Every team must have a name."); return; }
     setError(""); setIsSaving(true);
     try {
@@ -608,6 +590,18 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function canCurrentUserEditDraftSettings() {
+    return Boolean(
+      setup &&
+      setup.currentUserId === setup.draft.commissionerUserId &&
+      canEditDraftSettings(setup.draft.status)
+    );
+  }
+
+  function reportLockedDraftSettings() {
+    setError("Draft settings are locked while the draft is live. Pause the draft to make changes.");
   }
 
   async function continueToDraft() {
@@ -644,6 +638,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   }
 
   const isCommissioner = setup.currentUserId === setup.draft.commissionerUserId;
+  const canEditSettings = isCommissioner && canEditDraftSettings(setup.draft.status);
   // Both halves matter. assign_team() is commissioner-gated, so without the
   // isCommissioner test a non-commissioner saw an enabled dropdown and got
   // "Unable to assign team" on selecting anyone — the control offered something
@@ -666,9 +661,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
     : `/join/${draft.joinCode}`;
   const isDraftNameDirty = draftName.trim() !== draft.name && draftName.trim() !== "";
   const namedTeams = teams.filter((team) => team.name.trim()).length;
-  const assignedTeams = teams.filter((team) =>
-    setup.participants.some((participant) => participant.teamId === team.id)
-  ).length;
   const enabledRosterSlots = rosterPositions
     .filter((position) => position.enabled)
     .reduce((total, position) => total + position.max, 0);
@@ -986,6 +978,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
             {copyStatus}
           </div>
         )}
+        {isCommissioner && !canEditSettings && draft.status === "active" && (
+          <Alert status="warning">Draft settings are locked while the draft is live. Pause the draft to make changes.</Alert>
+        )}
 
         <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
 
@@ -1009,7 +1004,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           ref={nameInputRef}
                           type="text"
                           maxLength={80}
-                          disabled={!isCommissioner || isSavingName}
+                          disabled={!canEditSettings || isSavingName}
                           value={draftName}
                           onChange={(e) => setDraftName(e.target.value)}
                           onBlur={() => { if (isDraftNameDirty) void saveDraftName(); }}
@@ -1023,7 +1018,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         {isDraftNameDirty && (
                           <button
                             type="button"
-                            disabled={isSavingName}
+                            disabled={isSavingName || !canEditSettings}
                             onClick={() => void saveDraftName()}
                             className="shrink-0 rounded-[var(--radius-control)] px-[var(--space-3)] text-xs font-bold transition-opacity hover:opacity-90 disabled:opacity-50"
                             style={{ backgroundColor: primary, color: secondary }}
@@ -1084,7 +1079,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             <span className="text-sm font-semibold text-[color:var(--color-text-primary)]">
                               {teamCount} teams
                             </span>
-                            {leagueSlug && isCommissioner && (
+                            {leagueSlug && canEditSettings && (
                               <Link
                                 href={`/leagues/${leagueSlug}/settings`}
                                 className="text-xs transition-opacity hover:opacity-80"
@@ -1107,7 +1102,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       ) : (
                         <div className="flex items-center gap-[var(--space-2)]">
                           <Select
-                            disabled={!isCommissioner || isSavingTeamCount}
+                            disabled={!canEditSettings || isSavingTeamCount}
                             value={teamCount}
                             onChange={(e) => {
                               const val = Number(e.target.value);
@@ -1135,7 +1130,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     <Field label="Rounds" controlId="draft-rounds">
                       <div className="flex items-center gap-[var(--space-2)]">
                         <Select
-                          disabled={!isCommissioner || isSavingRounds}
+                          disabled={!canEditSettings || isSavingRounds}
                           value={rounds}
                           onChange={(e) => {
                             const val = Number(e.target.value);
@@ -1158,7 +1153,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </Field>
                     <Field label="Player Rankings" controlId="draft-scoring-type">
                       <Select
-                        disabled={!isCommissioner}
+                        disabled={!canEditSettings}
                         value={scoringType}
                         onChange={(e) => {
                           const val = e.target.value as typeof scoringType;
@@ -1228,7 +1223,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   <div>
                     <ClockSettings
                       draft={draft}
-                      disabled={isSavingClock}
+                      disabled={!canEditSettings || isSavingClock}
                       onSave={(s) => void saveClockSettings(s)}
                     />
                     {isSavingClock && <p className="mt-[var(--space-2)] text-xs text-[color:var(--color-text-muted)]">Saving...</p>}
@@ -1248,7 +1243,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <Field label="Date" controlId="draft-scheduled-date">
                         <Input
                           type="date"
-                          disabled={!isCommissioner || isSavingSchedule}
+                          disabled={!canEditSettings || isSavingSchedule}
                           value={scheduledDate}
                           onChange={(e) => setScheduledDate(e.target.value)}
                           onBlur={() => {
@@ -1265,7 +1260,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <Field label="Time" controlId="draft-scheduled-time">
                         <Input
                           type="time"
-                          disabled={!isCommissioner || isSavingSchedule || !scheduledDate}
+                          disabled={!canEditSettings || isSavingSchedule || !scheduledDate}
                           value={scheduledTime}
                           onChange={(e) => setScheduledTime(e.target.value)}
                           onBlur={() => {
@@ -1309,6 +1304,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     {scheduledDate && (
                       <button
                         type="button"
+                        disabled={!canEditSettings}
                         className="mt-[var(--space-2)] text-xs text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-danger-text)]"
                         onClick={() => {
                           setScheduledDate(""); setScheduledTime("");
@@ -1351,7 +1347,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             <td className="py-3 px-3 text-center">
                               <input
                                 type="checkbox"
-                                disabled={!isCommissioner}
+                                disabled={!canEditSettings}
                                 checked={pos.enabled}
                                 onChange={(e) => {
                                   const next = rosterPositions.map((p) =>
@@ -1364,7 +1360,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             </td>
                             <td className="py-3 px-3 text-center">
                               <select
-                                disabled={!isCommissioner || !pos.enabled}
+                                disabled={!canEditSettings || !pos.enabled}
                                 className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white disabled:opacity-40"
                                 value={pos.min}
                                 onChange={(e) => {
@@ -1381,7 +1377,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             </td>
                             <td className="py-3 px-3 text-center">
                               <select
-                                disabled={!isCommissioner || !pos.enabled}
+                                disabled={!canEditSettings || !pos.enabled}
                                 className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1 text-sm text-white disabled:opacity-40"
                                 value={pos.max}
                                 onChange={(e) => {
@@ -1399,7 +1395,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             <td className="py-3 px-3 text-center">
                               <input
                                 type="color"
-                                disabled={!isCommissioner || !pos.enabled}
+                                disabled={!canEditSettings || !pos.enabled}
                                 value={pos.color}
                                 onChange={(e) => {
                                   const next = rosterPositions.map((p) =>
@@ -1456,7 +1452,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         <label className="flex items-center gap-2 cursor-pointer">
                           <input
                             type="checkbox"
-                            disabled={!isCommissioner}
+                            disabled={!canEditSettings}
                             checked={useLandmines}
                             onChange={(e) => {
                               const checked = e.target.checked;
@@ -1478,7 +1474,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             <div className="flex items-center gap-3">
                               <label className="text-xs text-slate-400 whitespace-nowrap">Number of landmines</label>
                               <select
-                                disabled={!isCommissioner}
+                                disabled={!canEditSettings}
                                 className="rounded-lg border border-slate-700 bg-slate-800 px-2 py-1.5 text-sm text-white disabled:opacity-50"
                                 value={landmineCount}
                                 onChange={(e) => {
@@ -1521,7 +1517,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                       className="shrink-0 text-slate-400 transition-colors hover:text-white">
                                       <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3"><path d="M2 2l8 4-8 4z"/></svg>
                                     </a>
-                                    {isCommissioner && (
+                                    {canEditSettings && (
                                       <button type="button" title="Remove"
                                         className="shrink-0 text-slate-500 transition-colors hover:text-red-400"
                                         onClick={async () => {
@@ -1541,8 +1537,8 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     )}
                                   </div>
                                 ))}
-                                {isCommissioner && landmineVideos.length < 6 && (
-                                  <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 transition-colors hover:border-slate-500 hover:text-slate-300 ${uploadingLandmineVideo ? "pointer-events-none opacity-50" : ""}`}>
+                                {canEditSettings && landmineVideos.length < 6 && (
+                              <label className={`flex w-full cursor-pointer items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 py-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500 transition-colors hover:border-slate-500 hover:text-slate-300 ${uploadingLandmineVideo || !canEditSettings ? "pointer-events-none opacity-50" : ""}`}>
                                     <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3 w-3">
                                       <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
                                     </svg>
@@ -1551,7 +1547,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                       type="file"
                                       accept="video/mp4,video/webm"
                                       className="sr-only"
-                                      disabled={!draftId || uploadingLandmineVideo}
+                                      disabled={!draftId || uploadingLandmineVideo || !canEditSettings}
                                       onChange={async (e) => {
                                         const file = e.target.files?.[0];
                                         if (!file || !draftId) return;
@@ -1601,50 +1597,25 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       </Button>
                       <Button
                         variant="secondary"
+                        disabled={!canEditSettings || savingTeamId === "order"}
                         onClick={() => {
-                          setTeams((prev) => [...prev].sort(() => Math.random() - 0.5));
-                          setOrderDirty(true);
+                          void autosaveDraftOrder([...teams].sort(() => Math.random() - 0.5));
                         }}
                       >
                         Randomize order
                       </Button>
-                      <Button variant="tertiary" scope="league" onClick={() => setShowOrderRace(true)}>
+                      <Button variant="tertiary" scope="league" disabled={!canEditSettings} onClick={() => setShowOrderRace(true)}>
                         Draft order race
                       </Button>
-                      {/* Keeps its inline accent: this is the tab's primary
-                          action and Button's league scope tints tertiary, not
-                          primary. Same treatment as the other accent CTAs. */}
-                      <button
-                        type="button"
-                        disabled={!orderDirty || savingTeamId === "order"}
-                        className="min-h-10 rounded-[var(--radius-control)] px-4 text-xs font-black transition-opacity hover:opacity-90 disabled:opacity-40"
-                        style={{ backgroundColor: primary, color: secondary }}
-                        onClick={async () => {
-                          setSavingTeamId("order");
-                          try {
-                            if (draftId) await updateTeamSetup(draftId, teams);
-                            setOrderDirty(false);
-                          }
-                          catch (e) { setError(e instanceof Error ? e.message : "Unable to save order."); }
-                          finally { setSavingTeamId(null); }
-                        }}
-                      >
-                        {savingTeamId === "order" ? "Saving..." : orderDirty ? "Save order" : "Order saved"}
-                      </button>
+                      {savingTeamId === "order" ? (
+                        <span className="text-xs font-semibold text-[color:var(--color-text-secondary)]">
+                          Saving order...
+                        </span>
+                      ) : null}
                     </div>
                   ) : undefined}
                 >
-                  {/* One stat, not three. "Order: Unsaved" restated the Save
-                      order button directly above it, and "Locked State: Locked"
-                      restated the banner directly below it — each said the same
-                      thing twice, at twice the size. Owner seats is the only
-                      one of the three that nothing else on the tab reports. */}
-                  <p className="text-sm text-[color:var(--color-text-secondary)]">
-                    <span className="font-black tabular-nums text-[color:var(--color-text-primary)]">
-                      {assignedTeams}/{teams.length}
-                    </span>{" "}
-                    owner seats assigned
-                  </p>
+                  <></>
                 </Panel>
 
                 {isCommissioner && !canManageAssignments && (
@@ -1666,7 +1637,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       // docs/STATUS.md: update_team_details() reads
                       // v_team.owner_user_id and plpgsql only resolves that at
                       // runtime, so its owner branch is believed broken.
-                      const canEditTeam = isCommissioner || isSelf;
+                      const canEditTeam = (isCommissioner || isSelf) && canEditSettings;
                       const avatarColors = ["#ef4444","#f97316","#eab308","#22c55e","#06b6d4","#8b5cf6","#ec4899","#6366f1","var(--color-league-accent)","#f59e0b"];
                       const avatarColor = avatarColors[index % avatarColors.length];
                       const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
@@ -1685,7 +1656,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             e.preventDefault();
                             setDropIndex(index);
                           }}
-                          onDrop={(e) => { e.preventDefault(); handleDrop(index); }}
+                          onDrop={(e) => { e.preventDefault(); void handleDrop(index); }}
                           className={isDragging ? "opacity-40" : undefined}
                         >
                           {/* Collapsed row — div[role=button] so the reorder arrows can be real buttons inside */}
@@ -1704,10 +1675,11 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               }
                             }}
                           >
-                            {isCommissioner && canManageAssignments && (
+                            {isCommissioner && canEditSettings && canManageAssignments && (
                               <span
-                                draggable
+                                draggable={canEditSettings && savingTeamId !== "order"}
                                 onDragStart={(e) => {
+                                  if (savingTeamId === "order") return;
                                   setDragIndex(index);
                                   setDropIndex(index);
                                   e.dataTransfer.effectAllowed = "move";
@@ -1763,14 +1735,14 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               <div className="flex shrink-0 gap-1">
                                 <button
                                   type="button"
-                                  disabled={index === 0}
+                                  disabled={!canEditSettings || index === 0 || savingTeamId === "order"}
                                   aria-label={`Move ${team.name} up in the draft order`}
                                   className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
                                   onClick={(e) => { e.stopPropagation(); moveTeam(index, -1); }}
                                 >↑</button>
                                 <button
                                   type="button"
-                                  disabled={index === teams.length - 1}
+                                  disabled={!canEditSettings || index === teams.length - 1 || savingTeamId === "order"}
                                   aria-label={`Move ${team.name} down in the draft order`}
                                   className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-1.5 text-xs text-slate-400 hover:text-white disabled:opacity-30 transition-colors"
                                   onClick={(e) => { e.stopPropagation(); moveTeam(index, 1); }}
@@ -1787,72 +1759,20 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             <div className="border-t border-slate-800 bg-slate-950/40 px-5 py-5">
                               <div className="grid gap-8 lg:grid-cols-[1fr_260px]">
 
-                                {/* Left — Team identity */}
+                                {/* Left — draft-specific team details */}
                                 <div className="space-y-4">
                                   <div className="flex items-center justify-between">
-                                    <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Team identity</p>
+                                    <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Draft details</p>
                                   </div>
 
-                                  <div className="grid gap-3 sm:grid-cols-2">
-                                    <Field label="Team name" controlId={`team-name-${team.id}`}>
-                                      <Input type="text" disabled={!canEditTeam} value={team.name} onChange={(e) => updateTeam(team.id, e.target.value)} />
-                                    </Field>
-                                    <Field label="Short name" controlId={`team-short-${team.id}`}>
-                                      <Input
-                                        type="text"
-                                        disabled={!canEditTeam}
-                                        maxLength={10}
-                                        value={team.shortName ?? ""}
-                                        placeholder="e.g. Rockets"
-                                        onChange={(e) => updateTeamField(team.id, "shortName", e.target.value)}
-                                      />
-                                    </Field>
-                                  </div>
-
-                                  <div className="grid gap-3 sm:grid-cols-2">
-                                    <Field
-                                      label="Text-to-speech name"
-                                      controlId={`team-tts-${team.id}`}
-                                      description="Optional — how the announcer should pronounce the team."
-                                    >
-                                      <div className="flex gap-[var(--space-2)]">
-                                        <Input
-                                          type="text"
-                                          disabled={!canEditTeam}
-                                          maxLength={60}
-                                          value={team.ttsName ?? ""}
-                                          placeholder="Pronunciation for announcer"
-                                          onChange={(e) => updateTeamField(team.id, "ttsName", e.target.value)}
-                                        />
-                                        <button
-                                          type="button"
-                                          title="Preview voice"
-                                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] text-[color:var(--color-text-muted)] transition-colors hover:bg-[var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
-                                          onClick={() => {
-                                            if (typeof window === "undefined" || !window.speechSynthesis) return;
-                                            window.speechSynthesis.cancel();
-                                            const utt = new SpeechSynthesisUtterance(team.ttsName?.trim() || team.name);
-                                            const voices = window.speechSynthesis.getVoices();
-                                            const voice = resolveAnnouncerVoice(voices, setup?.draft.announcerVoiceUri);
-                                            if (voice) utt.voice = voice;
-                                            window.speechSynthesis.speak(utt);
-                                          }}
-                                        >
-                                          <svg viewBox="0 0 16 16" fill="currentColor" className="h-4 w-4">
-                                            <path d="M3 3.5l10 4.5-10 4.5V3.5z"/>
-                                          </svg>
-                                        </button>
-                                      </div>
-                                    </Field>
-                                    <Field label="Autodraft" controlId={`team-autodraft-${team.id}`}>
-                                      <Checkbox
-                                        disabled={!canEditTeam}
-                                        checked={team.autodraft ?? false}
-                                        onChange={(e) => updateTeamField(team.id, "autodraft", e.target.checked)}
-                                        label="Auto-pick when on clock"
-                                      />
-                                    </Field>
-                                  </div>
+                                  <Field label="Autodraft" controlId={`team-autodraft-${team.id}`}>
+                                    <Checkbox
+                                      disabled={!canEditTeam}
+                                      checked={team.autodraft ?? false}
+                                      onChange={(e) => updateTeamField(team.id, "autodraft", e.target.checked)}
+                                      label="Auto-pick when on clock"
+                                    />
+                                  </Field>
 
                                   <Field label="Pre-draft notes" controlId={`team-notes-${team.id}`}>
                                     <Textarea
@@ -1860,164 +1780,54 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                       rows={3}
                                       maxLength={2000}
                                       value={team.preDraftNotes ?? ""}
-                                      placeholder="Notes visible to the commissioner before the draft."
+                                      placeholder="Notes shown in the draft lobby before the draft."
                                       onChange={(e) => updateTeamField(team.id, "preDraftNotes", e.target.value)}
                                     />
                                   </Field>
 
-                                  {/* Last season (collapsible) */}
-                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
-                                    <button
-                                      type="button"
-                                      className="flex w-full items-center justify-between px-4 py-3 text-left"
-                                      onClick={() => setLastSeasonOpen((prev) => {
-                                        const next = new Set(prev);
-                                        if (next.has(team.id)) next.delete(team.id);
-                                        else next.add(team.id);
-                                        return next;
-                                      })}
-                                    >
+                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-4 pb-4 pt-3">
+                                    <div className="mb-3 flex items-center justify-between">
                                       <span className="text-sm font-semibold text-white">Last season details</span>
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-xs text-slate-500">Optional</span>
-                                        <svg className={`h-4 w-4 text-slate-500 transition-transform ${lastSeasonOpen.has(team.id) ? "rotate-180" : ""}`} viewBox="0 0 16 16" fill="none">
-                                          <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
-                                        </svg>
-                                      </div>
-                                    </button>
-                                    {lastSeasonOpen.has(team.id) && (
-                                      <div className="border-t border-slate-800 px-4 pb-4 pt-4">
-                                        <div className="grid gap-3 sm:grid-cols-3">
-                                          <Field label="First round pick" controlId={`team-lastpick-${team.id}`}>
-                                            <Input
-                                              type="text"
-                                              maxLength={80}
-                                              disabled={!canEditTeam}
-                                              value={team.lastSeasonPickPlayer ?? ""}
-                                              placeholder="e.g. Justin Jefferson"
-                                              onChange={(e) => updateTeamField(team.id, "lastSeasonPickPlayer", e.target.value || undefined)}
-                                            />
-                                          </Field>
-                                          <Field label="Record" controlId={`team-lastrecord-${team.id}`}>
-                                            <Input
-                                              type="text"
-                                              maxLength={20}
-                                              disabled={!canEditTeam}
-                                              value={team.lastSeasonRecord ?? ""}
-                                              placeholder="e.g. 9-4"
-                                              onChange={(e) => updateTeamField(team.id, "lastSeasonRecord", e.target.value)}
-                                            />
-                                          </Field>
-                                          <Field label="Made playoffs" controlId={`team-lastplayoffs-${team.id}`}>
-                                            <Select
-                                              disabled={!canEditTeam}
-                                              value={team.lastSeasonPlayoffs === undefined ? "" : team.lastSeasonPlayoffs ? "yes" : "no"}
-                                              onChange={(e) => updateTeamField(team.id, "lastSeasonPlayoffs", e.target.value === "" ? undefined : e.target.value === "yes")}
-                                            >
-                                              <option value="">Unknown</option>
-                                              <option value="yes">Yes</option>
-                                              <option value="no">No</option>
-                                            </Select>
-                                          </Field>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-
-                                  {/* Walk-up songs */}
-                                  <div className="rounded-xl border border-slate-800 bg-slate-900/60 overflow-hidden">
-                                    <div className="flex items-center justify-between px-4 py-3">
-                                      <div>
-                                        <span className="text-sm font-semibold text-white">Team songs</span>
-                                        <span className="ml-2 text-xs text-slate-500">Walk-up songs</span>
-                                      </div>
-                                      <span className="text-xs text-slate-500">{(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length} of {MAX_WALK_UP_SONGS} songs</span>
+                                      <span className="text-xs text-slate-500">Optional</span>
                                     </div>
-                                    {/* Spotify connect */}
-                                    <div className="flex items-center justify-between border-t border-slate-800 px-4 py-2.5">
-                                      {spotifyConnected ? (
-                                        <div className="flex items-center gap-2">
-                                          <svg viewBox="0 0 24 24" fill="currentColor" className="h-4 w-4 text-green-400 shrink-0"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-                                          <span className="text-xs text-green-400 font-medium">Spotify connected</span>
-                                          <button type="button" onClick={() => {
-                                              disconnectSpotify();
-                                              setSpotifyConnected(false);
-                                              // Remove Spotify songs from all teams
-                                              setTeams((prev) => prev.map((t) => {
-                                                const filtered = (Array.isArray(t.walkUpSongs) ? t.walkUpSongs : []).filter((s) => s.platform !== "spotify");
-                                                if (filtered.length !== (t.walkUpSongs ?? []).length) {
-                                                  void saveWalkUpSongs(t.id, filtered);
-                                                  return { ...t, walkUpSongs: filtered };
-                                                }
-                                                return t;
-                                              }));
-                                            }}
-                                            className="text-xs text-slate-500 hover:text-red-400 underline transition-colors ml-1">
-                                            Disconnect
-                                          </button>
-                                        </div>
-                                      ) : (
-                                        <div className="flex flex-col gap-0.5">
-                                          <button type="button"
-                                            onClick={() => initiateSpotifyPopup(() => setSpotifyConnected(true))}
-                                            className="flex items-center gap-2 rounded-lg bg-[#1DB954] px-3 py-1.5 text-xs font-bold text-black hover:bg-[#1ed760] transition-colors">
-                                            <svg viewBox="0 0 24 24" fill="currentColor" className="h-3.5 w-3.5 shrink-0"><path d="M12 0C5.4 0 0 5.4 0 12s5.4 12 12 12 12-5.4 12-12S18.66 0 12 0zm5.521 17.34c-.24.359-.66.48-1.021.24-2.82-1.74-6.36-2.101-10.561-1.141-.418.122-.779-.179-.899-.539-.12-.421.18-.78.54-.9 4.56-1.021 8.52-.6 11.64 1.32.42.18.479.659.301 1.02zm1.44-3.3c-.301.42-.841.6-1.262.3-3.239-1.98-8.159-2.58-11.939-1.38-.479.12-1.02-.12-1.14-.6-.12-.48.12-1.021.6-1.141C9.6 9.9 15 10.561 18.72 12.84c.361.181.54.78.241 1.2zm.12-3.36C15.24 8.4 8.82 8.16 5.16 9.301c-.6.179-1.2-.181-1.38-.721-.18-.601.18-1.2.72-1.381 4.26-1.26 11.28-1.02 15.721 1.621.539.3.719 1.02.419 1.56-.299.421-1.02.599-1.559.3z"/></svg>
-                                            Connect Spotify
-                                            <span className="font-normal opacity-70">(Optional)</span>
-                                          </button>
-                                          <span className="text-[10px] text-slate-600">Spotify Premium required · YouTube works without it</span>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    <div className="border-t border-slate-800 px-4 pb-4 pt-3 space-y-2">
-                                      {(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length === 0 ? (
-                                        <p className="rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)] text-sm text-[color:var(--color-text-muted)]">
-                                          No walk-up songs added yet.
-                                        </p>
-                                      ) : (
-                                        (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).map((song, si) => (
-                                          <div key={si} className="flex items-center gap-2 rounded-lg border border-slate-700/50 bg-slate-800/40 px-3 py-2">
-                                            <svg viewBox="0 0 16 16" fill="currentColor" className="h-3.5 w-3.5 shrink-0 text-slate-400">
-                                              <path d="M6 2v9.27A3 3 0 1 0 7 14V5h5V2H6z"/>
-                                            </svg>
-                                            <span className="flex-1 truncate text-sm text-slate-300">{song.title || song.url}</span>
-                                            {canEditTeam && (
-                                              <button
-                                                type="button"
-                                                aria-label={`Remove ${song.title || song.url}`}
-                                                className="shrink-0 text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-danger-text)]"
-                                                onClick={() => {
-                                                  const next = (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).filter((_, i) => i !== si);
-                                                  updateTeamField(team.id, "walkUpSongs", next);
-                                                  void saveWalkUpSongs(team.id, next);
-                                                }}
-                                              >
-                                                <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-4 w-4">
-                                                  <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round"/>
-                                                </svg>
-                                              </button>
-                                            )}
-                                          </div>
-                                        ))
-                                      )}
-                                      {canEditTeam && (Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []).length < MAX_WALK_UP_SONGS && (
-                                        <button
-                                          type="button"
-                                          onClick={() => setSongPickerTeamId(team.id)}
-                                          className="flex w-full items-center justify-center gap-2 rounded-lg border border-dashed border-slate-700 py-2 text-xs font-bold uppercase tracking-wider text-slate-500 hover:border-slate-500 hover:text-slate-300 transition-colors"
+                                    <div className="grid gap-3 sm:grid-cols-3">
+                                      <Field label="First round pick" controlId={`team-lastpick-${team.id}`}>
+                                        <Input
+                                          type="text"
+                                          maxLength={80}
+                                          disabled={!canEditTeam}
+                                          value={team.lastSeasonPickPlayer ?? ""}
+                                          placeholder="e.g. Justin Jefferson"
+                                          onChange={(e) => updateTeamField(team.id, "lastSeasonPickPlayer", e.target.value || undefined)}
+                                        />
+                                      </Field>
+                                      <Field label="Record" controlId={`team-lastrecord-${team.id}`}>
+                                        <Input
+                                          type="text"
+                                          maxLength={20}
+                                          disabled={!canEditTeam}
+                                          value={team.lastSeasonRecord ?? ""}
+                                          placeholder="e.g. 9-4"
+                                          onChange={(e) => updateTeamField(team.id, "lastSeasonRecord", e.target.value)}
+                                        />
+                                      </Field>
+                                      <Field label="Made playoffs" controlId={`team-lastplayoffs-${team.id}`}>
+                                        <Select
+                                          disabled={!canEditTeam}
+                                          value={team.lastSeasonPlayoffs === undefined ? "" : team.lastSeasonPlayoffs ? "yes" : "no"}
+                                          onChange={(e) => updateTeamField(team.id, "lastSeasonPlayoffs", e.target.value === "" ? undefined : e.target.value === "yes")}
                                         >
-                                          <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-3.5 w-3.5">
-                                            <path d="M8 3v10M3 8h10" strokeLinecap="round"/>
-                                          </svg>
-                                          Add a song
-                                        </button>
-                                      )}
+                                          <option value="">Unknown</option>
+                                          <option value="yes">Yes</option>
+                                          <option value="no">No</option>
+                                        </Select>
+                                      </Field>
                                     </div>
                                   </div>
+
                                 </div>
 
-                                {/* Right — Owner + Images + Actions */}
+                                {/* Right — Owner + Actions */}
                                 <div className="space-y-5">
 
                                   {/* Owner */}
@@ -2039,92 +1849,22 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-500 mb-0.5">Joined</p>
                                           <p className="text-sm text-slate-300 truncate">{owner.displayName}</p>
                                         </div>
-                                        {isCommissioner && canManageAssignments && !isCommissionerTeam && (
+                                        {isCommissioner && canEditSettings && canManageAssignments && !isCommissionerTeam && (
                                           <Button variant="danger" fullWidth onClick={() => void updateAssignment(owner.id, "")}>
                                             Remove owner
                                           </Button>
                                         )}
                                       </>
                                     ) : pending ? (
-                                      <div className="space-y-2">
-                                        <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5">
-                                          <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 mb-0.5">Invited</p>
-                                          <p className="text-sm text-amber-300 truncate">{pending.email}</p>
-                                        </div>
-                                        <button type="button" className="text-xs text-slate-500 hover:text-slate-300 transition-colors" onClick={() => copyOwnerInvite(pending.id)}>Copy invite link</button>
+                                      <div className="rounded-lg border border-amber-800/40 bg-amber-950/20 px-3 py-2.5">
+                                        <p className="text-[10px] font-semibold uppercase tracking-wide text-amber-600 mb-0.5">Invited</p>
+                                        <p className="text-sm text-amber-300 truncate">{pending.email}</p>
                                       </div>
                                     ) : (
-                                      <div className="space-y-2">
-                                        {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").length > 0 && (
-                                          <Select aria-label="Assign existing member" value="" disabled={!canManageAssignments}
-                                            onChange={(e) => { const p = setup.participants.find((m) => m.id === e.target.value); if (p) void updateAssignment(p.id, team.id); }}>
-                                            <option value="">Assign existing member…</option>
-                                            {setup.participants.filter((p) => !p.teamId && p.role !== "commissioner").map((p) => (
-                                              <option key={p.id} value={p.id}>{p.displayName}</option>
-                                            ))}
-                                          </Select>
-                                        )}
-                                        {isCommissioner && (
-                                          <Input
-                                            type="email"
-                                            maxLength={320}
-                                            aria-label={`Invite an owner to ${team.name} by email`}
-                                            placeholder="Invite by email"
-                                            value={inviteTeamId === team.id ? inviteEmail : ""}
-                                            onChange={(e) => { setInviteTeamId(team.id); setInviteEmail(e.target.value); }}
-                                          />
-                                        )}
+                                      <div className="rounded-lg border border-slate-700 bg-slate-800/30 px-3 py-2.5">
+                                        <p className="text-sm text-slate-400">No owner assigned</p>
                                       </div>
                                     )}
-                                  </div>
-
-                                  {/* Images */}
-                                  <div className="space-y-2">
-                                    <div className="flex items-center justify-between">
-                                      <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Images</p>
-                                      <span className="text-xs text-[color:var(--color-text-muted)]">4MB max</span>
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                      <div>
-                                        <label className="mb-[var(--space-1)] block text-sm font-[var(--font-weight-control)] text-[color:var(--color-text-primary)]">Team logo</label>
-                                        <label className={canEditTeam ? "block cursor-pointer group" : "block cursor-not-allowed opacity-50"}>
-                                          <input type="file" accept="image/*" className="sr-only" disabled={!canEditTeam} onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (!file) return;
-                                            try {
-                                              const url = await uploadDraftTeamLogo(setup.draft.id, team.id, file);
-                                              setSetup((prev) => prev ? { ...prev, teams: prev.teams.map((t) => t.id === team.id ? { ...t, logoUrl: url } : t) } : prev);
-                                            } catch { /* ignore */ }
-                                          }} />
-                                          <div className="h-20 w-full rounded-xl overflow-hidden flex items-center justify-center text-xl font-bold text-white border-2 border-dashed border-slate-700 group-hover:border-slate-500 transition-colors" style={{ backgroundColor: avatarColor + "33" }}>
-                                            {team.logoUrl
-                                              // eslint-disable-next-line @next/next/no-img-element
-                                              ? <img src={team.logoUrl} alt="" className="h-full w-full object-cover" />
-                                              : initials}
-                                          </div>
-                                        </label>
-                                      </div>
-                                      <div>
-                                        <label className="mb-[var(--space-1)] block text-sm font-[var(--font-weight-control)] text-[color:var(--color-text-primary)]">Owner photo</label>
-                                        <label className={canEditTeam ? "block cursor-pointer group" : "block cursor-not-allowed opacity-50"}>
-                                          <input type="file" accept="image/*" className="sr-only" disabled={!canEditTeam} onChange={async (e) => {
-                                            const file = e.target.files?.[0];
-                                            if (!file) return;
-                                            try {
-                                              const url = await uploadDraftOwnerPhoto(setup.draft.id, team.id, file);
-                                              setSetup((prev) => prev ? { ...prev, teams: prev.teams.map((t) => t.id === team.id ? { ...t, ownerPhotoUrl: url } : t) } : prev);
-                                            } catch { /* ignore */ }
-                                          }} />
-                                          <div className="h-20 w-full rounded-xl overflow-hidden flex items-center justify-center border-2 border-dashed border-slate-700 group-hover:border-slate-500 transition-colors bg-slate-800/40">
-                                            {team.ownerPhotoUrl
-                                              // eslint-disable-next-line @next/next/no-img-element
-                                              ? <img src={team.ownerPhotoUrl} alt="" className="h-full w-full object-cover" />
-                                              : <svg className="h-8 w-8 text-slate-600 group-hover:text-slate-400 transition-colors" viewBox="0 0 24 24" fill="currentColor"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8zm0 2c-5 0-8 2.5-8 4v1h16v-1c0-1.5-3-4-8-4z"/></svg>}
-                                          </div>
-                                        </label>
-                                      </div>
-                                    </div>
-                                    <p className="text-[10px] text-slate-500">{canEditTeam ? "Click either image to upload · PNG, JPG, WEBP · 4MB max" : "Only this team’s owner and the commissioner can change these."}</p>
                                   </div>
 
                                   {/* Actions */}
@@ -2139,23 +1879,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                     >
                                       {savingTeamId === team.id ? "Saving..." : "Save team"}
                                     </button>
-                                    {isCommissioner && !owner && !pending && (
-                                      <form onSubmit={(e) => void sendEmailInvitation(e, team.id)}>
-                                        {/* type="submit" and data-delivery are load-bearing:
-                                            the form's submit handler reads the delivery mode
-                                            off the button. Button forwards both. */}
-                                        <Button
-                                          type="submit"
-                                          variant="secondary"
-                                          fullWidth
-                                          data-delivery="email"
-                                          loading={isInviting && inviteTeamId === team.id}
-                                          disabled={isInviting || !inviteEmail || inviteTeamId !== team.id}
-                                        >
-                                          {isInviting && inviteTeamId === team.id ? "Sending..." : "Save team & invite owner"}
-                                        </Button>
-                                      </form>
-                                    )}
                                   </div>
 
                                 </div>
@@ -2168,29 +1891,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                   </div>
                 </div>
 
-                {/* Pending invitations summary */}
-                {setup.invitations.length > 0 && (
-                  <Panel title="Pending invitations">
-                    <div className="space-y-1.5">
-                      {setup.invitations.map((inv) => (
-                        <div key={inv.id} className="flex items-center justify-between rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-3)] py-[var(--space-2)] text-sm">
-                          <span className="text-[color:var(--color-text-secondary)]">
-                            {inv.email}
-                            {inv.teamId && <span className="ml-2 text-[color:var(--color-text-muted)]">— {teams.find((t) => t.id === inv.teamId)?.name}</span>}
-                          </span>
-                          <div className="flex items-center gap-[var(--space-2)]">
-                            <StatusBadge status={inv.status === "pending" ? "warning" : "neutral"}>{inv.status}</StatusBadge>
-                            {inv.status === "pending" && inv.teamId && (
-                              <Button variant="secondary" onClick={() => copyOwnerInvite(inv.id)}>
-                                Copy
-                              </Button>
-                            )}
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  </Panel>
-                )}
               </div>
             )}
 
@@ -2225,7 +1925,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                 >
                   <div className="flex items-center gap-3">
                     <select
-                      disabled={!isCommissioner}
+                      disabled={!canEditSettings}
                       value={getAiAnnouncerId(announcerVoiceUri) ?? getAnnouncerVoiceProfile(announcerVoiceUri)}
                       onChange={async (e) => {
                         const uri = e.target.value;
@@ -2309,7 +2009,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         </div>
                         <button
                           type="button"
-                          disabled={!isCommissioner}
+                          disabled={!canEditSettings}
                           onClick={async () => {
                             storeElevenLabsKey(null);
                             setElConnected(false);
@@ -2345,13 +2045,13 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             value={elKeyInput}
                             onChange={(e) => setElKeyInput(e.target.value)}
                             placeholder="ElevenLabs API key"
-                            disabled={!isCommissioner || elBusy}
+                            disabled={!canEditSettings || elBusy}
                             autoComplete="off"
                             className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
                           />
                           <button
                             type="button"
-                            disabled={!isCommissioner || elBusy || !elKeyInput.trim()}
+                            disabled={!canEditSettings || elBusy || !elKeyInput.trim()}
                             onClick={async () => {
                               const key = elKeyInput.trim();
                               setElBusy(true);
@@ -2392,7 +2092,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         <input
                           type="checkbox"
                           checked={pickIsInEnabled}
-                          disabled={!isCommissioner}
+                          disabled={!canEditSettings}
                           onChange={async (e) => {
                             const val = e.target.checked;
                             setPickIsInEnabled(val);
@@ -2414,7 +2114,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         <div className="mt-3 ml-7">
                           <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">Pick is in sound effect</p>
                           <div className="flex items-center gap-2">
-                            {isCommissioner && (
+                            {canEditSettings && (
                               <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-700 ${pickIsInUploading ? "opacity-50 pointer-events-none" : ""}`}>
                                 <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0">
                                   <path d="M8 11V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -2455,7 +2155,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                 <button type="button" title="Preview" onClick={() => { const a = new Audio(pickIsInSfxUrl); a.play().catch(() => {}); }} className="shrink-0 text-slate-400 hover:text-white transition-colors">
                                   <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M2 2l8 4-8 4z"/></svg>
                                 </button>
-                                {isCommissioner && (
+                                {canEditSettings && (
                                   <button type="button" title="Remove — revert to default"
                                     onClick={async () => {
                                       setPickIsInSfxUrl(null);
@@ -2486,7 +2186,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <p className="mb-1 text-sm font-semibold text-white">Draft start audio</p>
                       <p className="mb-2.5 text-xs text-slate-500">Sound effect played the moment the draft begins.</p>
                       <div className="flex items-center gap-2">
-                        {isCommissioner && (
+                        {canEditSettings && (
                           <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-700 ${draftStartUploading ? "opacity-50 pointer-events-none" : ""}`}>
                             <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0">
                               <path d="M8 11V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -2527,7 +2227,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                             <button type="button" title="Preview" onClick={() => { const a = new Audio(draftStartAudioUrl); a.play().catch(() => {}); }} className="shrink-0 text-slate-400 hover:text-white transition-colors">
                               <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M2 2l8 4-8 4z"/></svg>
                             </button>
-                            {isCommissioner && (
+                            {canEditSettings && (
                               <button type="button" title="Remove"
                                 onClick={async () => {
                                   setDraftStartAudioUrl(null);
@@ -2578,7 +2278,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                           type="radio"
                           name="walkUpMusicMode"
                           checked={walkUpMusicMode === opt.value}
-                          disabled={!isCommissioner}
+                          disabled={!canEditSettings}
                           onChange={async () => {
                             setWalkUpMusicMode(opt.value);
                             if (!draftId || !setup) return;
@@ -2609,7 +2309,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     <input
                       type="checkbox"
                       checked={showRoundSlide}
-                      disabled={!isCommissioner}
+                      disabled={!canEditSettings}
                       onChange={async (e) => {
                         const val = e.target.checked;
                         setShowRoundSlide(val);
@@ -2631,7 +2331,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <div className="flex items-center gap-3">
                         <span className="text-xs font-semibold text-slate-400">Display for</span>
                         <select
-                          disabled={!isCommissioner}
+                          disabled={!canEditSettings}
                           value={roundSlideSeconds}
                           onChange={async (e) => {
                             const val = Number(e.target.value);
@@ -2656,7 +2356,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         <input
                           type="checkbox"
                           checked={roundSlidePausesClock}
-                          disabled={!isCommissioner}
+                          disabled={!canEditSettings}
                           onChange={async (e) => {
                             const val = e.target.checked;
                             setRoundSlidePausesClock(val);
@@ -2692,7 +2392,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                       <div key={label}>
                         <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-500">{label}</p>
                         <div className="flex items-center gap-2">
-                          {isCommissioner && (
+                          {canEditSettings && (
                             <label className={`flex shrink-0 cursor-pointer items-center gap-1.5 rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs font-bold text-slate-300 transition-colors hover:bg-slate-700 ${sfxUploading[slot] ? "opacity-50 pointer-events-none" : ""}`}>
                               <svg viewBox="0 0 16 16" fill="none" className="h-3.5 w-3.5 shrink-0">
                                 <path d="M8 11V3M4 7l4-4 4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -2750,7 +2450,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                 className="shrink-0 text-slate-400 hover:text-white transition-colors">
                                 <svg viewBox="0 0 12 12" fill="currentColor" className="h-3.5 w-3.5"><path d="M2 2l8 4-8 4z"/></svg>
                               </button>
-                              {isCommissioner && (
+                              {canEditSettings && (
                                 <button type="button" title="Remove"
                                   onClick={async () => {
                                     setUrl("");
@@ -2802,7 +2502,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                         <p className="truncate text-sm font-semibold text-white">{awardsSong.title}</p>
                         {awardsSong.artist && <p className="truncate text-xs text-slate-500">{awardsSong.artist}</p>}
                       </div>
-                      {isCommissioner && (
+                      {canEditSettings && (
                         <button
                           type="button"
                           title="Use the default track"
@@ -2827,7 +2527,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </p>
                   )}
 
-                  {isCommissioner && (
+                  {canEditSettings && (
                     <button
                       type="button"
                       onClick={() => setShowAwardsSongPicker(true)}
@@ -2859,7 +2559,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               value={phrase}
                               onChange={(e) => setPosReactions((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
                               aria-label={`Positive reaction phrase ${i + 1}`}
-                              disabled={!isCommissioner}
+                              disabled={!canEditSettings}
                             />
                             <button type="button" title="Preview"
                               onClick={() => { const u = new SpeechSynthesisUtterance(phrase); window.speechSynthesis?.speak(u); }}
@@ -2882,7 +2582,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                               value={phrase}
                               onChange={(e) => setNegReactions((prev) => prev.map((p, idx) => idx === i ? e.target.value : p))}
                               aria-label={`Negative reaction phrase ${i + 1}`}
-                              disabled={!isCommissioner}
+                              disabled={!canEditSettings}
                             />
                             <button type="button" title="Preview"
                               onClick={() => { const u = new SpeechSynthesisUtterance(phrase); window.speechSynthesis?.speak(u); }}
@@ -2895,7 +2595,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                     </div>
                   </div>
 
-                  {isCommissioner && (
+                  {canEditSettings && (
                     <button type="button"
                       disabled={isSavingAudio}
                       onClick={async () => {
@@ -3087,22 +2787,6 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       </div>
     </div>
 
-    {/* Walk-up song picker modal */}
-    {songPickerTeamId && (
-      <SongPicker
-        onSelect={(song) => {
-          const team = teams.find((t) => t.id === songPickerTeamId);
-          if (team) {
-            const next = [...(Array.isArray(team.walkUpSongs) ? team.walkUpSongs : []), song];
-            updateTeamField(songPickerTeamId, "walkUpSongs", next);
-            void saveWalkUpSongs(songPickerTeamId, next);
-          }
-          setSongPickerTeamId(null);
-        }}
-        onClose={() => setSongPickerTeamId(null)}
-      />
-    )}
-
     {/* Awards ceremony song picker */}
     {showAwardsSongPicker && (
       <SongPicker
@@ -3125,12 +2809,9 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
         isCommissioner={isCommissioner}
         onClose={() => setShowOrderRace(false)}
         onLockIn={async (ordered) => {
-          setTeams(ordered);
           try {
-            if (draftId) await updateTeamSetup(draftId, ordered);
-            setOrderDirty(false);
+            await autosaveDraftOrder(ordered, true);
           } catch (e) {
-            setOrderDirty(true);
             setError(e instanceof Error ? e.message : "Unable to save order.");
           }
           setShowOrderRace(false);

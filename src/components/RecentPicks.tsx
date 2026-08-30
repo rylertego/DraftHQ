@@ -19,23 +19,23 @@ export default function RecentPicks({ picks }: RecentPicksProps) {
     .slice(0, 6);
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4">
-      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-slate-500">Recent Picks</h2>
+    <div className="rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] p-4">
+      <h2 className="mb-3 text-xs font-bold uppercase tracking-widest text-[color:var(--color-text-muted)]">Recent Picks</h2>
       {recent.length === 0 ? (
-        <p className="text-sm text-slate-600">No picks yet</p>
+        <p className="text-sm text-[color:var(--color-text-muted)]">No picks yet</p>
       ) : (
         <div className="space-y-2">
           {recent.map((pick) => {
             const posColor = POSITION_COLORS[pick.playerPosition] ?? "#94A3B8";
             return (
               <div key={pick.overallPickNumber} className="flex items-start gap-2.5">
-                <span className="mt-0.5 w-6 shrink-0 text-right text-[10px] font-bold text-slate-600">#{pick.overallPickNumber}</span>
+                <span className="mt-0.5 w-6 shrink-0 text-right text-[10px] font-bold text-[color:var(--color-text-muted)]">#{pick.overallPickNumber}</span>
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-[10px] font-bold" style={{ color: posColor }}>{pick.playerPosition}</span>
-                    <span className="truncate text-sm font-semibold text-white">{pick.playerName}</span>
+                    <span className="truncate text-sm font-semibold text-[color:var(--color-text-primary)]">{pick.playerName}</span>
                   </div>
-                  <div className="text-[10px] text-slate-500">{pick.nflTeam}</div>
+                  <div className="text-[10px] text-[color:var(--color-text-muted)]">{pick.nflTeam}</div>
                 </div>
               </div>
             );

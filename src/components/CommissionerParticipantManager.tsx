@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
+import { Alert, Button, Panel, Select } from "@/components/ui";
 import { assignTeam, removeDraftParticipant } from "@/lib/draftApi";
 import { getAssignedTeamIds } from "@/lib/participantLogic";
 import type {
@@ -18,6 +19,7 @@ interface CommissionerParticipantManagerProps {
   onlineUserIds: string[];
   onChanged: () => Promise<void>;
   leagueSlug?: string;
+  embedded?: boolean;
 }
 
 export default function CommissionerParticipantManager({
@@ -28,6 +30,7 @@ export default function CommissionerParticipantManager({
   onlineUserIds,
   onChanged,
   leagueSlug,
+  embedded = false,
 }: CommissionerParticipantManagerProps) {
   const [busyParticipantId, setBusyParticipantId] = useState<string | null>(
     null
@@ -80,26 +83,26 @@ export default function CommissionerParticipantManager({
     }
   }
 
-  return (
-    <section className="rounded-lg border border-gray-700 p-4">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h2 className="font-bold">Owner Readiness</h2>
-          <p className="text-sm text-gray-400">
-            {canManage
-              ? "Assignments can be changed while setup or paused."
-              : "Pause the draft to reassign or replace an owner."}
-          </p>
+  const content = (
+    <>
+      {embedded ? (
+        <div className="mb-[var(--space-3)] flex justify-end">
+          <Link
+            className="text-sm font-semibold text-[color:var(--color-league-accent)] underline-offset-4 hover:underline"
+            href={`/teams?draftId=${draftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`}
+          >
+            Manage invitations
+          </Link>
         </div>
-        <Link
-          className="text-sm text-blue-400 underline"
-          href={`/teams?draftId=${draftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`}
-        >
-          Manage invitations
-        </Link>
-      </div>
+      ) : null}
 
-      <div className="mt-4 space-y-3">
+      {error ? (
+        <Alert status="danger" title="Unable to update participant">
+          {error}
+        </Alert>
+      ) : null}
+
+      <div className="mt-[var(--space-4)] grid gap-[var(--space-3)]">
         {participants.map((participant) => {
           const isOnline = onlineUsers.has(participant.userId);
           const unavailableTeamIds = getAssignedTeamIds(
@@ -110,25 +113,26 @@ export default function CommissionerParticipantManager({
           return (
             <div
               key={participant.id}
-              className="grid gap-3 rounded border border-gray-800 p-3 sm:grid-cols-[1fr_180px_auto] sm:items-center"
+              className="grid gap-[var(--space-3)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-3)] sm:grid-cols-[minmax(0,1fr)_minmax(160px,220px)_auto] sm:items-center"
             >
-              <div>
-                <div className="flex items-center gap-2 font-semibold">
+              <div className="min-w-0">
+                <div className="flex min-w-0 items-center gap-[var(--space-2)] font-semibold text-[color:var(--color-text-primary)]">
                   <span
-                    className={`h-2.5 w-2.5 rounded-full ${
-                      isOnline ? "bg-green-400" : "bg-gray-600"
+                    className={`h-2.5 w-2.5 shrink-0 rounded-full ${
+                      isOnline ? "bg-[var(--color-success)]" : "bg-[var(--color-text-muted)]"
                     }`}
+                    aria-hidden="true"
                   />
-                  {participant.displayName}
+                  <span className="truncate">{participant.displayName}</span>
                 </div>
-                <p className="text-xs capitalize text-gray-400">
-                  {participant.role} | {isOnline ? "online" : "offline"}
-                </p>
+                <div className="mt-[var(--space-1)] flex flex-wrap items-center gap-[var(--space-2)] text-xs text-[color:var(--color-text-secondary)]">
+                  <span className="capitalize">{participant.role}</span>
+                  <span>{isOnline ? "Online" : "Offline"}</span>
+                </div>
               </div>
 
-              <select
+              <Select
                 aria-label={`Team for ${participant.displayName}`}
-                className="rounded border bg-gray-900 p-2"
                 value={participant.teamId ?? ""}
                 disabled={!canManage || busyParticipantId === participant.id}
                 onChange={(event) =>
@@ -145,24 +149,47 @@ export default function CommissionerParticipantManager({
                     {team.name}
                   </option>
                 ))}
-              </select>
+              </Select>
 
               {participant.role !== "commissioner" && (
-                <button
+                <Button
                   type="button"
+                  variant="danger"
                   disabled={!canManage || busyParticipantId === participant.id}
-                  className="rounded bg-red-900 px-3 py-2 text-sm disabled:opacity-40"
                   onClick={() => void removeOwner(participant)}
                 >
                   Remove
-                </button>
+                </Button>
               )}
             </div>
           );
         })}
       </div>
+    </>
+  );
 
-      {error && <p className="mt-3 text-red-500">{error}</p>}
-    </section>
+  if (embedded) {
+    return content;
+  }
+
+  return (
+    <Panel
+      title="Seat Owners"
+      description={
+        canManage
+          ? "Assign joined owners to draft seats while setup or paused."
+          : "Pause the draft to reassign or replace an owner."
+      }
+      actions={
+        <Link
+          className="text-sm font-semibold text-[color:var(--color-league-accent)] underline-offset-4 hover:underline"
+          href={`/teams?draftId=${draftId}&tab=settings${leagueSlug ? `&leagueSlug=${leagueSlug}` : ""}`}
+        >
+          Manage invitations
+        </Link>
+      }
+    >
+      {content}
+    </Panel>
   );
 }

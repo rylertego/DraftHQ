@@ -45,3 +45,26 @@ export function reorderDraftTeams<T>(
   reordered.splice(toIndex, 0, moved);
   return reordered;
 }
+
+export async function autosaveDroppedDraftOrder<T>(
+  teams: readonly T[],
+  fromIndex: number,
+  toIndex: number,
+  saveOrder: (teams: T[]) => Promise<void>
+) {
+  if (
+    fromIndex < 0 || fromIndex >= teams.length ||
+    toIndex   < 0 || toIndex   >= teams.length ||
+    fromIndex === toIndex
+  ) {
+    return { teams: [...teams], saved: false };
+  }
+
+  const reordered = reorderDraftTeams(teams, fromIndex, toIndex);
+  await saveOrder(reordered);
+  return { teams: reordered, saved: true };
+}
+
+export function canEditDraftSettings(status: "setup" | "active" | "paused" | "complete") {
+  return status === "setup" || status === "paused";
+}

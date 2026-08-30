@@ -1,6 +1,13 @@
+"use client";
+
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 
 export default function SiteFooter() {
+  const pathname = usePathname();
+
+  if (pathname.startsWith("/draft")) return null;
+
   return (
     <footer className="mt-auto border-t border-slate-800/80 px-4 py-6 sm:px-6">
       <div className="mx-auto flex w-full max-w-[1200px] flex-col items-center justify-between gap-3 text-xs text-slate-500 sm:flex-row">

@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { moveDraftTeam, reorderDraftTeams } from "@/lib/teamSetupLogic";
+import {
+  autosaveDroppedDraftOrder,
+  canEditDraftSettings,
+  moveDraftTeam,
+  reorderDraftTeams,
+} from "@/lib/teamSetupLogic";
 
 describe("moveDraftTeam", () => {
   it("moves a team up or down one draft slot", () => {
@@ -46,5 +51,50 @@ describe("reorderDraftTeams", () => {
         expect([...result].sort()).toEqual([...teams].sort());
       }
     }
+  });
+});
+
+describe("autosaveDroppedDraftOrder", () => {
+  const teams = ["a", "b", "c", "d"];
+
+  it("persists the reordered list after a real drop", async () => {
+    const savedOrders: string[][] = [];
+
+    const result = await autosaveDroppedDraftOrder(teams, 0, 2, async (next) => {
+      savedOrders.push([...next]);
+    });
+
+    expect(result).toEqual({
+      teams: ["b", "c", "a", "d"],
+      saved: true,
+    });
+    expect(savedOrders).toEqual([["b", "c", "a", "d"]]);
+  });
+
+  it("does not persist cancelled or invalid drops", async () => {
+    const savedOrders: string[][] = [];
+
+    const sameSlot = await autosaveDroppedDraftOrder(teams, 1, 1, async (next) => {
+      savedOrders.push([...next]);
+    });
+    const outOfRange = await autosaveDroppedDraftOrder(teams, -1, 2, async (next) => {
+      savedOrders.push([...next]);
+    });
+
+    expect(sameSlot).toEqual({ teams, saved: false });
+    expect(outOfRange).toEqual({ teams, saved: false });
+    expect(savedOrders).toEqual([]);
+  });
+});
+
+describe("canEditDraftSettings", () => {
+  it("allows draft settings during setup and paused states", () => {
+    expect(canEditDraftSettings("setup")).toBe(true);
+    expect(canEditDraftSettings("paused")).toBe(true);
+  });
+
+  it("locks draft settings while active or complete", () => {
+    expect(canEditDraftSettings("active")).toBe(false);
+    expect(canEditDraftSettings("complete")).toBe(false);
   });
 });

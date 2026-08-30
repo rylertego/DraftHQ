@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { CommandButton, CommandStatusBadge } from "@/components/CommandCenterUI";
+import CommissionerParticipantManager from "@/components/CommissionerParticipantManager";
 import WalkUpPlayer, { type WalkUpPlayerHandle } from "@/components/WalkUpPlayer";
+import { Button, Dialog } from "@/components/ui";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { getDefaultWalkUpSong } from "@/lib/draftAudio";
 import type { Draft, DraftParticipant, Team } from "@/types/draft";
@@ -23,6 +24,7 @@ interface DraftLobbyProps {
   isStarting: boolean;
   chatUnread: number;
   onChatToggle: () => void;
+  onParticipantsChanged?: () => Promise<void>;
   onStart: () => void;
 }
 
@@ -82,6 +84,15 @@ function CheckIcon({ className }: { className?: string }) {
   );
 }
 
+const lobbySurface =
+  "rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-surface-1)_78%,transparent)]";
+const lobbySubtleSurface =
+  "rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-canvas)_46%,transparent)]";
+const lobbyControl =
+  "rounded-[var(--radius-control)] border border-[color:var(--color-border-strong)] bg-[color-mix(in_srgb,var(--color-surface-2)_72%,transparent)] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[var(--color-surface-3)] hover:text-[color:var(--color-text-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)]";
+const lobbyMetaLabel =
+  "text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]";
+
 export default function DraftLobby({
   draft,
   participants,
@@ -95,6 +106,7 @@ export default function DraftLobby({
   isStarting,
   chatUnread,
   onChatToggle,
+  onParticipantsChanged,
   onStart,
 }: DraftLobbyProps) {
   const { accentColor: primary, bgColor: secondary } = useLeagueTheme();
@@ -133,6 +145,7 @@ export default function DraftLobby({
   const [advanceMode, setAdvanceMode] = useState<AdvanceMode>("song");
   const [isPlaying, setIsPlaying] = useState(true);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [participantManagerOpen, setParticipantManagerOpen] = useState(false);
   const activeTeam = sortedTeams[activeIndex] ?? null;
   const activeSong = activeTeam?.walkUpSongs?.[0] ?? null;
   const defaultSongUrl = activeTeam ? getDefaultWalkUpSong(activeTeam.draftPosition) : null;
@@ -188,13 +201,6 @@ export default function DraftLobby({
     assignedTeamCount < draft.teamCount ? `${draft.teamCount - assignedTeamCount} teams need owners` : null,
   ].filter(Boolean) as string[];
   const draftReady = setupIssues.length === 0;
-  const connectionReady = onlineUserIds.includes(currentUserId);
-  const readinessLabel = isStarting
-    ? "Starting draft"
-    : draftReady
-      ? "Draft ready"
-      : "Setup needs attention";
-  const readinessTone = isStarting ? "warning" : draftReady ? "ready" : "warning";
   const startDisabledReason = !isCommissioner
     ? "Only the commissioner can start the draft."
     : !draftReady
@@ -301,11 +307,11 @@ export default function DraftLobby({
 
   if (!activeTeam) {
     return (
-      <main className="fixed inset-0 z-30 flex items-center justify-center bg-slate-950 p-6 text-center">
+      <main className="fixed inset-0 z-30 flex items-center justify-center bg-[var(--color-canvas)] p-6 text-center text-[color:var(--color-text-primary)]">
         <div>
-          <h1 className="text-2xl font-black text-white">The pre-draft lobby is waiting on teams</h1>
-          <p className="mt-2 text-sm text-slate-400">Add teams and configure the draft order before opening the lobby.</p>
-          <Link href={backHref} className="mt-6 inline-block rounded-xl border border-slate-700 px-5 py-3 text-sm font-bold text-slate-200">Back to setup</Link>
+          <h1 className="text-2xl font-black">The pre-draft lobby is waiting on teams</h1>
+          <p className="mt-2 text-sm text-[color:var(--color-text-secondary)]">Add teams and configure the draft order before opening the lobby.</p>
+          <Link href={backHref} className={`mt-6 inline-block px-5 py-3 text-sm font-bold ${lobbyControl}`}>Back to setup</Link>
         </div>
       </main>
     );
@@ -313,8 +319,8 @@ export default function DraftLobby({
 
   return (
     <main
-      className="fixed inset-0 z-30 flex min-h-0 flex-col overflow-y-auto text-white lg:overflow-hidden"
-      style={{ background: `linear-gradient(145deg, ${secondary} 0%, #020617 44%, #050b18 72%, ${secondary} 100%)` }}
+      className="fixed inset-0 z-30 flex min-h-0 flex-col overflow-y-auto text-[color:var(--color-text-primary)] lg:overflow-hidden"
+      style={{ background: `linear-gradient(145deg, ${secondary} 0%, var(--color-canvas) 44%, var(--color-shell) 72%, ${secondary} 100%)` }}
     >
       <WalkUpPlayer
         ref={playerRef}
@@ -331,93 +337,99 @@ export default function DraftLobby({
       </div>
 
       <div className="relative z-10 flex shrink-0 items-center gap-3 px-4 pb-3 pt-4 sm:hidden">
-        <Link href={backHref} className="inline-flex min-h-11 shrink-0 items-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-slate-200 backdrop-blur transition-colors hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500">
+        <Link href={backHref} className={`inline-flex min-h-11 shrink-0 items-center px-3 py-2 text-xs font-black uppercase tracking-[0.14em] backdrop-blur ${lobbyControl}`}>
           Back
         </Link>
         <div className="min-w-0">
           <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Day Lobby</p>
-          <h1 className="text-xl font-black leading-tight text-white">{leagueName ?? draft.name}</h1>
-          <p className="mt-1 text-sm font-semibold text-slate-400">{draftYear} Draft Lobby</p>
+          <h1 className="text-xl font-black leading-tight text-[color:var(--color-text-primary)]">{leagueName ?? draft.name}</h1>
+          <p className="mt-1 text-sm font-semibold text-[color:var(--color-text-secondary)]">{draftYear} Draft Lobby</p>
         </div>
       </div>
 
       <div className="relative z-10 hidden shrink-0 items-center justify-center px-4 pb-3 pt-5 text-center sm:flex sm:px-6">
-        <Link href={backHref} className="absolute left-4 top-1/2 inline-flex min-h-11 -translate-y-1/2 items-center rounded-xl border border-slate-700/80 bg-slate-900/60 px-4 py-2 text-xs font-bold uppercase tracking-wider text-slate-200 backdrop-blur hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500 sm:left-6">
+        <Link href={backHref} className={`absolute left-4 top-1/2 inline-flex min-h-11 -translate-y-1/2 items-center px-4 py-2 text-xs font-bold uppercase tracking-wider backdrop-blur sm:left-6 ${lobbyControl}`}>
           ← Back
         </Link>
         <div className="mx-auto max-w-[calc(100%_-_12rem)]">
           <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Draft Day Lobby</p>
-          <h1 className="mt-1 whitespace-normal break-words text-3xl font-black leading-tight text-white">{leagueName ?? draft.name}</h1>
-          <p className="mt-1 text-sm font-semibold text-slate-400">{draftYear} Draft Lobby</p>
-        </div>
-      </div>
-
-      <div className="relative z-20 shrink-0 px-4 pb-5 sm:px-6">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:justify-center">
-          <CommandStatusBadge label={readinessLabel} tone={readinessTone} />
-          <CommandStatusBadge label={connectionReady ? "Connected" : "Reconnecting"} tone={connectionReady ? "complete" : "warning"} />
-          <CommandStatusBadge label={audioBlocked ? "Audio Blocked" : lobbyMuted ? "Audio Muted" : "Audio Ready"} tone={audioBlocked ? "warning" : "neutral"} />
+          <h1 className="mt-1 whitespace-normal break-words text-3xl font-black leading-tight text-[color:var(--color-text-primary)]">{leagueName ?? draft.name}</h1>
+          <p className="mt-1 text-sm font-semibold text-[color:var(--color-text-secondary)]">{draftYear} Draft Lobby</p>
         </div>
       </div>
 
       <div className="relative z-10 shrink-0 px-4 pb-3 sm:hidden">
-        <div className="rounded-xl border border-slate-800/90 bg-slate-900/72 p-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl">
+        <div className={`p-3 shadow-[0_18px_50px_rgba(0,0,0,0.18)] backdrop-blur-xl ${lobbySurface}`}>
           <div className="flex items-center justify-between gap-3">
-            <span className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Players Online</span>
-            <span className="flex items-center gap-1.5 text-xs font-black text-white">
-              <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
+            <span className={lobbyMetaLabel}>Players Online</span>
+            <span className="flex items-center gap-1.5 text-xs font-black text-[color:var(--color-text-primary)]">
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: onlineOwnerCount === totalTeamCount ? "var(--color-success)" : "var(--color-warning)" }} />
               {onlineOwnerCount}/{totalTeamCount}
             </span>
           </div>
           {isCommissioner ? (
-            <CommandButton
+            <Button
               type="button"
-              variant="secondary"
+              variant="primary"
+              scope="league"
               disabled={isStarting}
               onClick={onStart}
               title={startDisabledReason ?? "Start the draft"}
-              className="mt-3 w-full !border-emerald-400/45 !bg-emerald-500/12 !text-emerald-200 hover:!border-emerald-300/60 hover:!bg-emerald-500/18 focus:ring-emerald-300"
+              fullWidth
             >
               {isStarting ? "Starting Draft" : "Start Draft"}
-            </CommandButton>
+            </Button>
           ) : (
-            <p className="mt-2 text-xs text-slate-400">Waiting for the draft to start.</p>
+            <p className="mt-2 text-xs text-[color:var(--color-text-secondary)]">Waiting for the draft to start.</p>
           )}
         </div>
       </div>
 
-      <section className="relative z-10 flex flex-none items-center justify-center px-4 pb-0 sm:px-6 lg:min-h-0 lg:flex-1">
-        <div className="grid w-full max-w-7xl items-center justify-center gap-4">
-          {/* Side league logos — framing only, kept visually quiet */}
+      <section className="relative z-10 flex flex-none items-center justify-center px-4 pb-0 pt-4 sm:px-6 lg:min-h-0 lg:flex-1 lg:pt-0">
+        <div className="pointer-events-none absolute left-[6vw] top-1/2 hidden -translate-y-1/2 lg:block">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={leagueDisplayLogo} alt={`${leagueName ?? draft.name} logo`} className="hidden" />
+          <img
+            src={leagueDisplayLogo}
+            alt=""
+            className="h-[min(34vh,360px)] w-[min(34vh,360px)] object-contain opacity-[0.055]"
+          />
+        </div>
+        <div className="pointer-events-none absolute right-[6vw] top-1/2 hidden -translate-y-1/2 lg:block">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={leagueDisplayLogo}
+            alt=""
+            className="h-[min(34vh,360px)] w-[min(34vh,360px)] object-contain opacity-[0.055]"
+          />
+        </div>
+        <div className="relative grid w-full max-w-[1500px] items-center justify-center gap-4">
           <div
             key={activeTeam.id}
-            className="lobby-team-card grid w-full max-w-6xl items-center justify-self-center gap-5 rounded-xl border border-slate-800/90 bg-slate-900/78 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.26)] backdrop-blur-xl md:grid-cols-[minmax(220px,0.62fr)_minmax(0,1.38fr)] md:p-6 lg:min-h-[360px] lg:gap-8"
+            className={`lobby-team-card relative z-10 grid w-full max-w-[1400px] items-center justify-self-center gap-8 p-5 shadow-[0_18px_50px_rgba(0,0,0,0.26)] backdrop-blur-xl md:grid-cols-[minmax(390px,0.82fr)_minmax(0,1.18fr)] md:p-10 lg:min-h-[540px] lg:gap-12 ${lobbySurface}`}
           >
-          <div className="mx-auto w-full max-w-64">
+          <div className="mx-auto w-full max-w-[440px]">
             <div className="relative left-1/2 mb-3 flex w-max max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-nowrap items-center justify-center gap-2">
               <span className="rounded-full border px-3 py-1 text-[10px] font-black uppercase tracking-[0.16em]" style={{ backgroundColor: primary + "22", borderColor: primary + "55", color: primary }}>Draft position {activeTeam.draftPosition}</span>
-              {activeParticipant?.userId === currentUserId && <span className="rounded-full border border-white/10 bg-white/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-300">Your team</span>}
-              <span className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-wider ${activeTeamOnlineStatus?.isOnline ? "border-emerald-400/30 bg-emerald-500/15 text-emerald-300" : "border-white/10 bg-white/8 text-slate-500"}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${activeTeamOnlineStatus?.isOnline ? "bg-green-400" : "bg-slate-600"}`} />
+              {activeParticipant?.userId === currentUserId && <span className="rounded-full border border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-surface-3)_70%,transparent)] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[color:var(--color-text-secondary)]">Your team</span>}
+              <span className="flex items-center gap-1.5 rounded-full border border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-surface-3)_55%,transparent)] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[color:var(--color-text-secondary)]">
+                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: activeTeamOnlineStatus?.isOnline ? "var(--color-success)" : "var(--color-text-muted)" }} />
                 {activeTeamOnlineStatus?.isOnline ? "Online" : "Not online"}
               </span>
             </div>
-            <div className="relative flex aspect-square w-full items-center justify-center rounded-xl border border-slate-800/90 bg-slate-950/55 p-6 shadow-inner">
-              <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-2xl" />
+            <div className={`relative flex aspect-square w-full items-center justify-center p-8 shadow-inner ${lobbySubtleSurface}`}>
+              <TeamLogo team={activeTeam} fallback={leagueLogoUrl} className="relative h-full w-full rounded-[var(--radius-panel)]" />
             </div>
           </div>
 
           <div className="min-w-0 text-center md:text-left">
-            <h1 className="text-balance text-4xl font-black tracking-tight sm:text-5xl">{activeTeam.name}</h1>
-            <p className="mt-2 text-base font-semibold text-slate-300">Owner: <span className="text-white">{ownerName}</span></p>
+            <h1 className="text-balance text-5xl font-black tracking-tight sm:text-7xl">{activeTeam.name}</h1>
+            <p className="mt-3 text-lg font-semibold text-[color:var(--color-text-secondary)]">Owner: <span className="text-[color:var(--color-text-primary)]">{ownerName}</span></p>
 
-            <div className="mt-5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px]">
-              <div className="min-h-32 rounded-xl border border-slate-800/90 bg-slate-950/40 px-4 py-4">
+            <div className="mt-8 grid gap-4 lg:grid-cols-[minmax(0,1fr)_260px]">
+              <div className={`min-h-60 px-5 py-5 ${lobbySubtleSurface}`}>
                 <p className="text-[11px] font-black uppercase tracking-[0.18em]" style={{ color: primary }}>Pre-Draft Notes</p>
                 {preDraftNoteItems.length > 0 ? (
-                  <ul className="mt-2.5 space-y-2 text-sm leading-relaxed text-slate-300">
+                  <ul className="mt-2.5 space-y-2 text-sm leading-relaxed text-[color:var(--color-text-secondary)]">
                     {preDraftNoteItems.map((note, index) => (
                       <li key={`${index}-${note}`} className="flex gap-2.5">
                         <span className="mt-[0.55em] h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: primary }} />
@@ -426,20 +438,18 @@ export default function DraftLobby({
                     ))}
                   </ul>
                 ) : (
-                  <p className="mt-2.5 text-sm italic leading-relaxed text-slate-600">No pre-draft notes have been added for this team.</p>
+                  <p className="mt-2.5 text-sm italic leading-relaxed text-[color:var(--color-text-muted)]">No pre-draft notes have been added for this team.</p>
                 )}
               </div>
 
               <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
-                <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Last Record</p><p className="mt-1 text-sm font-black">{activeTeam.lastSeasonRecord || "No history"}</p></div>
-                <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Playoffs</p><p className="mt-1 text-sm font-black">{activeTeam.lastSeasonPlayoffs == null ? "No history" : activeTeam.lastSeasonPlayoffs ? "Qualified" : "Missed"}</p></div>
-                <div className="rounded-xl border border-slate-800/90 bg-slate-950/40 p-3"><p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">First Pick</p><p className="mt-1 truncate text-sm font-black">{activeTeam.lastSeasonPickPlayer || (activeTeam.lastSeasonPick ? `Pick ${activeTeam.lastSeasonPick}` : "No history")}</p></div>
+                <div className={`p-4 ${lobbySubtleSurface}`}><p className={lobbyMetaLabel}>Last Record</p><p className="mt-1 text-base font-black">{activeTeam.lastSeasonRecord || "No history"}</p></div>
+                <div className={`p-4 ${lobbySubtleSurface}`}><p className={lobbyMetaLabel}>Playoffs</p><p className="mt-1 text-base font-black">{activeTeam.lastSeasonPlayoffs == null ? "No history" : activeTeam.lastSeasonPlayoffs ? "Qualified" : "Missed"}</p></div>
+                <div className={`p-4 ${lobbySubtleSurface}`}><p className={lobbyMetaLabel}>First Pick</p><p className="mt-1 truncate text-base font-black">{activeTeam.lastSeasonPickPlayer || (activeTeam.lastSeasonPick ? `Pick ${activeTeam.lastSeasonPick}` : "No history")}</p></div>
               </div>
             </div>
           </div>
           </div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={leagueDisplayLogo} alt="" className="hidden" />
         </div>
       </section>
 
@@ -455,8 +465,8 @@ export default function DraftLobby({
                 key={team.id}
                 type="button"
                 onClick={() => activateTeam(index)}
-                className={`group min-h-20 w-20 shrink-0 rounded-xl border p-2 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-blue-300 sm:w-24 ${active ? "border-blue-400/60 bg-blue-500/12" : "border-slate-800 bg-slate-950/35 hover:border-slate-700 hover:bg-slate-900/70"}`}
-                style={active ? { boxShadow: `0 0 18px ${primary}25` } : undefined}
+                className={`group min-h-20 w-20 shrink-0 rounded-[var(--radius-panel)] border p-2 text-center transition-colors focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)] sm:w-24 ${active ? "bg-[color-mix(in_srgb,var(--color-league-accent)_12%,transparent)]" : "bg-[color-mix(in_srgb,var(--color-canvas)_35%,transparent)] hover:bg-[var(--color-surface-2)]"}`}
+                style={active ? { borderColor: primary + "99", boxShadow: `0 0 18px ${primary}25` } : { borderColor: "var(--color-border-subtle)" }}
                 aria-label={`Feature ${team.name}`}
               >
                 {/* Logo with online dot */}
@@ -464,38 +474,26 @@ export default function DraftLobby({
                   <TeamLogo team={team} fallback={leagueLogoUrl} className="h-full w-full rounded-lg" />
                   <span
                     title={isOnline ? "Online" : "Not online"}
-                    className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-black/70 ${isOnline ? "bg-green-400" : "bg-slate-600"}`}
+                    className="absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full ring-2 ring-black/70"
+                    style={{ backgroundColor: isOnline ? "var(--color-success)" : "var(--color-text-muted)" }}
                   />
                 </div>
-                <p className="mt-1.5 truncate text-[10px] font-bold text-white">{team.name}</p>
-                <p className="text-[9px] text-slate-500">Pick {team.draftPosition}</p>
+                <p className="mt-1.5 truncate text-[10px] font-bold text-[color:var(--color-text-primary)]">{team.name}</p>
+                <p className="text-[9px] text-[color:var(--color-text-muted)]">Pick {team.draftPosition}</p>
               </button>
             );
           })}
         </div>
       </section>
 
-      <section className="relative z-10 shrink-0 px-4 pb-3 sm:px-6">
-        <div className="mx-auto grid w-full max-w-3xl gap-3 rounded-xl border border-slate-800/90 bg-slate-900/72 px-4 py-2 shadow-[0_18px_50px_rgba(0,0,0,0.18)] sm:grid-cols-2 sm:items-center">
-          <div className="min-w-0">
-            <p className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Readiness</p>
-            <p className={`mt-1 text-sm font-bold ${draftReady ? "text-emerald-200" : "text-amber-200"}`}>{readinessLabel}</p>
-          </div>
-          <div className="min-w-0 sm:text-right">
-            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-slate-500">Assigned</p>
-            <p className="mt-1 font-black text-white">{assignedTeamCount}/{draft.teamCount}</p>
-          </div>
-        </div>
-      </section>
-
-      <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-slate-800/90 bg-slate-900/78 px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] sm:flex-row sm:items-center sm:px-6">
+      <footer className="relative z-10 flex shrink-0 flex-col gap-3 border-t border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-surface-1)_78%,transparent)] px-4 py-3 shadow-[0_18px_50px_rgba(0,0,0,0.22)] sm:flex-row sm:items-center sm:px-6">
 
         {/* Left: chat + join code (always visible) */}
         <div className="flex flex-wrap items-center justify-center gap-2 sm:flex-1 sm:justify-start">
           <button
             type="button"
             onClick={onChatToggle}
-            className="relative flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs font-bold text-slate-200 hover:border-slate-600 hover:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-slate-500"
+            className={`relative flex min-h-11 items-center gap-2 px-3 py-2 text-xs font-bold ${lobbyControl}`}
           >
             <svg viewBox="0 0 20 20" fill="none" className="h-4 w-4" aria-hidden>
               <path d="M3 4.5A2.5 2.5 0 0 1 5.5 2h9A2.5 2.5 0 0 1 17 4.5v6a2.5 2.5 0 0 1-2.5 2.5H9l-4.5 3v-3A2.5 2.5 0 0 1 2 10.5v-6Z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -513,38 +511,47 @@ export default function DraftLobby({
             type="button"
             onClick={copyJoinCode}
             title={copied ? "Copied!" : "Copy join code"}
-            className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-400 transition-colors hover:border-slate-600 hover:bg-slate-800 hover:text-slate-200 focus:outline-none focus:ring-2 focus:ring-slate-500"
+            className={`flex min-h-11 items-center gap-2 px-3 py-2 text-xs ${lobbyControl}`}
           >
             <span className="text-[10px] font-bold uppercase tracking-wider">Join code</span>
-            <span className="font-mono font-black text-slate-300">{draft.joinCode}</span>
+            <span className="font-mono font-black text-[color:var(--color-text-primary)]">{draft.joinCode}</span>
             {copied
-              ? <CheckIcon className="h-3.5 w-3.5 text-green-400" />
+              ? <CheckIcon className="h-3.5 w-3.5 text-[color:var(--color-success)]" />
               : <CopyIcon className="h-3.5 w-3.5" />
             }
           </button>
+          {isCommissioner ? (
+            <button
+              type="button"
+              onClick={() => setParticipantManagerOpen(true)}
+              className={`flex min-h-11 items-center gap-2 px-3 py-2 text-xs font-bold ${lobbyControl}`}
+            >
+              Seat owners
+            </button>
+          ) : null}
         </div>
 
         {/* Center: playback controls */}
-        <div className="flex shrink-0 flex-wrap items-center justify-center gap-2 rounded-xl border border-slate-800/90 bg-slate-950/35 px-3 py-2">
-          <span className="hidden text-[10px] font-black uppercase tracking-[0.16em] text-slate-500 xl:inline">Broadcast Controls</span>
-          <button type="button" onClick={showPrevious} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Previous team">‹</button>
+        <div className={`flex shrink-0 flex-wrap items-center justify-center gap-2 px-3 py-2 ${lobbySubtleSurface}`}>
+          <span className={`hidden xl:inline ${lobbyMetaLabel}`}>Broadcast Controls</span>
+          <button type="button" onClick={showPrevious} className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${lobbyControl}`} aria-label="Previous team">‹</button>
           <button type="button" onClick={togglePlayback} className="flex h-11 w-11 items-center justify-center rounded-full text-lg font-black" style={{ backgroundColor: primary, color: secondary }} aria-label={isPlaying ? "Pause introductions" : "Play introductions"}>{isPlaying ? "Ⅱ" : "▶"}</button>
-          <button type="button" onClick={showNext} className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-lg hover:bg-white/10" aria-label="Next team">›</button>
-          <label className="ml-1 flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2 text-xs text-slate-400">
+          <button type="button" onClick={showNext} className={`flex h-10 w-10 items-center justify-center rounded-full text-lg ${lobbyControl}`} aria-label="Next team">›</button>
+          <label className={`ml-1 flex min-h-11 items-center gap-2 px-3 py-2 text-xs ${lobbyControl}`}>
             Advance
-            <select value={advanceMode} onChange={(event) => setAdvanceMode(event.target.value as AdvanceMode)} className="border-0 bg-transparent p-0 text-xs font-bold text-white outline-none">
-              {ADVANCE_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-slate-900">{option.label}</option>)}
+            <select value={advanceMode} onChange={(event) => setAdvanceMode(event.target.value as AdvanceMode)} className="border-0 bg-transparent p-0 text-xs font-bold text-[color:var(--color-text-primary)] outline-none">
+              {ADVANCE_OPTIONS.map((option) => <option key={option.value} value={option.value} className="bg-[var(--color-surface-1)]">{option.label}</option>)}
             </select>
           </label>
 
           {/* Volume */}
-          <div className="flex min-h-11 items-center gap-2 rounded-xl border border-slate-700/80 bg-slate-900/60 px-3 py-2">
+          <div className={`flex min-h-11 items-center gap-2 px-3 py-2 ${lobbyControl}`}>
             <button
               type="button"
               onClick={() => setLobbyMuted((m) => !m)}
               aria-label={lobbyMuted ? "Unmute" : "Mute"}
               title={lobbyMuted ? "Unmute" : "Mute"}
-              className={lobbyMuted ? "text-red-400 hover:text-red-300" : "text-slate-400 hover:text-white"}
+              className={lobbyMuted ? "text-[color:var(--color-danger)]" : "text-[color:var(--color-text-secondary)] hover:text-[color:var(--color-text-primary)]"}
             >
               {lobbyMuted ? (
                 <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4">
@@ -561,11 +568,11 @@ export default function DraftLobby({
               disabled={lobbyMuted}
               aria-label="Lobby music volume"
               onInput={(e) => setLobbyVolume(Number(e.currentTarget.value))}
-              className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-slate-700 accent-[var(--color-league-accent)] disabled:opacity-30"
+              className="h-1 w-20 cursor-pointer appearance-none rounded-full bg-[var(--color-border-strong)] accent-[var(--color-league-accent)] disabled:opacity-30"
             />
           </div>
 
-          {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-xl border border-amber-400/35 bg-amber-500/12 px-3 py-2 text-xs font-bold text-amber-200 focus:outline-none focus:ring-2 focus:ring-amber-300">Enable audio</button>}
+          {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-[var(--radius-control)] border border-[color:var(--color-warning-border)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3 py-2 text-xs font-bold text-[color:var(--color-warning)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)]">Enable audio</button>}
         </div>
 
         {/* Right: online count + start/waiting */}
@@ -573,28 +580,54 @@ export default function DraftLobby({
 
           {/* Online count — visible to everyone */}
           <div className="flex w-36 items-center justify-center gap-1.5">
-            <span className={`h-2 w-2 rounded-full ${onlineOwnerCount === totalTeamCount ? "bg-green-400" : "bg-amber-400"}`} />
-            <span className="whitespace-nowrap text-xs font-semibold text-slate-300">
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: onlineOwnerCount === totalTeamCount ? "var(--color-success)" : "var(--color-warning)" }} />
+            <span className="whitespace-nowrap text-xs font-semibold text-[color:var(--color-text-secondary)]">
               {onlineOwnerCount} / {totalTeamCount} players online
             </span>
           </div>
 
           {isCommissioner ? (
-            <CommandButton
+            <Button
               type="button"
-              variant="secondary"
+              variant="primary"
+              scope="league"
               disabled={isStarting}
               onClick={onStart}
               title={startDisabledReason ?? "Start the draft"}
-              className="min-w-36 !border-emerald-400/45 !bg-emerald-500/12 !text-emerald-200 hover:!border-emerald-300/60 hover:!bg-emerald-500/18 focus:ring-emerald-300"
             >
               {isStarting ? "Starting Draft" : "Start Draft"}
-            </CommandButton>
+            </Button>
           ) : (
-            <p className="text-center text-xs text-slate-500 sm:text-right">Waiting for the draft to start</p>
+            <p className="text-center text-xs text-[color:var(--color-text-muted)] sm:text-right">Waiting for the draft to start</p>
           )}
         </div>
       </footer>
+
+      {isCommissioner ? (
+        <Dialog
+          open={participantManagerOpen}
+          onClose={() => setParticipantManagerOpen(false)}
+          title="Seat Owners"
+          description={
+            draft.status === "setup" || draft.status === "paused"
+              ? "Assign joined owners to draft seats while setup or paused."
+              : "Pause the draft to reassign or replace an owner."
+          }
+          size="large"
+          closeOnOutsideClick
+        >
+          <CommissionerParticipantManager
+            draftId={draft.id}
+            status={draft.status}
+            participants={participants}
+            teams={sortedTeams}
+            onlineUserIds={onlineUserIds}
+            leagueSlug={leagueSlug}
+            embedded
+            onChanged={onParticipantsChanged ?? (async () => undefined)}
+          />
+        </Dialog>
+      ) : null}
     </main>
   );
 }

@@ -5,6 +5,7 @@ import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import SongPicker from "@/components/SongPicker";
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
+import { disconnectSpotify, initiateSpotifyPopup, isSpotifyConnected } from "@/lib/spotifyAuth";
 import {
   getLeagueTeams,
   updateMyLeagueTeamDetails,
@@ -13,13 +14,62 @@ import {
 } from "@/lib/leagueApi";
 import type { LeagueTeam } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
-import { Alert, Button, EmptyState, Field, IconButton, Input, Panel, Select } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, IconButton, Input, Panel } from "@/components/ui";
 
 function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
   return (
     <span className="rounded-full border border-slate-700/80 bg-slate-950/60 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-slate-400">
       {platform}
     </span>
+  );
+}
+
+interface SpotifyConnectionPanelProps {
+  connected: boolean;
+  connecting: boolean;
+  onConnect: () => void;
+  onDisconnect: () => void;
+}
+
+export function SpotifyConnectionPanel({
+  connected,
+  connecting,
+  onConnect,
+  onDisconnect,
+}: SpotifyConnectionPanelProps) {
+  return (
+    <div className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)]">
+      <div className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
+        <div className="min-w-0">
+          <div className="flex items-center gap-[var(--space-2)]">
+            <span
+              className={`h-2.5 w-2.5 rounded-full ${
+                connected ? "bg-[color:var(--color-success)]" : "bg-[color:var(--color-text-muted)]"
+              }`}
+              aria-hidden="true"
+            />
+            <p className="text-sm font-black text-[color:var(--color-text-primary)]">
+              {connected ? "Spotify connected" : "Connect Spotify"}
+            </p>
+          </div>
+          <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
+            {connected
+              ? "Spotify search is available when you add walk-up songs on this device."
+              : "Link Spotify to search Spotify tracks from this page."}
+          </p>
+        </div>
+
+        {connected ? (
+          <Button variant="secondary" onClick={onDisconnect}>
+            Disconnect
+          </Button>
+        ) : (
+          <Button scope="league" onClick={onConnect} loading={connecting}>
+            {connecting ? "Opening Spotify..." : "Connect Spotify"}
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 
@@ -34,12 +84,10 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [walkUpSongs, setWalkUpSongs] = useState<WalkUpSong[]>([]);
   // Moved here from Draft Settings. A trigger syncs these down to every draft
   // team this franchise is linked to, so this is the only place they are set.
-  // Autodraft and pre-draft notes deliberately stayed behind — they are
-  // decisions about one draft night, not facts about the franchise.
+  // Autodraft, pre-draft notes, and last-season details deliberately stayed
+  // behind — they are decisions about one draft night, not facts about the
+  // franchise.
   const [ttsName, setTtsName] = useState("");
-  const [lastSeasonPickPlayer, setLastSeasonPickPlayer] = useState("");
-  const [lastSeasonRecord, setLastSeasonRecord] = useState("");
-  const [lastSeasonPlayoffs, setLastSeasonPlayoffs] = useState<boolean | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [ownerPhotoPreview, setOwnerPhotoPreview] = useState<string | null>(null);
@@ -48,6 +96,8 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadingOwnerPhoto, setUploadingOwnerPhoto] = useState(false);
   const [showSongPicker, setShowSongPicker] = useState(false);
+  const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [spotifyConnecting, setSpotifyConnecting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -71,9 +121,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         setOwnerName(found.ownerName ?? "");
         setWalkUpSongs(Array.isArray(found.walkUpSongs) ? found.walkUpSongs : []);
         setTtsName(found.ttsName ?? "");
-        setLastSeasonPickPlayer(found.lastSeasonPickPlayer ?? "");
-        setLastSeasonRecord(found.lastSeasonRecord ?? "");
-        setLastSeasonPlayoffs(found.lastSeasonPlayoffs);
         setLogoPreview(found.logoUrl);
         setOwnerPhotoPreview(found.ownerPhotoUrl);
       })
@@ -85,6 +132,21 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       active = false;
     };
   }, [league, myTeamRef]);
+
+  useEffect(() => {
+    function syncSpotifyState() {
+      setSpotifyConnected(isSpotifyConnected());
+      setSpotifyConnecting(false);
+    }
+
+    syncSpotifyState();
+    window.addEventListener("storage", syncSpotifyState);
+    window.addEventListener("focus", syncSpotifyState);
+    return () => {
+      window.removeEventListener("storage", syncSpotifyState);
+      window.removeEventListener("focus", syncSpotifyState);
+    };
+  }, []);
 
   function handleFileChange(e: ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -111,6 +173,20 @@ export default function MyTeamForm({ slug }: { slug: string }) {
     setWalkUpSongs((prev) => [...prev, song].slice(0, MAX_WALK_UP_SONGS));
     setShowSongPicker(false);
     setSuccess(false);
+  }
+
+  function handleSpotifyConnect() {
+    setSpotifyConnecting(true);
+    initiateSpotifyPopup(() => {
+      setSpotifyConnected(true);
+      setSpotifyConnecting(false);
+    });
+  }
+
+  function handleSpotifyDisconnect() {
+    disconnectSpotify();
+    setSpotifyConnected(false);
+    setSpotifyConnecting(false);
   }
 
   async function handleSave() {
@@ -141,9 +217,9 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         ownerPhotoUrl,
         walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
         ttsName: ttsName.trim() || null,
-        lastSeasonPickPlayer: lastSeasonPickPlayer.trim() || null,
-        lastSeasonRecord: lastSeasonRecord.trim() || null,
-        lastSeasonPlayoffs,
+        lastSeasonPickPlayer: team.lastSeasonPickPlayer,
+        lastSeasonRecord: team.lastSeasonRecord,
+        lastSeasonPlayoffs: team.lastSeasonPlayoffs,
       });
 
       setTeam(updated);
@@ -152,9 +228,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       setOwnerName(updated.ownerName ?? "");
       setWalkUpSongs(updated.walkUpSongs);
       setTtsName(updated.ttsName ?? "");
-      setLastSeasonPickPlayer(updated.lastSeasonPickPlayer ?? "");
-      setLastSeasonRecord(updated.lastSeasonRecord ?? "");
-      setLastSeasonPlayoffs(updated.lastSeasonPlayoffs);
       setLogoPreview(updated.logoUrl);
       setOwnerPhotoPreview(updated.ownerPhotoUrl);
       setLogoFile(null);
@@ -207,20 +280,20 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         {/* Summary sits beside the form on desktop and above it on mobile — the
             grid handles both, so no duplicated markup. */}
         <aside className="rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-1)] p-[var(--space-4)]">
-          <div className="flex items-start gap-[var(--space-4)] lg:block">
+          <div className="flex flex-col items-center gap-[var(--space-4)]">
             {/* The preview is the control, so this stays a custom dropzone
                 rather than the FileUpload primitive. */}
             <button
               type="button"
               onClick={() => fileInputRef.current?.click()}
-              className="group relative flex h-28 w-28 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--color-border-strong)] bg-[var(--color-canvas)] transition-colors hover:border-[color:var(--color-league-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-league-focus-ring)]"
+              className="group relative flex h-40 w-40 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-[color:var(--color-border-strong)] bg-[var(--color-canvas)] transition-colors hover:border-[color:var(--color-league-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-league-focus-ring)] lg:h-56 lg:w-56"
               aria-label="Upload team logo"
             >
               {logoPreview ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
               ) : (
-                <span className="text-3xl font-black text-[color:var(--color-text-primary)]">{initials}</span>
+                <span className="text-5xl font-black text-[color:var(--color-text-primary)]">{initials}</span>
               )}
               <span className="absolute inset-x-3 bottom-3 rounded-lg bg-black/70 px-2 py-1 text-[10px] font-black uppercase tracking-[0.12em] text-white opacity-0 transition-opacity group-hover:opacity-100">
                 Replace
@@ -228,7 +301,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
             </button>
             <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
 
-            <div className="min-w-0 lg:mt-5">
+            <div className="min-w-0 self-stretch lg:mt-5">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[color:var(--color-league-accent)]">
                 My Franchise
               </p>
@@ -364,43 +437,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
           </Panel>
 
           <Panel
-            title="Last Season"
-            description="Shown on draft-night presentation screens. Optional."
-          >
-            <div className="grid gap-[var(--space-4)] sm:grid-cols-3">
-              <Field label="First round pick" controlId="my-team-last-pick">
-                <Input
-                  maxLength={80}
-                  placeholder="e.g. Justin Jefferson"
-                  value={lastSeasonPickPlayer}
-                  onChange={(e) => { setLastSeasonPickPlayer(e.target.value); setSuccess(false); }}
-                />
-              </Field>
-              <Field label="Record" controlId="my-team-last-record">
-                <Input
-                  maxLength={20}
-                  placeholder="e.g. 9-4"
-                  value={lastSeasonRecord}
-                  onChange={(e) => { setLastSeasonRecord(e.target.value); setSuccess(false); }}
-                />
-              </Field>
-              <Field label="Made playoffs" controlId="my-team-last-playoffs">
-                <Select
-                  value={lastSeasonPlayoffs === null ? "" : lastSeasonPlayoffs ? "yes" : "no"}
-                  onChange={(e) => {
-                    setLastSeasonPlayoffs(e.target.value === "" ? null : e.target.value === "yes");
-                    setSuccess(false);
-                  }}
-                >
-                  <option value="">Unknown</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </Select>
-              </Field>
-            </div>
-          </Panel>
-
-          <Panel
             title="Draft Night Walk-Up Songs"
             actions={
               <Button
@@ -412,6 +448,15 @@ export default function MyTeamForm({ slug }: { slug: string }) {
               </Button>
             }
           >
+            <div className="mb-[var(--space-4)]">
+              <SpotifyConnectionPanel
+                connected={spotifyConnected}
+                connecting={spotifyConnecting}
+                onConnect={handleSpotifyConnect}
+                onDisconnect={handleSpotifyDisconnect}
+              />
+            </div>
+
             {walkUpSongs.length === 0 ? (
               <div className="rounded-[var(--radius-surface)] border border-dashed border-[color:var(--color-border-strong)] bg-[var(--color-surface-2)]">
                 <EmptyState

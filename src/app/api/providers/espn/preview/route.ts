@@ -1,7 +1,9 @@
 import { supabaseAdmin } from "@/lib/supabaseAdmin";
 import { buildEspnLeaguePreview } from "@/lib/providers/espn";
 
-const ESPN_API = "https://fantasy.espn.com/apis/v3/games/ffl";
+const ESPN_API = "https://lm-api-reads.fantasy.espn.com/apis/v3/games/ffl";
+const ESPN_AUTH_ERROR =
+  "ESPN did not return league data. This league may be private or unavailable for that season — provide your espn_s2 and SWID cookies, then try again.";
 
 export async function GET(request: Request) {
   const authorization = request.headers.get("authorization");
@@ -54,8 +56,7 @@ export async function GET(request: Request) {
     if (response.status === 401 || response.status === 403) {
       return Response.json(
         {
-          error:
-            "ESPN returned an authorization error. This may be a private league — provide your espn_s2 and SWID cookies.",
+          error: ESPN_AUTH_ERROR,
         },
         { status: 502 }
       );
@@ -68,6 +69,16 @@ export async function GET(request: Request) {
             response.status === 404
               ? "ESPN league not found. Check your league ID and year."
               : `ESPN request failed (${response.status}).`,
+        },
+        { status: 502 }
+      );
+    }
+
+    const contentType = response.headers.get("content-type") ?? "";
+    if (!contentType.toLowerCase().includes("application/json")) {
+      return Response.json(
+        {
+          error: ESPN_AUTH_ERROR,
         },
         { status: 502 }
       );

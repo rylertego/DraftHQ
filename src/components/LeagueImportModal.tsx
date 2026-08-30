@@ -2,7 +2,7 @@
 
 import { FormEvent, useState } from "react";
 import { getSleeperLeaguePreview } from "@/lib/draftApi";
-import { importLeagueTeams } from "@/lib/leagueApi";
+import { importLeagueTeams, type LeagueImportProvider } from "@/lib/leagueApi";
 import {
   getEspnLeaguePreview,
   getYahooAuthUrl,
@@ -11,7 +11,7 @@ import {
 import type { ProviderLeaguePreview } from "@/lib/providers/types";
 import { Alert, Button, Dialog, Field, Input } from "@/components/ui";
 
-type Provider = "sleeper" | "espn" | "yahoo";
+type Provider = LeagueImportProvider;
 
 interface ImportPreview {
   leagueName: string;
@@ -42,7 +42,36 @@ export default function LeagueImportModal({
   leagueId: string;
   availableSlots: number;
   onClose: () => void;
-  onImported: (count: number) => Promise<void> | void;
+  onImported: (count: number, provider: LeagueImportProvider) => Promise<void> | void;
+}) {
+  return (
+    <Dialog
+      open
+      onClose={onClose}
+      size="large"
+      title="Import League"
+      description="Choose a provider and preview teams before importing."
+    >
+      <LeagueImportFlow
+        leagueId={leagueId}
+        availableSlots={availableSlots}
+        onCancel={onClose}
+        onImported={onImported}
+      />
+    </Dialog>
+  );
+}
+
+export function LeagueImportFlow({
+  leagueId,
+  availableSlots,
+  onCancel,
+  onImported,
+}: {
+  leagueId: string;
+  availableSlots: number;
+  onCancel?: () => void;
+  onImported: (count: number, provider: LeagueImportProvider) => Promise<void> | void;
 }) {
   const [provider, setProvider] = useState<Provider | null>(null);
   const [leagueKey, setLeagueKey] = useState("");
@@ -76,7 +105,11 @@ export default function LeagueImportModal({
           settled = true;
           clearInterval(interval);
           window.removeEventListener("message", onMessage);
-          failure ? reject(failure) : resolve();
+          if (failure) {
+            reject(failure);
+            return;
+          }
+          resolve();
         };
         function onMessage(event: MessageEvent) {
           if (event.origin !== window.location.origin) return;
@@ -135,53 +168,24 @@ export default function LeagueImportModal({
   }
 
   async function confirmImport() {
-    if (!preview) return;
+    if (!preview || !provider) return;
     setError("");
     setLoading(true);
     try {
-      await importLeagueTeams(leagueId, preview.teams.map((team) => ({ name: team.name, ownerName: team.ownerName })));
-      await onImported(preview.teams.length);
+      await importLeagueTeams(
+        leagueId,
+        preview.teams.map((team) => ({ name: team.name, ownerName: team.ownerName })),
+        provider
+      );
+      await onImported(preview.teams.length, provider);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to import teams.");
       setLoading(false);
     }
   }
 
-  // The dialog is mounted only while open by its parent, so `open` is constant
-  // here. Adopting the primitive is still worth it: it brings the focus trap,
-  // Escape handling, scroll lock and overlay stacking that the hand-rolled
-  // version did not have.
-  const footer =
-    provider && !preview ? (
-      <Button
-        type="submit"
-        form="import-league-form"
-        scope="league"
-        loading={loading}
-        disabled={provider === "yahoo" && !yahooConnected}
-      >
-        {loading ? "Loading preview..." : "Preview Import"}
-      </Button>
-    ) : preview ? (
-      <>
-        <Button variant="secondary" onClick={onClose} disabled={loading}>
-          Cancel
-        </Button>
-        <Button scope="league" loading={loading} onClick={() => void confirmImport()}>
-          {loading ? "Importing teams..." : `Import ${preview.teams.length} Teams`}
-        </Button>
-      </>
-    ) : undefined;
-
   return (
-    <Dialog
-      open
-      onClose={onClose}
-      size="large"
-      title="Import League"
-      description={provider ? "Enter the provider league details." : "Choose Provider"}
-      footer={footer}
-    >
+    <div className="flex flex-col gap-[var(--space-5)]">
       {!provider && (
         <div className="grid gap-[var(--space-3)] sm:grid-cols-3">
           {PROVIDERS.map((item) => (
@@ -284,6 +288,17 @@ export default function LeagueImportModal({
           )}
 
           {error && <Alert status="danger">{error}</Alert>}
+
+          <div className="flex justify-end">
+            <Button
+              type="submit"
+              scope="league"
+              loading={loading}
+              disabled={provider === "yahoo" && !yahooConnected}
+            >
+              {loading ? "Loading preview..." : "Preview Import"}
+            </Button>
+          </div>
         </form>
       )}
 
@@ -329,8 +344,19 @@ export default function LeagueImportModal({
           </div>
 
           {error && <Alert status="danger">{error}</Alert>}
+
+          <div className="flex flex-wrap justify-end gap-[var(--space-3)]">
+            {onCancel && (
+              <Button variant="secondary" onClick={onCancel} disabled={loading}>
+                Cancel
+              </Button>
+            )}
+            <Button scope="league" loading={loading} onClick={() => void confirmImport()}>
+              {loading ? "Importing teams..." : `Import ${preview.teams.length} Teams`}
+            </Button>
+          </div>
         </div>
       )}
-    </Dialog>
+    </div>
   );
 }

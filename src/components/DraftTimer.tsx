@@ -72,12 +72,12 @@ export default function DraftTimer({
   const urgent = (seconds <= 10 || isExpired) && draft.status === "active";
 
   return (
-    <div className="rounded-xl border border-slate-800 bg-slate-900 p-4 text-center flex flex-col items-center justify-center gap-1">
-      <p className="text-xs font-bold uppercase tracking-widest text-slate-500">Pick Clock</p>
-      <p className={`font-mono text-5xl font-bold tabular-nums leading-none ${urgent ? "text-red-400" : "text-white"}`}>
+    <div className="flex flex-col items-center justify-center gap-1 rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] p-4 text-center">
+      <p className="text-xs font-bold uppercase tracking-widest text-[color:var(--color-text-muted)]">Pick Clock</p>
+      <p className={`font-mono text-5xl font-bold tabular-nums leading-none ${urgent ? "text-[color:var(--color-danger)]" : "text-[color:var(--color-text-primary)]"}`}>
         {formatDraftClock(seconds)}
       </p>
-      <p className={`text-xs font-semibold capitalize ${isExpired ? "text-red-400" : "text-slate-500"}`}>
+      <p className={`text-xs font-semibold capitalize ${isExpired ? "text-[color:var(--color-danger)]" : "text-[color:var(--color-text-muted)]"}`}>
         {isExpired
           ? draft.timerBehavior === "auto_draft"
             ? "Auto-drafting..."
@@ -90,7 +90,7 @@ export default function DraftTimer({
         <button
           type="button"
           onClick={onExtend}
-          className="mt-2 rounded-lg border border-slate-700 bg-slate-800 px-3 py-1 text-xs font-medium text-slate-300 hover:border-slate-500 hover:text-white transition-colors"
+          className="mt-2 rounded-[var(--radius-control)] border border-[color:var(--color-border-strong)] bg-[color:var(--color-surface-2)] px-3 py-1 text-xs font-medium text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-border-strong)] hover:text-[color:var(--color-text-primary)]"
         >
           +{draft.clockExtensionSeconds}s
           {extensionsLeft < draft.maxClockExtensions ? ` (${extensionsLeft} left)` : ""}

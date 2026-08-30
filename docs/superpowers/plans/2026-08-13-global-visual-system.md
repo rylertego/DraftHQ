@@ -27,7 +27,11 @@ to isolate from a second agent that is no longer running, and is now stale.
 | 4 — League Operations | 15 | ✅ Desktop complete |
 | 5 — Draft Configuration | 16 | ✅ Desktop complete |
 | 5 — Draft Configuration | 17 | ✅ Desktop complete |
-| 6–8 | 18–… | ⬜ Not started |
+| 6 — Draft Night | 18 | ⚠️ Code migrated; browser/mobile QA outstanding |
+| 6 — Draft Night | 19 | ⚠️ Code migrated; browser/mobile QA outstanding |
+| 6 — Draft Night | 20 | ⚠️ Code migrated; browser/interaction QA outstanding |
+| 6 — Draft Night | 21 | ⚠️ Started; Draft Grades code-migrated |
+| 7–8 | 22–… | ⬜ Not started |
 
 **Task 6 is being done in slices**, because the original full-scope attempts
 stalled. Steps below are left unticked until every slice lands:
@@ -776,6 +780,11 @@ git commit -m "feat: migrate league team management"
 
 Keep team summary alongside a readable form on desktop and above it on mobile. Preserve Team Details under Team Identity, owner photo upload, Draft Night Walk-Up Songs, upload/replace/remove behavior, and save feedback.
 
+> 2026-08-30 follow-up: My Team now also renders the existing Spotify OAuth
+> popup flow beside Draft Night Walk-Up Songs, so each owner can connect Spotify
+> from their team edit page. Tokens remain browser-local; draft-room playback
+> still depends on the host/TV browser's connected Spotify device.
+
 - [ ] **Step 3: Verify all states** — PARTIAL
 
 Check assigned/unassigned, owner versus commissioner, empty/replaced/removed photo and logo, zero/maximum songs, validation failure, save failure, and saving.
@@ -1004,15 +1013,22 @@ git commit -m "feat: migrate draft setup workflows"
 - Consumes: Shared Draft Night tokens, panel/action/badge/input primitives, league accent.
 - Produces: Cohesive lobby preserving team rotation, audio, presence, commissioner controls, and start behavior.
 
-- [ ] **Step 1: Impact-check lobby rendering and event handlers**
+- [x] **Step 1: Impact-check lobby rendering and event handlers**
 
 Protect presence, current team, playback, progression, Start Draft, permissions, and routing.
 
-- [ ] **Step 2: Replace visual literals with shared roles**
+- [x] **Step 2: Replace visual literals with shared roles**
 
 Preserve compact league header, featured team, sequence, narrow readiness/assigned strip, bottom-right online count/Start Draft, broadcast controls, atmosphere, and transitions. Use shared radii, borders, typography, status semantics, inputs, and buttons. Primary Start Draft uses accessible league accent.
 
 - [ ] **Step 3: Verify all lobby states**
+
+Code migrated on 2026-08-21 after user-directed lobby simplification: the
+Draft/Connection/Audio widgets and readiness strip were removed, the featured
+team card expanded, transparent league marks were repositioned, and
+`CommissionerParticipantManager` was wired behind "Seat owners". Browser QA is
+still outstanding because localhost browser control was blocked in Codex, and
+mobile remains unverified.
 
 Check commissioner/member, online/offline teams, assigned/unassigned, setup needs attention, audio ready/unavailable, playing/paused, Start Draft enabled regardless of attendance, mobile first viewport, and long team/league names.
 
@@ -1036,17 +1052,26 @@ git commit -m "feat: converge draft lobby visuals"
 - Consumes: Draft Night tokens, league accent, toolbar/actions/forms, existing timer/board contracts.
 - Produces: Shared visual language around the approved pre-Phase-6-style header and current board behavior.
 
-- [ ] **Step 1: Impact-check all three components**
+- [x] **Step 1: Impact-check all three components**
 
 Warn before editing if GitNexus reports HIGH/CRITICAL risk. Preserve current team, ownership, round/pick, next-up, timer, commissioner controls, search, view switching, and pick behavior.
 
-- [ ] **Step 2: Migrate the approved header and toolbar presentation**
+- [x] **Step 2: Migrate the approved header and toolbar presentation**
 
 Do not reintroduce the rejected header redesign. Keep the current team name scale, enlarged borderless logo with `object-contain`, current timer arrangement, existing Round/Pick placement, wider player search, and no highlight solely because a team belongs to the viewer.
 
-- [ ] **Step 3: Migrate board visual roles**
+Started 2026-08-21: `DraftTimer`, Draft Board shell/popup, the live draft board
+toolbar controls, alert strip, compact header, and larger `DraftRoom` header
+chrome now use shared radius/surface/border/text tokens. Browser viewport QA
+remains open in Step 4.
+
+- [x] **Step 3: Migrate board visual roles**
 
 Use semantic surfaces/borders/text while retaining compact density and position color logic across Draft Board, Player Board, Roster Board, and Roster Summary. On-clock cell border and Picking state use the accessible league accent. Do not alter view switching, cell data, player filters, roster totals, scrolling, pick order, or board calculations.
+
+Code-migrated 2026-08-21: Draft Board, Player Board, Roster Board, and Round
+Summary now use shared shell/border/surface/text tokens while retaining existing
+position color logic and interactions. Browser viewport QA is still outstanding.
 
 - [ ] **Step 4: Verify interaction and viewport matrix**
 
@@ -1072,15 +1097,20 @@ git commit -m "feat: converge draft room shell and board"
 - Consumes: Dialog, menu, fields, action, identity, status, semantic Draft Night surfaces.
 - Produces: Cohesive pick workflow, chat, recent picks, and ticker with unchanged behavior.
 
-- [ ] **Step 1: Impact-check each interaction component**
+- [x] **Step 1: Impact-check each interaction component**
 
-- [ ] **Step 2: Migrate pick and recent-pick surfaces**
+- [x] **Step 2: Migrate pick and recent-pick surfaces**
 
 Preserve player search, selection, validation, confirmation, commissioner override, loading, and failure. Make the primary pick action league-accented only inside the league draft.
 
-- [ ] **Step 3: Migrate chat and ticker**
+- [x] **Step 3: Migrate chat and ticker**
 
 Preserve message behavior, unread state, auto-scroll rules, ticker ordering, and normal-mode ticker operation in TV Mode. Use stable heights so content changes do not shift the board.
+
+Code-migrated 2026-08-21: `PickModal`, `RecentPicks`, `DraftChat`,
+`DraftTicker`, and the direct `DraftRoom` commissioner edit-pick modal now use
+shared shell/form/action/ticker/chat tokens. Focused lint/typecheck and draft
+timer/lobby tests pass; browser interaction QA remains open in Step 4.
 
 - [ ] **Step 4: Verify and commit**
 
@@ -1105,7 +1135,7 @@ git commit -m "feat: migrate draft room interactions"
 - Consumes: Shared presentation typography, motion tokens, identity primitives, semantic accent/status colors.
 - Produces: Cohesive presentation states preserving approved cinematic workflows.
 
-- [ ] **Step 1: Impact-check presentation components and state transitions**
+- [x] **Step 1: Impact-check presentation components and state transitions**
 
 - [ ] **Step 2: Migrate TV Mode chrome and fullscreen transitions**
 
@@ -1114,6 +1144,12 @@ Preserve full-screen composition and behavior. Ensure exiting fullscreen recompu
 - [ ] **Step 3: Migrate reveal, race, grades, and awards styling**
 
 Preserve timing, sequence, audio, animation, data, and commissioner flow. Apply 40px display typography only where viewing distance requires it. Use league accent as highlights, never a large solid backdrop.
+
+Started 2026-08-21: impact checks for `DraftRoom`, `DraftGradesBoard`,
+`DraftAwardsCeremony`, `DraftOrderRace`, `LandmineAnimation`, and
+`WalkUpPlayer` were LOW. Only the read-only `DraftGradesBoard` slice has been
+code-migrated so far; TV Mode, reveal, race, awards, landmine, and reduced
+motion work remain open.
 
 - [ ] **Step 4: Respect reduced motion**
 

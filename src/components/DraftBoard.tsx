@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { buildPositionColorMap, positionCellColors } from "@/lib/positionColors";
 import type { PositionCellColors } from "@/lib/positionColors";
@@ -57,6 +57,10 @@ export default function DraftBoard({
   onEditPick,
 }: DraftBoardProps) {
   const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
+  const boardViewportRef = useRef<HTMLDivElement>(null);
+  const tableHeaderRef = useRef<HTMLTableSectionElement>(null);
+  const [boardHeight, setBoardHeight] = useState(0);
+  const [tableHeaderHeight, setTableHeaderHeight] = useState(0);
   const accent = accentColor ?? "var(--color-league-accent)";
   const accentGlow = `color-mix(in srgb, ${accent} 18%, transparent)`;
   const accentBadgeBorder = `color-mix(in srgb, ${accent} 34%, transparent)`;
@@ -84,9 +88,34 @@ export default function DraftBoard({
 
   // Row height: top padding (6) + first-name row (14) + gap (2) + last-name text + bottom breathing room (10)
   const baseRowHeight = Math.round(32 + NAME_SIZE_REM[playerNameSize - 1] * 18);
-  const rowHeight = tvMode
-    ? `clamp(${baseRowHeight}px, calc((100vh - 540px) / ${rounds}), 126px)`
-    : `${baseRowHeight}px`;
+  useEffect(() => {
+    const viewport = boardViewportRef.current;
+    const header = tableHeaderRef.current;
+    if (!viewport || !header) return;
+
+    const updateHeight = () => {
+      setBoardHeight(Math.floor(viewport.clientHeight));
+      setTableHeaderHeight(Math.ceil(header.getBoundingClientRect().height));
+    };
+    updateHeight();
+    const observer = new ResizeObserver(updateHeight);
+    observer.observe(viewport);
+    observer.observe(header);
+    return () => observer.disconnect();
+  }, []);
+
+  const headerHeight = tableHeaderHeight || (tvMode ? 38 : 34);
+  const availableBodyHeight = boardHeight > 0
+    ? Math.max(1, boardHeight - headerHeight)
+    : baseRowHeight * rounds;
+  const stretchedRowHeight = availableBodyHeight / rounds;
+  const shouldScrollRows = rounds > 15;
+  const rowMinHeight = Math.min(baseRowHeight, stretchedRowHeight);
+  const rowHeight = shouldScrollRows
+    ? `${baseRowHeight}px`
+    : tvMode
+    ? `clamp(${rowMinHeight}px, ${stretchedRowHeight}px, 126px)`
+    : `${stretchedRowHeight}px`;
   const headerTextClass = tvMode
     ? "text-[clamp(11px,0.55vw,18px)]"
     : "text-[11px]";
@@ -104,20 +133,20 @@ export default function DraftBoard({
     : `${NAME_SIZE_REM[playerNameSize - 1]}rem`;
 
   return (
-    <section className="flex h-full flex-col overflow-hidden rounded-lg border border-white/10 bg-slate-950/86 shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" onClick={() => setPopupPick(null)}>
-      <div className="min-h-0 flex-1 overflow-auto [touch-action:pan-x_pan-y]">
+    <section className="flex h-full flex-col overflow-hidden rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-canvas)_86%,black)] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" onClick={() => setPopupPick(null)}>
+      <div ref={boardViewportRef} className={`min-h-0 flex-1 ${shouldScrollRows ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"} [touch-action:pan-x_pan-y]`}>
         <table className="w-full border-separate border-spacing-0" style={{ tableLayout: "fixed" }}>
           <colgroup>
             <col style={{ width: "40px" }} />
             {teams.map((_, i) => <col key={i} />)}
           </colgroup>
-          <thead>
+          <thead ref={tableHeaderRef}>
             <tr>
-              <th className={`sticky left-0 top-0 z-20 border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center font-black uppercase tracking-wider text-slate-500 ${tvMode ? "text-[clamp(10px,0.5vw,16px)]" : "text-[10px]"}`}>
+              <th className={`sticky left-0 top-0 z-20 border-r border-b border-[color:var(--color-border-subtle)] bg-[color:var(--color-canvas)] px-2 py-2 text-center font-black uppercase tracking-wider text-[color:var(--color-text-muted)] ${tvMode ? "text-[clamp(10px,0.5vw,16px)]" : "text-[10px]"}`}>
                 RD
               </th>
               {teams.map((name, i) => (
-                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-slate-800/90 bg-slate-950 px-2 py-2 text-center font-black uppercase tracking-[0.12em] text-slate-400 ${headerTextClass}`}>
+                <th key={i} className={`sticky top-0 z-10 whitespace-nowrap border-r border-b border-[color:var(--color-border-subtle)] bg-[color:var(--color-canvas)] px-2 py-2 text-center font-black uppercase tracking-[0.12em] text-[color:var(--color-text-secondary)] ${headerTextClass}`}>
                   {name}
                 </th>
               ))}
@@ -136,7 +165,7 @@ export default function DraftBoard({
               return (
                 <tr key={round}>
                   <td
-                    className={`sticky left-0 z-10 border-r border-b border-slate-800/90 px-2 font-black text-slate-500 text-center align-middle ${tvMode ? "text-[clamp(12px,0.55vw,18px)]" : "text-xs"}`}
+                    className={`sticky left-0 z-10 border-r border-b border-[color:var(--color-border-subtle)] px-2 text-center align-middle font-black text-[color:var(--color-text-muted)] ${tvMode ? "text-[clamp(12px,0.55vw,18px)]" : "text-xs"}`}
                     style={{ height: rowHeight, backgroundColor: isEvenRow ? "#0d1a2e" : "#020617" }}
                   >
                     {round}
@@ -154,7 +183,7 @@ export default function DraftBoard({
                     return (
                       <td
                         key={slot.overallPickNumber}
-                        className={`relative border-r border-b border-slate-800/90 px-1.5 align-top overflow-hidden transition-colors ${isCurrent ? "z-[1]" : ""}`}
+                        className={`relative overflow-hidden border-r border-b border-[color:var(--color-border-subtle)] px-1.5 align-top transition-colors ${isCurrent ? "z-[1]" : ""}`}
                         style={{
                           height: rowHeight,
                           backgroundColor: cell
@@ -240,21 +269,21 @@ export default function DraftBoard({
       {/* Floating popup */}
       {popupPick && onEditPick && (
         <div
-          className="fixed z-50 min-w-[140px] rounded-xl border border-white/10 bg-slate-900 shadow-2xl overflow-hidden"
+          className="fixed z-50 min-w-[140px] overflow-hidden rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] shadow-2xl"
           style={{ left: popupPick.x, top: popupPick.y, transform: "translateX(-50%)" }}
           onClick={(e) => e.stopPropagation()}
         >
           <div className="px-3 pt-2.5 pb-1">
-            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-500">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-[color:var(--color-text-muted)]">
               {popupPick.pick.playerPosition} · {popupPick.pick.nflTeam}
             </p>
-            <p className="font-black text-white leading-tight">{popupPick.pick.playerName}</p>
-            <p className="text-[10px] text-slate-500">Rnd {popupPick.pick.round}, Pk {popupPick.pick.pickNumber}</p>
+            <p className="font-black leading-tight text-[color:var(--color-text-primary)]">{popupPick.pick.playerName}</p>
+            <p className="text-[10px] text-[color:var(--color-text-muted)]">Rnd {popupPick.pick.round}, Pk {popupPick.pick.pickNumber}</p>
           </div>
           <button
             type="button"
             onClick={() => { onEditPick(popupPick.pick); setPopupPick(null); }}
-            className="w-full bg-slate-800 px-3 py-2 text-left text-xs font-black uppercase tracking-wider text-[color:var(--color-league-accent)] hover:bg-slate-700 transition-colors"
+            className="w-full bg-[color:var(--color-surface-2)] px-3 py-2 text-left text-xs font-black uppercase tracking-wider text-[color:var(--color-league-accent)] transition-colors hover:bg-[color:var(--color-surface-3)]"
           >
             Edit Pick
           </button>

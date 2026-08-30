@@ -111,17 +111,17 @@ export default function DraftChat({
   const canChat = Boolean(participantId);
 
   return (
-    <div className="fixed bottom-[58px] left-0 z-50 flex flex-col overflow-hidden rounded-tr-2xl border border-white/10 bg-slate-950 shadow-2xl"
+    <div className="fixed bottom-[58px] left-0 z-50 flex flex-col overflow-hidden rounded-tr-[var(--radius-overlay)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] shadow-2xl"
       style={{ width: "min(520px, 95vw)", height: "min(480px, 70vh)" }}>
 
       {/* Header */}
-      <div className="flex shrink-0 items-center justify-between border-b border-white/8 bg-slate-900/80 px-4 py-2.5">
+      <div className="flex shrink-0 items-center justify-between border-b border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] px-4 py-2.5">
         <div className="flex items-center gap-2">
           <span className="h-2 w-2 rounded-full bg-[var(--color-league-accent-hover)]" />
-          <span className="text-xs font-black uppercase tracking-[0.2em] text-slate-200">Draft Chat</span>
+          <span className="text-xs font-black uppercase tracking-[0.2em] text-[color:var(--color-text-primary)]">Draft Chat</span>
         </div>
         <button type="button" aria-label="Close chat"
-          className="flex h-6 w-6 items-center justify-center rounded-full bg-white/5 text-slate-400 hover:bg-white/10 hover:text-white transition-colors"
+          className="flex h-6 w-6 items-center justify-center rounded-[var(--radius-control)] bg-[color:var(--color-surface-1)] text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
           onClick={onClose}>
           <svg viewBox="0 0 12 12" fill="currentColor" className="h-3 w-3">
             <path d="M1 1l10 10M11 1L1 11" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
@@ -133,26 +133,26 @@ export default function DraftChat({
       <div className="flex min-h-0 flex-1">
 
         {/* Messages */}
-        <div className="flex min-w-0 flex-1 flex-col border-r border-white/8">
+        <div className="flex min-w-0 flex-1 flex-col border-r border-[color:var(--color-border-subtle)]">
           <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2 space-y-1.5">
             {messages.length === 0 && (
-              <p className="mt-6 text-center text-xs text-slate-600">No messages yet. Say hello!</p>
+              <p className="mt-6 text-center text-xs text-[color:var(--color-text-muted)]">No messages yet. Say hello!</p>
             )}
             {messages.map((msg) => {
               if (msg.kind === "system") {
                 return (
                   <div key={msg.id} className="py-0.5 text-center">
-                    <span className="text-[11px] italic text-slate-600">{msg.content}</span>
+                    <span className="text-[11px] italic text-[color:var(--color-text-muted)]">{msg.content}</span>
                   </div>
                 );
               }
               if (msg.kind === "announcement") {
                 return (
-                  <div key={msg.id} className="rounded-lg border border-amber-700/40 bg-amber-950/40 px-3 py-2">
-                    <div className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-amber-400">
+                  <div key={msg.id} className="rounded-[var(--radius-control)] border border-[color:var(--color-warning-border)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3 py-2">
+                    <div className="mb-0.5 text-[10px] font-black uppercase tracking-widest text-[color:var(--color-warning)]">
                       Commissioner Announcement
                     </div>
-                    <p className="text-sm leading-snug text-amber-100">{msg.content}</p>
+                    <p className="text-sm leading-snug text-[color:var(--color-text-primary)]">{msg.content}</p>
                   </div>
                 );
               }
@@ -163,7 +163,7 @@ export default function DraftChat({
                   </div>
                   <div className="min-w-0">
                     <span className="text-[11px] font-bold text-[color:var(--color-league-accent)]">{msg.displayName}</span>
-                    <p className="break-words text-sm leading-snug text-slate-200">{msg.content}</p>
+                    <p className="break-words text-sm leading-snug text-[color:var(--color-text-primary)]">{msg.content}</p>
                   </div>
                 </div>
               );
@@ -172,27 +172,27 @@ export default function DraftChat({
           </div>
 
           {/* Input */}
-          <div className="shrink-0 border-t border-white/8 p-2 space-y-1.5">
+          <div className="shrink-0 space-y-1.5 border-t border-[color:var(--color-border-subtle)] p-2">
             {canChat ? (
               <>
                 {isCommissioner && (
                   <button type="button"
                     onClick={() => setIsAnnounce((a) => !a)}
-                    className={`w-full rounded-lg px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-colors ${isAnnounce ? "bg-amber-600 text-white" : "bg-white/5 text-slate-500 hover:bg-white/10 hover:text-slate-300"}`}>
+                    className={`w-full rounded-[var(--radius-control)] px-3 py-1 text-[11px] font-black uppercase tracking-widest transition-colors ${isAnnounce ? "bg-[var(--color-warning)] text-[color:var(--color-warning-foreground)]" : "bg-[color:var(--color-surface-2)] text-[color:var(--color-text-muted)] hover:bg-[color:var(--color-surface-3)] hover:text-[color:var(--color-text-secondary)]"}`}>
                     {isAnnounce ? "📣 Commissioner Announcement" : "Commish Announce"}
                   </button>
                 )}
                 <div className="flex gap-2">
                   <input ref={inputRef} type="text" maxLength={500}
                     placeholder={isAnnounce ? "Commissioner announcement..." : "Type a message..."}
-                    className="min-w-0 flex-1 rounded-lg border border-white/8 bg-white/5 px-3 py-2 text-sm text-white placeholder:text-slate-600 focus:border-[color-mix(in_srgb,var(--color-league-accent-border)_60%,transparent)] focus:outline-none"
+                    className="min-w-0 flex-1 rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] px-3 py-2 text-sm text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-muted)] focus:border-[color-mix(in_srgb,var(--color-league-accent-border)_60%,transparent)] focus:outline-none"
                     value={input}
                     onChange={(e) => setInput(e.target.value)}
                     onKeyDown={handleKeyDown}
                     disabled={isSending}
                   />
                   <button type="button" disabled={!input.trim() || isSending} onClick={() => void handleSend()}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--color-league-accent)] text-slate-950 hover:bg-[var(--color-league-accent-hover)] disabled:opacity-30 transition-colors"
+                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[var(--color-league-accent)] text-[color:var(--color-league-accent-foreground)] transition-colors hover:bg-[var(--color-league-accent-hover)] disabled:opacity-30"
                     aria-label="Send">
                     <svg viewBox="0 0 14 14" fill="currentColor" className="h-4 w-4">
                       <path d="M7 1v12M7 1L3 5M7 1l4 4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
@@ -201,23 +201,23 @@ export default function DraftChat({
                 </div>
               </>
             ) : (
-              <p className="py-2 text-center text-xs text-slate-600">Join the draft to chat.</p>
+              <p className="py-2 text-center text-xs text-[color:var(--color-text-muted)]">Join the draft to chat.</p>
             )}
           </div>
         </div>
 
         {/* Participants sidebar */}
         <div className="flex w-36 shrink-0 flex-col">
-          <div className="shrink-0 border-b border-white/8 px-3 py-2">
-            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-slate-600">In Room</span>
+          <div className="shrink-0 border-b border-[color:var(--color-border-subtle)] px-3 py-2">
+            <span className="text-[9px] font-black uppercase tracking-[0.2em] text-[color:var(--color-text-muted)]">In Room</span>
           </div>
           <div className="flex-1 overflow-y-auto py-2">
             {participants.map((p) => {
               const isOnline = onlineSet.has(p.userId);
               return (
                 <div key={p.id} className="flex items-center gap-2 px-3 py-1.5">
-                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isOnline ? "bg-green-400" : "bg-slate-700"}`} />
-                  <span className={`truncate text-xs font-semibold ${isOnline ? "text-slate-200" : "text-slate-600"}`}>
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${isOnline ? "bg-[color:var(--color-success)]" : "bg-[color:var(--color-border-strong)]"}`} />
+                  <span className={`truncate text-xs font-semibold ${isOnline ? "text-[color:var(--color-text-primary)]" : "text-[color:var(--color-text-muted)]"}`}>
                     {p.displayName}
                   </span>
                 </div>

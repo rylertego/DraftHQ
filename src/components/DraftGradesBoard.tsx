@@ -22,7 +22,7 @@ function gradeStyle(grade: string) {
 function GradeChip({ grade, size = "sm" }: { grade: string; size?: "sm" | "lg" }) {
   return (
     <span
-      className={`shrink-0 rounded-lg text-center font-black tabular-nums ${
+      className={`shrink-0 rounded-[var(--radius-control)] text-center font-black tabular-nums ${
         size === "lg" ? "w-16 py-1.5 text-xl" : "w-11 py-1 text-sm"
       }`}
       style={gradeStyle(grade)}
@@ -37,19 +37,19 @@ function PickRow({ pick, accent }: { pick: PickGrade; accent: string }) {
   const hasDetail = pick.positives.length > 0 || pick.concerns.length > 0;
 
   return (
-    <div className="border-b border-white/5 last:border-b-0">
+    <div className="border-b border-[color:var(--color-border-subtle)] last:border-b-0">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors hover:bg-[color:var(--color-surface-2)]"
       >
-        <span className="w-12 shrink-0 text-xs font-bold tabular-nums text-slate-600">
+        <span className="w-12 shrink-0 text-xs font-bold tabular-nums text-[color:var(--color-text-muted)]">
           {pick.round}.{String(pick.overallPickNumber).padStart(2, "0")}
         </span>
         <span className="w-10 shrink-0 text-[11px] font-black" style={{ color: accent }}>
           {pick.playerPosition}
         </span>
-        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-white">
+        <span className="min-w-0 flex-1 truncate text-sm font-semibold text-[color:var(--color-text-primary)]">
           {pick.playerName}
         </span>
         {pick.valueDelta !== null && (
@@ -60,7 +60,7 @@ function PickRow({ pick, accent }: { pick: PickGrade; accent: string }) {
             {pick.valueDelta >= 0 ? "+" : ""}{Math.round(pick.valueDelta)}
           </span>
         )}
-        <span className="w-8 shrink-0 text-right text-xs tabular-nums text-slate-500">
+        <span className="w-8 shrink-0 text-right text-xs tabular-nums text-[color:var(--color-text-muted)]">
           {pick.score}
         </span>
         <GradeChip grade={pick.grade} />
@@ -68,7 +68,7 @@ function PickRow({ pick, accent }: { pick: PickGrade; accent: string }) {
           <svg
             viewBox="0 0 16 16"
             fill="none"
-            className={`h-3.5 w-3.5 shrink-0 text-slate-600 transition-transform ${open ? "rotate-180" : ""}`}
+            className={`h-3.5 w-3.5 shrink-0 text-[color:var(--color-text-muted)] transition-transform ${open ? "rotate-180" : ""}`}
           >
             <path d="M4 6l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
@@ -77,11 +77,11 @@ function PickRow({ pick, accent }: { pick: PickGrade; accent: string }) {
 
       {open && (
         <div className="px-4 pb-3 pl-[5.5rem]">
-          <p className="text-sm leading-relaxed text-slate-300">{pick.summary}</p>
+          <p className="text-sm leading-relaxed text-[color:var(--color-text-secondary)]">{pick.summary}</p>
           {pick.positives.length > 0 && (
             <ul className="mt-2 space-y-1">
               {pick.positives.map((item, i) => (
-                <li key={i} className="flex gap-2 text-xs text-emerald-400">
+                <li key={i} className="flex gap-2 text-xs text-[color:var(--color-success)]">
                   <span aria-hidden>+</span>
                   <span>{item}</span>
                 </li>
@@ -91,7 +91,7 @@ function PickRow({ pick, accent }: { pick: PickGrade; accent: string }) {
           {pick.concerns.length > 0 && (
             <ul className="mt-1.5 space-y-1">
               {pick.concerns.map((item, i) => (
-                <li key={i} className="flex gap-2 text-xs text-amber-400">
+                <li key={i} className="flex gap-2 text-xs text-[color:var(--color-warning)]">
                   <span aria-hidden>−</span>
                   <span>{item}</span>
                 </li>
@@ -108,61 +108,61 @@ function TeamCard({ team, accent }: { team: TeamGrade; accent: string }) {
   const [open, setOpen] = useState(false);
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-white/8 bg-white/[0.02]">
+    <div className="overflow-hidden rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)]">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-white/[0.03]"
+        className="flex w-full items-center gap-4 px-5 py-4 text-left transition-colors hover:bg-[color:var(--color-surface-2)]"
       >
         {team.teamLogoUrl ? (
           // eslint-disable-next-line @next/next/no-img-element
           <img src={team.teamLogoUrl} alt="" className="h-12 w-12 shrink-0 object-contain" />
         ) : (
-          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white/10 text-sm font-black text-slate-300">
+          <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[color:var(--color-surface-3)] text-sm font-black text-[color:var(--color-text-secondary)]">
             {team.teamName.slice(0, 2).toUpperCase()}
           </span>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate text-base font-black text-white">{team.teamName}</p>
-          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-slate-400">{team.summary}</p>
+          <p className="truncate text-base font-black text-[color:var(--color-text-primary)]">{team.teamName}</p>
+          <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-[color:var(--color-text-secondary)]">{team.summary}</p>
         </div>
         <div className="hidden shrink-0 text-right sm:block">
-          <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">Picks</p>
-          <p className="text-sm font-bold tabular-nums text-slate-400">{team.pickScore}</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[color:var(--color-text-muted)]">Picks</p>
+          <p className="text-sm font-bold tabular-nums text-[color:var(--color-text-secondary)]">{team.pickScore}</p>
         </div>
         <div className="hidden shrink-0 text-right sm:block">
-          <p className="text-[10px] font-black uppercase tracking-wider text-slate-600">Roster</p>
-          <p className="text-sm font-bold tabular-nums text-slate-400">{team.constructionScore}</p>
+          <p className="text-[10px] font-black uppercase tracking-wider text-[color:var(--color-text-muted)]">Roster</p>
+          <p className="text-sm font-bold tabular-nums text-[color:var(--color-text-secondary)]">{team.constructionScore}</p>
         </div>
         <GradeChip grade={team.grade} size="lg" />
       </button>
 
       {open && (
-        <div className="border-t border-white/8">
+        <div className="border-t border-[color:var(--color-border-subtle)]">
           {(team.strengths.length > 0 || team.weaknesses.length > 0) && (
-            <div className="grid gap-3 border-b border-white/5 px-5 py-3 sm:grid-cols-2">
+            <div className="grid gap-3 border-b border-[color:var(--color-border-subtle)] px-5 py-3 sm:grid-cols-2">
               <div>
-                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-emerald-500">Strengths</p>
+                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--color-success)]">Strengths</p>
                 {team.strengths.length > 0 ? (
                   <ul className="space-y-0.5">
                     {team.strengths.map((s, i) => (
-                      <li key={i} className="text-xs text-slate-300">{s}</li>
+                      <li key={i} className="text-xs text-[color:var(--color-text-secondary)]">{s}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-slate-600">None identified.</p>
+                  <p className="text-xs text-[color:var(--color-text-muted)]">None identified.</p>
                 )}
               </div>
               <div>
-                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">Concerns</p>
+                <p className="mb-1 text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--color-warning)]">Concerns</p>
                 {team.weaknesses.length > 0 ? (
                   <ul className="space-y-0.5">
                     {team.weaknesses.map((s, i) => (
-                      <li key={i} className="text-xs text-slate-300">{s}</li>
+                      <li key={i} className="text-xs text-[color:var(--color-text-secondary)]">{s}</li>
                     ))}
                   </ul>
                 ) : (
-                  <p className="text-xs text-slate-600">None identified.</p>
+                  <p className="text-xs text-[color:var(--color-text-muted)]">None identified.</p>
                 )}
               </div>
             </div>
@@ -191,21 +191,21 @@ export default function DraftGradesBoard({
     <div className="h-full overflow-y-auto px-4 py-4 sm:px-6">
       <div className="mx-auto max-w-4xl">
         <div className="mb-4">
-          <h2 className="text-lg font-black uppercase tracking-wide text-white">Draft Grades</h2>
-          <p className="mt-1 text-xs text-slate-500">
+          <h2 className="text-lg font-black uppercase tracking-wide text-[color:var(--color-text-primary)]">Draft Grades</h2>
+          <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">
             Graded on the decisions as they looked at the time — value against the market, roster
             need, positional scarcity, player caliber, and roster fit. Tap a team to see every pick.
           </p>
         </div>
 
         {report.dataNotes.length > 0 && (
-          <div className="mb-4 rounded-xl border border-amber-500/25 bg-amber-500/[0.06] px-4 py-3">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-500">
+          <div className="mb-4 rounded-[var(--radius-panel)] border border-[color:var(--color-warning-border)] bg-[color-mix(in_srgb,var(--color-warning)_10%,transparent)] px-4 py-3">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--color-warning)]">
               About these grades
             </p>
             <ul className="mt-1.5 space-y-1">
               {report.dataNotes.map((note, i) => (
-                <li key={i} className="text-xs leading-relaxed text-amber-200/80">{note}</li>
+                <li key={i} className="text-xs leading-relaxed text-[color:var(--color-warning-foreground)]">{note}</li>
               ))}
             </ul>
           </div>

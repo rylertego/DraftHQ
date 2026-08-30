@@ -56,20 +56,20 @@ export default function PickModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/75 backdrop-blur-sm sm:items-center sm:p-4">
-      <div className="flex h-[95dvh] w-full flex-col rounded-t-2xl border border-slate-700 bg-slate-950 sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-2xl">
+      <div className="flex h-[95dvh] w-full flex-col rounded-t-[var(--radius-overlay)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] sm:h-auto sm:max-h-[85vh] sm:max-w-lg sm:rounded-[var(--radius-overlay)]">
         {/* Header */}
-        <div className="flex items-center justify-between gap-4 border-b border-slate-800 px-5 py-4">
-          <h2 className="text-base font-bold text-white">{title}</h2>
-          <button type="button" disabled={isSaving} className="rounded-lg border border-slate-700 px-3 py-1.5 text-sm text-slate-400 hover:text-white hover:border-slate-500 disabled:opacity-50 transition-colors" onClick={onClose}>
+        <div className="flex items-center justify-between gap-4 border-b border-[color:var(--color-border-subtle)] px-5 py-4">
+          <h2 className="text-base font-bold text-[color:var(--color-text-primary)]">{title}</h2>
+          <button type="button" disabled={isSaving} className="rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] px-3 py-1.5 text-sm text-[color:var(--color-text-secondary)] transition-colors hover:border-[color:var(--color-border-strong)] hover:text-[color:var(--color-text-primary)] disabled:opacity-50" onClick={onClose}>
             Close
           </button>
         </div>
 
         {/* Search */}
-        <div className="border-b border-slate-800 px-4 py-3">
+        <div className="border-b border-[color:var(--color-border-subtle)] px-4 py-3">
           <input
             autoFocus
-            className="w-full rounded-xl border border-slate-700 bg-slate-900 px-4 py-2.5 text-sm text-white placeholder:text-slate-500 focus:border-slate-500 focus:outline-none"
+            className="w-full rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] px-4 py-2.5 text-sm text-[color:var(--color-text-primary)] placeholder:text-[color:var(--color-text-muted)] focus:border-[color:var(--color-border-strong)] focus:outline-none"
             placeholder="Search name, position, or NFL team…"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
@@ -77,15 +77,15 @@ export default function PickModal({
         </div>
 
         {/* Position tabs */}
-        <div className="flex gap-1.5 overflow-x-auto border-b border-slate-800 px-4 py-2.5">
+        <div className="flex gap-1.5 overflow-x-auto border-b border-[color:var(--color-border-subtle)] px-4 py-2.5">
           {["ALL", ...positionTabs].map((val) => (
             <button
               key={val}
               type="button"
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-colors ${
+              className={`shrink-0 rounded-[var(--radius-control)] px-3 py-1 text-xs font-semibold transition-colors ${
                 position === val
-                  ? "bg-white text-slate-950"
-                  : "bg-slate-800 text-slate-400 hover:bg-slate-700 hover:text-white"
+                  ? "bg-[var(--color-league-accent)] text-[color:var(--color-league-accent-foreground)]"
+                  : "bg-[color:var(--color-surface-2)] text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-3)] hover:text-[color:var(--color-text-primary)]"
               }`}
               onClick={() => setPosition(val)}
             >
@@ -97,7 +97,7 @@ export default function PickModal({
         {/* Player list */}
         <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-2">
           {visiblePlayers.length === 0 ? (
-            <p className="p-4 text-sm text-slate-500">
+            <p className="p-4 text-sm text-[color:var(--color-text-muted)]">
               {players.length === 0 ? "No players loaded in Supabase." : "No players match your search."}
             </p>
           ) : (
@@ -110,10 +110,10 @@ export default function PickModal({
                     key={player.id}
                     type="button"
                     disabled={isSaving}
-                    className={`w-full rounded-xl border px-4 py-3 text-left transition-colors disabled:opacity-50 ${
+                    className={`w-full rounded-[var(--radius-control)] border px-4 py-3 text-left transition-colors disabled:opacity-50 ${
                       isSelected
-                        ? "border-white/30 bg-white/10"
-                        : "border-transparent hover:border-slate-700 hover:bg-slate-900"
+                        ? "border-[color:var(--color-league-accent-border)] bg-[color-mix(in_srgb,var(--color-league-accent)_12%,transparent)]"
+                        : "border-transparent hover:border-[color:var(--color-border-subtle)] hover:bg-[color:var(--color-surface-2)]"
                     }`}
                     onClick={() => setSelectedPlayerId(player.id)}
                   >
@@ -121,8 +121,8 @@ export default function PickModal({
                       <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-xs font-bold ${posClass}`}>
                         {player.position}
                       </span>
-                      <span className="font-semibold text-white">{player.fullName}</span>
-                      <span className="ml-auto text-xs text-slate-500 shrink-0">{player.nflTeam ?? "FA"}</span>
+                      <span className="font-semibold text-[color:var(--color-text-primary)]">{player.fullName}</span>
+                      <span className="ml-auto shrink-0 text-xs text-[color:var(--color-text-muted)]">{player.nflTeam ?? "FA"}</span>
                     </div>
                   </button>
                 );
@@ -132,12 +132,12 @@ export default function PickModal({
         </div>
 
         {/* Footer */}
-        <div className="border-t border-slate-800 bg-slate-950 px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          {error && <p className="mb-3 text-sm text-red-400">{error}</p>}
+        <div className="border-t border-[color:var(--color-border-subtle)] bg-[color:var(--color-canvas)] px-4 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+          {error && <p className="mb-3 text-sm text-[color:var(--color-danger)]">{error}</p>}
           <button
             type="button"
             disabled={isSaving || !selectedPlayer}
-            className="w-full rounded-xl bg-white py-3 text-sm font-bold text-slate-950 disabled:opacity-30 hover:bg-slate-100 transition-colors"
+            className="w-full rounded-[var(--radius-control)] bg-[var(--color-league-accent)] py-3 text-sm font-bold text-[color:var(--color-league-accent-foreground)] transition-colors hover:bg-[var(--color-league-accent-hover)] disabled:opacity-30"
             onClick={() => selectedPlayer && void onSave(selectedPlayer.id)}
           >
             {isSaving ? "Submitting pick…" : selectedPlayer ? `Draft ${selectedPlayer.fullName}` : "Select a player"}

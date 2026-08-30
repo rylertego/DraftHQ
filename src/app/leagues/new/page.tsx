@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { createLeague } from "@/lib/leagueApi";
+import { leagueImportPath, slugFromLeagueName } from "@/lib/leagueOnboarding";
 import {
   Alert,
   Button,
@@ -18,28 +19,21 @@ import {
 export default function NewLeaguePage() {
   const router = useRouter();
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState("");
-
-  function updateName(value: string) {
-    setName(value);
-    setSlug(
-      value
-        .toLowerCase()
-        .trim()
-        .replace(/[^a-z0-9]+/g, "-")
-        .replace(/^-+|-+$/g, "")
-    );
-  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     setError("");
+    const slug = slugFromLeagueName(name);
+    if (!slug) {
+      setError("Use at least one letter or number in the league name.");
+      return;
+    }
     setIsCreating(true);
     try {
       const league = await createLeague({ name, slug });
-      router.push(`/leagues/${league.slug}/settings`);
+      router.push(leagueImportPath(league.slug));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to create league.");
       setIsCreating(false);
@@ -81,22 +75,7 @@ export default function NewLeaguePage() {
                   maxLength={100}
                   placeholder="The Brotherhood of Champions"
                   value={name}
-                  onChange={(e) => updateName(e.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="URL Slug"
-                controlId="league-slug"
-                description={`drafthq.net/leagues/${slug || "your-league"}`}
-              >
-                <Input
-                  required
-                  minLength={3}
-                  maxLength={60}
-                  pattern="[a-z0-9]+(-[a-z0-9]+)*"
-                  value={slug}
-                  onChange={(e) => setSlug(e.target.value.toLowerCase())}
+                  onChange={(e) => setName(e.target.value)}
                 />
               </Field>
 

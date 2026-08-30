@@ -16,6 +16,8 @@ import type {
 } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
 
+export type LeagueImportProvider = "sleeper" | "espn" | "yahoo";
+
 interface LeagueRow {
   id: string;
   slug: string;
@@ -945,7 +947,8 @@ export async function createLeagueTeam(leagueId: string, data: CreateLeagueTeamD
 
 export async function importLeagueTeams(
   leagueId: string,
-  teams: Array<{ name: string; ownerName?: string | null }>
+  teams: Array<{ name: string; ownerName?: string | null }>,
+  provider?: LeagueImportProvider
 ): Promise<LeagueTeam[]> {
   if (teams.length === 0) throw new Error("The provider did not return any teams.");
 
@@ -960,7 +963,15 @@ export async function importLeagueTeams(
     )
     .select(LEAGUE_TEAM_COLUMNS);
 
-  if (error) throw error;
+  if (error) throw new Error(error.message);
+  if (provider) {
+    const { error: leagueError } = await supabase
+      .from("leagues")
+      .update({ active_integration: provider })
+      .eq("id", leagueId);
+    if (leagueError) throw new Error(leagueError.message);
+  }
+
   return (rows as LeagueTeamRow[]).map((row) =>
     mapLeagueTeamRow(row, new Map(), new Set())
   );
