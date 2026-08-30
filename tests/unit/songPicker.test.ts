@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SpotifyConnectionPanel, SongPlaybackBadge } from "@/app/leagues/[slug]/my-team/MyTeamForm";
 import { needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import type { WalkUpSong } from "@/types/draft";
+import SongPicker from "@/components/SongPicker";
 
 vi.mock("@/lib/leagueApi", () => ({
   getLeagueTeams: vi.fn(),
@@ -113,5 +114,21 @@ describe("SongPlaybackBadge", () => {
   it("tells the owner the song needs Spotify reconnected", () => {
     const html = renderToStaticMarkup(createElement(SongPlaybackBadge));
     expect(html).toContain("Reconnect to play");
+  });
+});
+
+describe("SongPicker chrome", () => {
+  function render() {
+    return renderToStaticMarkup(
+      createElement(SongPicker, { onSelect: () => undefined, onClose: () => undefined }),
+    );
+  }
+
+  it("paints the close button in the league accent color", () => {
+    expect(render()).toMatch(/<button[^>]*aria-label="Close"[^>]*style="[^"]*color:#22D3EE/);
+  });
+
+  it("keeps the YouTube paste hint visible", () => {
+    expect(render()).toContain("Find the song on YouTube, copy the link, and paste it above.");
   });
 });

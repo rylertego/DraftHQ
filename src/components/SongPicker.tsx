@@ -146,7 +146,12 @@ export default function SongPicker({ onSelect, onClose }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <h2 className="text-base font-bold text-white">Add a Walk-Up Song</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-white transition-colors">
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="opacity-70 transition-opacity hover:opacity-100"
+            style={{ color: accentColor }}
+          >
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" className="h-5 w-5">
               <path d="M4 4l8 8M12 4l-8 8" strokeLinecap="round"/>
             </svg>
@@ -184,16 +189,17 @@ export default function SongPicker({ onSelect, onClose }: Props) {
             onBlur={(e) => (e.currentTarget.style.boxShadow = "")}
           />
 
+          {tab === "youtube" && (
+            <p className="text-xs text-slate-500">
+              Find the song on YouTube, copy the link, and paste it above.
+            </p>
+          )}
+
           {error && <p className="text-xs text-red-400">{error}</p>}
 
           <div className="max-h-72 overflow-y-auto space-y-1 -mx-1 px-1">
             {loading && (
               <div className="flex items-center justify-center py-8 text-slate-500 text-sm">Searching…</div>
-            )}
-            {!loading && results.length === 0 && !debouncedQuery && tab === "youtube" && (
-              <div className="flex items-center justify-center py-8 text-center text-sm text-slate-500">
-                Find the song on YouTube, copy the link, and paste it above.
-              </div>
             )}
             {!loading && results.length === 0 && debouncedQuery && !error && (
               <div className="flex items-center justify-center py-8 text-slate-500 text-sm">No results</div>
