@@ -1,5 +1,7 @@
 "use client";
 
+import type { WalkUpSong } from "@/types/draft";
+
 export function initiateSpotifyPopup(onSuccess: () => void): void {
   const w = 500, h = 700;
   const left = window.screenX + (window.outerWidth - w) / 2;
@@ -90,4 +92,12 @@ export function disconnectSpotify() {
   localStorage.removeItem("spotify_access_token");
   localStorage.removeItem("spotify_refresh_token");
   localStorage.removeItem("spotify_token_expiry");
+}
+
+/** A saved Spotify song is only truly silent when it has no YouTube fallback
+ *  and no preview clip — WalkUpPlayer tries both before giving up. */
+export function needsSpotifyReconnect(song: WalkUpSong, spotifyConnected: boolean): boolean {
+  if (spotifyConnected) return false;
+  if (song.platform !== "spotify") return false;
+  return !song.youtubeTrackId && !song.previewUrl;
 }

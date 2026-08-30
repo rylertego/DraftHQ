@@ -3,6 +3,8 @@ import { parseYouTubeVideoId } from "@/components/SongPicker";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { SpotifyConnectionPanel } from "@/app/leagues/[slug]/my-team/MyTeamForm";
+import { needsSpotifyReconnect } from "@/lib/spotifyAuth";
+import type { WalkUpSong } from "@/types/draft";
 
 vi.mock("@/lib/leagueApi", () => ({
   getLeagueTeams: vi.fn(),
@@ -69,5 +71,40 @@ describe("SpotifyConnectionPanel", () => {
     expect(html).toContain("Spotify connected");
     expect(html).toContain("Disconnect");
     expect(html).not.toContain("Connect Spotify");
+  });
+});
+
+describe("needsSpotifyReconnect", () => {
+  const spotifySong: WalkUpSong = {
+    platform: "spotify",
+    trackId: "abc123",
+    url: "https://open.spotify.com/track/abc123",
+    title: "Song",
+    artist: "Artist",
+  };
+
+  it("flags a Spotify song with no fallback while disconnected", () => {
+    expect(needsSpotifyReconnect(spotifySong, false)).toBe(true);
+  });
+
+  it("does not flag anything while connected", () => {
+    expect(needsSpotifyReconnect(spotifySong, true)).toBe(false);
+  });
+
+  it("does not flag YouTube songs", () => {
+    const ytSong: WalkUpSong = { ...spotifySong, platform: "youtube" };
+    expect(needsSpotifyReconnect(ytSong, false)).toBe(false);
+  });
+
+  it("does not flag a Spotify song with a YouTube fallback", () => {
+    expect(needsSpotifyReconnect({ ...spotifySong, youtubeTrackId: "dQw4w9WgXcQ" }, false)).toBe(false);
+  });
+
+  it("does not flag a Spotify song with a preview clip", () => {
+    expect(needsSpotifyReconnect({ ...spotifySong, previewUrl: "https://p.scdn.co/mp3/x" }, false)).toBe(false);
+  });
+
+  it("treats null fallbacks as absent", () => {
+    expect(needsSpotifyReconnect({ ...spotifySong, youtubeTrackId: null, previewUrl: null }, false)).toBe(true);
   });
 });
