@@ -23,7 +23,7 @@ const requiredTables = [
 const requiredFunctions = [
   "assign_team(uuid, uuid, uuid)",
   "commissioner_make_pick(uuid, uuid, integer)",
-  "configure_draft_timer(uuid, integer)",
+  "configure_draft_timer(uuid, integer, text, integer, integer)",
   "create_draft(text, integer, integer, text)",
   "create_imported_draft(text, integer, text, text[])",
   "create_imported_league_season(uuid, integer, text, text, integer, text, text[])",
