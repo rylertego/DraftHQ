@@ -5,7 +5,11 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { SpotifyConnectionPanel, SongPlaybackBadge } from "@/app/leagues/[slug]/my-team/MyTeamForm";
 import { needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import type { WalkUpSong } from "@/types/draft";
-import SongPicker from "@/components/SongPicker";
+import SongPicker, {
+  SONG_PICKER_TABS,
+  defaultSongPickerTab,
+  SpotifyConnectPanel,
+} from "@/components/SongPicker";
 
 vi.mock("@/lib/leagueApi", () => ({
   getLeagueTeams: vi.fn(),
@@ -130,5 +134,44 @@ describe("SongPicker chrome", () => {
 
   it("keeps the YouTube paste hint visible", () => {
     expect(render()).toContain("Find the song on YouTube, copy the link, and paste it above.");
+  });
+});
+
+describe("song picker tabs", () => {
+  it("always offers both sources", () => {
+    expect(SONG_PICKER_TABS).toEqual(["youtube", "spotify"]);
+  });
+
+  it("opens on YouTube when Spotify is not linked", () => {
+    expect(defaultSongPickerTab(false)).toBe("youtube");
+  });
+
+  it("opens on Spotify once linked", () => {
+    expect(defaultSongPickerTab(true)).toBe("spotify");
+  });
+});
+
+describe("SpotifyConnectPanel", () => {
+  it("offers to link Spotify without leaving the picker", () => {
+    const html = renderToStaticMarkup(
+      createElement(SpotifyConnectPanel, {
+        accentColor: "#22D3EE",
+        connecting: false,
+        onConnect: () => undefined,
+      }),
+    );
+    expect(html).toContain("Connect Spotify");
+  });
+
+  it("shows progress while the popup is open", () => {
+    const html = renderToStaticMarkup(
+      createElement(SpotifyConnectPanel, {
+        accentColor: "#22D3EE",
+        connecting: true,
+        onConnect: () => undefined,
+      }),
+    );
+    expect(html).toContain("Opening Spotify");
+    expect(html).toContain("disabled");
   });
 });

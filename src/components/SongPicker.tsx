@@ -1,7 +1,7 @@
 "use client";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, type ComponentType } from "react";
 import type { WalkUpSong } from "@/types/draft";
-import { isSpotifyConnected } from "@/lib/spotifyAuth";
+import { isSpotifyConnected, initiateSpotifyPopup } from "@/lib/spotifyAuth";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 
 interface SearchResult {
@@ -56,6 +56,48 @@ const SpotifyLogo = () => (
   </svg>
 );
 
+export type SongPickerTabId = "youtube" | "spotify";
+
+export const SONG_PICKER_TABS: readonly SongPickerTabId[] = ["youtube", "spotify"];
+
+export function defaultSongPickerTab(connected: boolean): SongPickerTabId {
+  return connected ? "spotify" : "youtube";
+}
+
+const TAB_META: Record<SongPickerTabId, { label: string; Icon: ComponentType }> = {
+  youtube: { label: "YouTube", Icon: YoutubeLogo },
+  spotify: { label: "Spotify", Icon: SpotifyLogo },
+};
+
+export function SpotifyConnectPanel({
+  accentColor,
+  connecting,
+  onConnect,
+}: {
+  accentColor: string;
+  connecting: boolean;
+  onConnect: () => void;
+}) {
+  return (
+    <div className="flex flex-col items-center gap-3 py-10 text-center">
+      <span style={{ color: accentColor }}>
+        <SpotifyLogo />
+      </span>
+      <p className="text-sm text-slate-300">
+        Link Spotify to search tracks without leaving this page.
+      </p>
+      <button
+        onClick={onConnect}
+        disabled={connecting}
+        className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-950 transition-opacity disabled:opacity-60"
+        style={{ background: accentColor }}
+      >
+        {connecting ? "Opening Spotify…" : "Connect Spotify"}
+      </button>
+    </div>
+  );
+}
+
 interface Props {
   onSelect: (song: WalkUpSong) => void;
   onClose: () => void;
@@ -63,8 +105,9 @@ interface Props {
 
 export default function SongPicker({ onSelect, onClose }: Props) {
   const { accentColor } = useLeagueTheme();
-  const spotifyFirst = isSpotifyConnected();
-  const [tab, setTab] = useState<"youtube" | "spotify">(spotifyFirst ? "spotify" : "youtube");
+  const [connected, setConnected] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [tab, setTab] = useState<SongPickerTabId>("youtube");
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<SearchResult[]>([]);
   const [loading, setLoading] = useState(false);
@@ -73,6 +116,12 @@ export default function SongPicker({ onSelect, onClose }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { inputRef.current?.focus(); }, []);
+
+  useEffect(() => {
+    const linked = isSpotifyConnected();
+    setConnected(linked);
+    setTab(defaultSongPickerTab(linked));
+  }, []);
 
   useEffect(() => {
     if (!debouncedQuery.trim()) { setResults([]); setError(""); return; }
@@ -119,6 +168,14 @@ export default function SongPicker({ onSelect, onClose }: Props) {
       .finally(() => setLoading(false));
   }, [debouncedQuery, tab]);
 
+  function handleConnect() {
+    setConnecting(true);
+    initiateSpotifyPopup(() => {
+      setConnected(true);
+      setConnecting(false);
+    });
+  }
+
   function handleSelect(r: SearchResult) {
     const base = { platform: tab as "youtube" | "spotify", trackId: r.trackId, url: r.url, title: r.title, artist: r.artist, thumbnail: r.thumbnail, previewUrl: r.previewUrl };
     if (tab === "spotify") {
@@ -132,9 +189,7 @@ export default function SongPicker({ onSelect, onClose }: Props) {
     }
   }
 
-  const tabs = spotifyFirst
-    ? [{ id: "spotify" as const, label: "Spotify", Icon: SpotifyLogo }, { id: "youtube" as const, label: "YouTube", Icon: YoutubeLogo }]
-    : [{ id: "youtube" as const, label: "YouTube", Icon: YoutubeLogo }];
+  const tabs = SONG_PICKER_TABS.map((id) => ({ id, ...TAB_META[id] }));
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
@@ -177,6 +232,10 @@ export default function SongPicker({ onSelect, onClose }: Props) {
         </div>
 
         <div className="p-4 space-y-3">
+          {tab === "spotify" && !connected ? (
+            <SpotifyConnectPanel accentColor={accentColor} connecting={connecting} onConnect={handleConnect} />
+          ) : (
+            <>
           <input
             ref={inputRef}
             type="text"
@@ -227,6 +286,8 @@ export default function SongPicker({ onSelect, onClose }: Props) {
               </button>
             ))}
           </div>
+            </>
+          )}
         </div>
       </div>
     </div>

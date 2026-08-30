@@ -535,7 +535,10 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       {showSongPicker && (
         <SongPicker
           onSelect={addSong}
-          onClose={() => setShowSongPicker(false)}
+          onClose={() => {
+            setShowSongPicker(false);
+            setSpotifyConnected(isSpotifyConnected());
+          }}
         />
       )}
     </>
