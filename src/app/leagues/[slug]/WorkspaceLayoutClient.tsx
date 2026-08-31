@@ -243,20 +243,20 @@ export default function WorkspaceLayoutClient({
 
               {/* Logo */}
               <div className="relative">
-                <div
-                  className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl text-2xl font-black text-white"
-                  style={{
-                    backgroundColor: primary + "22",
-                    boxShadow: `0 8px 32px ${primary}33`,
-                  }}
-                >
-                  {league?.logoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={league.logoUrl} alt="" className="h-full w-full object-cover" />
-                  ) : (
+                {league?.logoUrl ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={league.logoUrl} alt="" className="h-28 w-28 object-contain" />
+                ) : (
+                  <div
+                    className="flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl text-2xl font-black text-white"
+                    style={{
+                      backgroundColor: primary + "22",
+                      boxShadow: `0 8px 32px ${primary}33`,
+                    }}
+                  >
                     <span style={{ color: primary }}>{initials}</span>
-                  )}
-                </div>
+                  </div>
+                )}
               </div>
 
               {/* Name + label */}

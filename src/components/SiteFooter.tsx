@@ -16,6 +16,9 @@ export default function SiteFooter() {
           <Link href="/privacy" className="transition-colors hover:text-slate-300">
             Privacy
           </Link>
+          <Link href="/terms" className="transition-colors hover:text-slate-300">
+            Terms
+          </Link>
           <a href="mailto:support@drafthq.net" className="transition-colors hover:text-slate-300">
             Support
           </a>

@@ -1,14 +1,16 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import type { ReactNode } from "react";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy — DraftHQ",
-  description: "What DraftHQ collects, why, who it is shared with, and how to delete it.",
+  title: "Privacy Policy - DraftHQ",
+  description:
+    "What DraftHQ collects, why it is used, who it is shared with, and how to delete it.",
 };
 
-const UPDATED = "August 16, 2026";
+const UPDATED = "August 31, 2026";
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({ title, children }: { title: string; children: ReactNode }) {
   return (
     <section className="mt-10">
       <h2 className="text-xl font-bold text-white">{title}</h2>
@@ -20,143 +22,209 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 export default function PrivacyPage() {
   return (
     <main className="flex-1 px-4 py-12 sm:px-6 sm:py-16">
-      <article className="mx-auto w-full max-w-[720px]">
-        <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">Privacy Policy</h1>
+      <article className="mx-auto w-full max-w-[760px]">
+        <h1 className="text-3xl font-black tracking-tight text-white sm:text-4xl">
+          Privacy Policy
+        </h1>
         <p className="mt-3 text-sm text-slate-400">Last updated {UPDATED}</p>
 
         <p className="mt-6 text-sm leading-7 text-slate-300">
-          DraftHQ is a fantasy football draft platform operated from the United States.
-          This policy describes what the service stores, why it stores it, who else
-          receives it, and how to get it deleted. It covers{" "}
-          <span className="font-semibold text-white">drafthq.net</span> only.
+          DraftHQ is a fantasy draft and league management service operated from
+          the United States. This policy explains what we collect, why we use it,
+          who receives it, and the choices you have. It applies to DraftHQ
+          websites and apps, including <span className="font-semibold text-white">drafthq.net</span>.
         </p>
 
-        <Section title="What we collect">
+        <Section title="Information We Collect">
           <p>
-            <span className="font-semibold text-white">Account information.</span> Your
-            email address and a password, handled by our authentication provider. We
-            never see or store your password in readable form.
+            <span className="font-semibold text-white">Account information.</span>{" "}
+            We collect your email address, authentication identifiers, and account
+            status. Passwords are handled by our authentication provider and are
+            not stored by DraftHQ in readable form.
           </p>
           <p>
-            <span className="font-semibold text-white">Profile information you choose
-            to provide.</span> A display name, an optional avatar image, and an optional
-            nickname and short bio shown to other members of your leagues.
+            <span className="font-semibold text-white">Profile and league information.</span>{" "}
+            We store the display name, avatar, nickname, bio, leagues, memberships,
+            roles, invitations, teams, logos, owner photos, team names, short
+            names, text-to-speech names, draft settings, draft order, picks,
+            chat messages, and walk-up songs you or your commissioner add.
           </p>
           <p>
-            <span className="font-semibold text-white">League and draft content.</span>{" "}
-            Leagues, teams, team names and logos, draft picks, draft order, timing
-            settings, chat messages sent in a draft room, and walk-up song selections.
-            Some of this is visible to everyone in your league — that is the point of a
-            shared draft.
+            <span className="font-semibold text-white">Imported fantasy league data.</span>{" "}
+            If a commissioner imports a league, we may retrieve team names, owner
+            names, roster slots, draft settings, prior-season records, standings,
+            and related league metadata from providers such as Sleeper, ESPN, or
+            Yahoo. Imported owner names may describe people who have not created
+            DraftHQ accounts.
           </p>
           <p>
-            <span className="font-semibold text-white">Imported league data.</span>{" "}
-            If you import from Sleeper, we retrieve that league&apos;s teams, rosters,
-            settings, and the owner names as they appear there. Those names may belong to
-            people who have never used DraftHQ.
+            <span className="font-semibold text-white">Provider credentials and cookies.</span>{" "}
+            Private ESPN imports may require ESPN cookies that are sent to DraftHQ
+            only to fetch that import preview. Yahoo imports use an OAuth flow and
+            store Yahoo tokens in a short-lived, http-only browser cookie. Spotify
+            playback tokens are stored in your browser local storage, not in
+            DraftHQ database tables.
           </p>
           <p>
-            <span className="font-semibold text-white">Technical data.</span> Our hosting
-            and database providers keep standard server and access logs, including IP
-            addresses, for security and reliability.
+            <span className="font-semibold text-white">AI announcer information.</span>{" "}
+            If AI announcer features are enabled, we may process announcement
+            text, draft event details, league names, team names, player names,
+            text-to-speech names, selected voices, and related draft-room context
+            to generate draft-night commentary or audio. Optional custom voice
+            provider API keys may be sent with a request to generate or preview
+            audio, but DraftHQ does not store those keys in database tables unless
+            we clearly say so in the feature.
           </p>
           <p>
-            We do not collect payment information, and we do not use advertising or
-            cross-site tracking cookies.
+            <span className="font-semibold text-white">Technical and security data.</span>{" "}
+            We and our service providers may process IP addresses, device and
+            browser information, request logs, authentication events, CAPTCHA
+            signals, and error logs to keep the service reliable and secure.
+          </p>
+          <p>
+            We do not collect payment card information today, and we do not sell
+            personal information or share it for cross-context behavioral advertising.
           </p>
         </Section>
 
-        <Section title="Why we use it">
+        <Section title="How We Use Information">
           <p>
-            To run the service: authenticating you, showing your leagues, keeping a draft
-            in sync across everyone&apos;s devices, and sending the transactional emails
-            the product depends on — invitations and password resets. We do not send
-            marketing email.
+            We use information to create and secure accounts, run leagues and
+            drafts, synchronize draft rooms in real time, import league setup data,
+            send invitations and account emails, play or preview walk-up music,
+            provide support, prevent abuse, diagnose errors, and improve DraftHQ.
           </p>
         </Section>
 
-        <Section title="Who else receives it">
+        <Section title="Who Can See League Information">
           <p>
-            We use third-party providers to operate DraftHQ. They receive only what their
-            function requires:
+            DraftHQ is built around shared league spaces. League members can see
+            league names, member profiles, team identities, draft order, picks,
+            chat messages, walk-up songs, and draft results for leagues they are
+            part of. Commissioners can also see and manage invitations and owner
+            assignments. People outside a league should not be able to view that
+            league through DraftHQ.
+          </p>
+        </Section>
+
+        <Section title="Service Providers">
+          <p>
+            We use vendors that process information for us only as needed to
+            operate DraftHQ:
           </p>
           <ul className="ml-5 list-disc space-y-1.5">
-            <li><span className="font-semibold text-white">Supabase</span> — database, authentication, file storage</li>
-            <li><span className="font-semibold text-white">Vercel</span> — application hosting</li>
-            <li><span className="font-semibold text-white">Resend</span> — sending invitation and password-reset email</li>
-            <li><span className="font-semibold text-white">Cloudflare</span> — DNS</li>
-            <li><span className="font-semibold text-white">Spotify</span> and <span className="font-semibold text-white">YouTube</span> — only if you choose to add walk-up music; searching and playback contact their services directly</li>
-            <li><span className="font-semibold text-white">Sleeper</span> and <span className="font-semibold text-white">ESPN</span> — only when importing a league or refreshing player rankings</li>
+            <li><span className="font-semibold text-white">Supabase</span> for database, authentication, storage, and realtime features.</li>
+            <li><span className="font-semibold text-white">Vercel</span> for hosting and application delivery.</li>
+            <li><span className="font-semibold text-white">Cloudflare</span> for DNS, security, and Turnstile bot protection.</li>
+            <li><span className="font-semibold text-white">Resend</span> or another email provider for transactional email.</li>
+            <li><span className="font-semibold text-white">OpenAI</span> and <span className="font-semibold text-white">ElevenLabs</span> when AI announcer features generate commentary or synthetic audio.</li>
+            <li><span className="font-semibold text-white">Spotify</span> and <span className="font-semibold text-white">YouTube</span> when you search for, preview, or play walk-up music.</li>
+            <li><span className="font-semibold text-white">Sleeper</span>, <span className="font-semibold text-white">ESPN</span>, and <span className="font-semibold text-white">Yahoo</span> when you choose to import or connect fantasy league data.</li>
           </ul>
+        </Section>
+
+        <Section title="Provider Connections">
           <p>
-            We do not sell personal information, and we do not share it for advertising.
+            Provider connections are optional. We use imported fantasy data to set
+            up DraftHQ leagues and drafts, not to sell profiles or target ads.
+            Disconnecting or deleting a league removes the active provider
+            connection from DraftHQ, but it does not delete your account or data
+            at the provider.
+          </p>
+          <p>
+            You can disconnect Spotify in DraftHQ by clearing the connection in
+            the app or by removing DraftHQ access from your Spotify account. After
+            disconnecting, DraftHQ will no longer request Spotify playback tokens
+            from that browser unless you connect again.
           </p>
         </Section>
 
-        <Section title="Music connections">
+        <Section title="AI Features">
           <p>
-            Connecting Spotify is optional and used only to play walk-up music during a
-            draft. The connection token is stored in your own browser, not on our
-            servers, and you can disconnect at any time from your Spotify account
-            settings. Searching for songs does not require you to connect anything.
+            AI announcer features are optional draft presentation tools. When
+            used, DraftHQ may send the minimum draft-room context needed to
+            generate the requested script or audio to AI service providers such
+            as OpenAI or ElevenLabs. Generated audio may be cached so the same
+            announcement does not need to be regenerated.
+          </p>
+          <p>
+            AI-generated commentary is not the authoritative draft record. Draft
+            settings, picks, owner assignments, and league records remain stored
+            in DraftHQ and Supabase.
           </p>
         </Section>
 
-        <Section title="What other people in your league can see">
+        <Section title="Cookies and Local Storage">
           <p>
-            League members can see your display name, avatar, nickname, bio, your team
-            and its logo, your draft picks, your walk-up songs, and anything you send in
-            draft chat. Your email address is visible to the commissioner who invited
-            you. Leagues are private: people outside a league cannot view it.
+            DraftHQ uses cookies and browser storage for authentication, provider
+            OAuth flows, bot protection, lobby audio preferences, and optional
+            Spotify playback. We do not use advertising cookies.
           </p>
         </Section>
 
-        <Section title="How long we keep it">
+        <Section title="How Long We Keep Information">
           <p>
-            League and draft content is kept while the league exists, because a draft is
-            a record its members may want to revisit. Leaving a league removes your
-            membership and releases your team, but picks already made in a completed
-            draft remain part of that draft&apos;s history.
+            We keep account information while your account exists. League and draft
+            content is kept while the league exists because it is a shared record
+            for league members. If you leave a league, your membership and owner
+            assignment can be removed, but completed draft picks and league history
+            may remain as part of the league record.
+          </p>
+          <p>
+            Pending invitations may be kept until accepted, revoked, expired, or
+            deleted. Provider cookies and OAuth state are short-lived. Security
+            logs are kept only as long as reasonably needed for abuse prevention,
+            debugging, compliance, and reliability.
           </p>
         </Section>
 
-        <Section title="Your choices">
+        <Section title="Your Choices">
           <p>
-            You can edit your profile and team details at any time in the app, leave a
-            league from its settings page, and ask us to delete your account and its
-            personal data by emailing the address below. Depending on where you live you
-            may also have rights to access, correct, export, or object to the processing
-            of your information; contact us and we will honour them.
+            You can update profile and team information in the app, leave leagues
+            where that option is available, revoke provider access through the
+            provider, and request deletion of your DraftHQ account. Depending on
+            where you live, you may also have rights to access, correct, delete,
+            export, or object to certain uses of your personal information.
+          </p>
+          <p>
+            To make a privacy request, email{" "}
+            <a className="font-semibold text-[color:var(--color-product-accent)] transition-opacity hover:opacity-80" href="mailto:privacy@drafthq.net">
+              privacy@drafthq.net
+            </a>.
           </p>
         </Section>
 
         <Section title="Children">
           <p>
-            DraftHQ is not directed at children under 13, and we do not knowingly collect
-            their information. If you believe a child has given us personal data, contact
-            us and we will delete it.
+            DraftHQ is not directed to children under 13, and we do not knowingly
+            collect personal information from children under 13. If you believe a
+            child provided personal information to DraftHQ, contact us and we will
+            take appropriate steps to delete it.
           </p>
         </Section>
 
         <Section title="Security">
           <p>
-            Access to league data is enforced at the database level, so people who are
-            not in a league cannot read it. No service can promise perfect security, but
-            we take reasonable measures and fix problems when we find them.
+            We use authentication, database-level access controls, storage rules,
+            bot protection, and operational monitoring to protect DraftHQ. No
+            online service can guarantee perfect security. If we learn of a
+            security incident that requires notice, we will provide notice as
+            required by applicable law.
           </p>
         </Section>
 
         <Section title="Changes">
           <p>
-            If this policy changes materially we will update the date above and, where
-            appropriate, tell you in the app.
+            We may update this policy as DraftHQ changes. If we make material
+            changes, we will update the date above and provide additional notice
+            when appropriate.
           </p>
         </Section>
 
         <Section title="Contact">
           <p>
-            Questions, or requests to delete your data:{" "}
-            <a className="font-semibold text-[color:var(--color-product-accent)] hover:opacity-80 transition-opacity" href="mailto:privacy@drafthq.net">
+            Privacy questions or requests:{" "}
+            <a className="font-semibold text-[color:var(--color-product-accent)] transition-opacity hover:opacity-80" href="mailto:privacy@drafthq.net">
               privacy@drafthq.net
             </a>
           </p>
@@ -164,7 +232,7 @@ export default function PrivacyPage() {
 
         <div className="mt-12 border-t border-slate-800 pt-6">
           <Link href="/" className="text-sm font-semibold text-slate-400 transition-colors hover:text-white">
-            ← Back to DraftHQ
+            Back to DraftHQ
           </Link>
         </div>
       </article>
