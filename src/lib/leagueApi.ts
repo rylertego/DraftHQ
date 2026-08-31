@@ -936,7 +936,7 @@ export async function createLeagueTeam(leagueId: string, data: CreateLeagueTeamD
       league_id: leagueId,
       name: data.name.trim(),
       short_name: data.shortName?.trim() || null,
-      owner_user_id: data.ownerUserId ?? null,
+      owner_user_id: null,
       owner_name: data.ownerName?.trim() || null,
       last_season_pick: data.lastSeasonPick ?? null,
       last_season_record: data.lastSeasonRecord?.trim() || null,
@@ -946,6 +946,12 @@ export async function createLeagueTeam(leagueId: string, data: CreateLeagueTeamD
     .single();
 
   if (error) throw error;
+  if (data.ownerUserId) {
+    await assignLeagueTeamOwner(leagueId, (row as LeagueTeamRow).id, data.ownerUserId);
+    const refreshed = await getLeagueTeams(leagueId);
+    return refreshed.find((team) => team.id === (row as LeagueTeamRow).id)
+      ?? { ...mapLeagueTeamRow(row as LeagueTeamRow, new Map(), new Set()), ownerUserId: data.ownerUserId };
+  }
   return mapLeagueTeamRow(row as LeagueTeamRow, new Map(), new Set());
 }
 

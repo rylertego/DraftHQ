@@ -14,6 +14,7 @@ import type {
   TimerBehavior,
   WalkUpSong,
 } from "@/types/draft";
+import type { LeagueMember, LeagueRole } from "@/types/league";
 import { buildByeWeekLookup } from "@/lib/nflTeams";
 import { ensureAnonymousUser, supabase } from "@/lib/supabase";
 import { getMyProfile } from "@/lib/profileApi";
@@ -83,6 +84,23 @@ interface InvitationRow {
   participant_id: string | null;
   invited_at: string;
   accepted_at: string | null;
+}
+
+interface DraftLeagueMemberRow {
+  id: string;
+  league_id: string;
+  user_id: string;
+  role: LeagueRole;
+  nickname: string | null;
+  avatar_url: string | null;
+  bio: string | null;
+  joined_at: string;
+}
+
+interface ProfileNameRow {
+  id: string;
+  display_name: string;
+  avatar_url: string | null;
 }
 
 interface TeamRow {
@@ -609,6 +627,77 @@ export async function assignTeam(
   return mapParticipant(
     getSingleRow<ParticipantRow>(data, "the updated participant")
   );
+}
+
+export async function getDraftAssignableMembers(draftId: string): Promise<LeagueMember[]> {
+  await ensureAnonymousUser();
+
+  const { data: draftData, error: draftError } = await supabase
+    .from("drafts")
+    .select("league_id")
+    .eq("id", draftId)
+    .single();
+
+  if (draftError) throw draftError;
+
+  const leagueId = (draftData as { league_id: string | null }).league_id;
+  if (!leagueId) return [];
+
+  const { data: memberData, error: memberError } = await supabase
+    .from("league_members")
+    .select("id,league_id,user_id,role,nickname,avatar_url,bio,joined_at")
+    .eq("league_id", leagueId)
+    .order("joined_at");
+
+  if (memberError) throw memberError;
+
+  const members = memberData as DraftLeagueMemberRow[];
+  const userIds = members.map((member) => member.user_id);
+  const profiles = new Map<string, ProfileNameRow>();
+
+  if (userIds.length > 0) {
+    const { data: profileData, error: profileError } = await supabase
+      .from("profiles")
+      .select("id,display_name,avatar_url")
+      .in("id", userIds);
+
+    if (profileError) throw profileError;
+
+    for (const profile of profileData as ProfileNameRow[]) {
+      profiles.set(profile.id, profile);
+    }
+  }
+
+  return members.map((member) => {
+    const profile = profiles.get(member.user_id);
+    return {
+      id: member.id,
+      leagueId: member.league_id,
+      userId: member.user_id,
+      role: member.role,
+      displayName: member.nickname ?? profile?.display_name ?? "League member",
+      avatarUrl: member.avatar_url ?? profile?.avatar_url ?? null,
+      nickname: member.nickname,
+      bio: member.bio,
+      joinedAt: member.joined_at,
+    };
+  });
+}
+
+export async function assignDraftTeamOwnerFromLeagueMember(
+  draftId: string,
+  teamId: string,
+  userId: string | null
+): Promise<void> {
+  await ensureAnonymousUser();
+
+  const { error } = await supabase.rpc("assign_draft_team_owner_from_league_member", {
+    p_draft_id: draftId,
+    p_draft_team_id: teamId,
+    p_user_id: userId,
+  });
+
+  if (error) throw error;
 }
 
 export async function getDraftServerTimeOffsetMs(draftId: string): Promise<number> {

@@ -7,8 +7,10 @@ import {
   assignLandmines,
   revealLandmines,
   type LandminedPlayer,
+  assignDraftTeamOwnerFromLeagueMember,
   assignTeam,
   configureDraftTimer,
+  getDraftAssignableMembers,
   getDraftSetup,
   resetDraft,
   updateDraftName,
@@ -49,6 +51,7 @@ import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
 import type { RosterPosition, Team, TimerBehavior, WalkUpSong } from "@/types/draft";
+import type { LeagueMember } from "@/types/league";
 
 const ROSTER_POSITIONS_COLLAPSED = 7;
 
@@ -118,6 +121,7 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   const [showOrderRace, setShowOrderRace] = useState(false);
   const [setup, setSetup] = useState<DraftSetup | null>(null);
   const [teams, setTeams] = useState<Team[]>([]);
+  const [assignableMembers, setAssignableMembers] = useState<LeagueMember[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -303,6 +307,23 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
   }, [draftId, router]);
 
   useEffect(() => {
+    if (!draftId) return;
+    let cancelled = false;
+
+    void getDraftAssignableMembers(draftId)
+      .then((members) => {
+        if (!cancelled) setAssignableMembers(members);
+      })
+      .catch(() => {
+        if (!cancelled) setAssignableMembers([]);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftId]);
+
+  useEffect(() => {
     if (typeof window === "undefined" || !window.speechSynthesis) return;
     const load = () => setAvailableVoices(window.speechSynthesis.getVoices());
     load();
@@ -481,6 +502,20 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
       setSetup({ ...setup, participants: setup.participants.map((p) => p.id === participantId ? updated : p) });
     } catch (e) {
       setError(e instanceof Error ? e.message : "Unable to assign team.");
+    }
+  }
+
+  async function updateLeagueMemberAssignment(teamId: string, userId: string | null) {
+    if (!draftId || !setup) return;
+    if (!canCurrentUserEditDraftSettings()) {
+      reportLockedDraftSettings();
+      return;
+    }
+    try {
+      await assignDraftTeamOwnerFromLeagueMember(draftId, teamId, userId);
+      await refreshParticipants();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Unable to assign team owner.");
     }
   }
 
@@ -1833,6 +1868,22 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                   {/* Owner */}
                                   <div className="space-y-3">
                                     <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Owner</p>
+                                    {isLeagueDraft && isCommissioner && (
+                                      <Field label="Assigned league member" controlId={`team-owner-member-${team.id}`}>
+                                        <Select
+                                          disabled={!canManageAssignments || savingTeamId === team.id}
+                                          value={owner?.userId ?? ""}
+                                          onChange={(e) => void updateLeagueMemberAssignment(team.id, e.target.value || null)}
+                                        >
+                                          <option value="">No owner assigned</option>
+                                          {assignableMembers.map((member) => (
+                                            <option key={member.userId} value={member.userId}>
+                                              {member.displayName}
+                                            </option>
+                                          ))}
+                                        </Select>
+                                      </Field>
+                                    )}
                                     <Field label="Owner name" controlId={`team-owner-name-${team.id}`}>
                                       <Input
                                         type="text"
@@ -1850,7 +1901,17 @@ export default function TeamSetupForm({ draftId }: TeamSetupFormProps) {
                                           <p className="text-sm text-slate-300 truncate">{owner.displayName}</p>
                                         </div>
                                         {isCommissioner && canEditSettings && canManageAssignments && !isCommissionerTeam && (
-                                          <Button variant="danger" fullWidth onClick={() => void updateAssignment(owner.id, "")}>
+                                          <Button
+                                            variant="danger"
+                                            fullWidth
+                                            onClick={() => {
+                                              if (isLeagueDraft) {
+                                                void updateLeagueMemberAssignment(team.id, null);
+                                              } else {
+                                                void updateAssignment(owner.id, "");
+                                              }
+                                            }}
+                                          >
                                             Remove owner
                                           </Button>
                                         )}

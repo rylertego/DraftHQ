@@ -19,6 +19,8 @@ const admin = createClient(
 const database = new Client({ connectionString: environment.DB_URL });
 const createdUserIds = [];
 let draftId = null;
+let leagueId = null;
+let leagueDraftId = null;
 let databaseConnected = false;
 
 function createPublicClient() {
@@ -90,6 +92,23 @@ async function readDraftState() {
     participants: participants.rows,
     picks: picks.rows,
   };
+}
+
+async function readLinkedLeagueOwnerState(targetDraftId) {
+  const rows = await database.query(
+    `select lts.league_team_id, lts.draft_team_id, lts.owner_user_id,
+            dp.user_id as participant_user_id, dp.team_id as participant_team_id
+       from public.league_team_seasons lts
+       left join public.draft_participants dp
+         on dp.draft_id = $1 and dp.team_id = lts.draft_team_id
+      where lts.league_season_id = (
+        select id from public.league_seasons where draft_id = $1
+      )
+      order by lts.draft_position`,
+    [targetDraftId]
+  );
+
+  return rows.rows;
 }
 
 async function expectRejectedWithoutWrites(
@@ -216,6 +235,95 @@ async function runContracts() {
     p_team_id: orderedTeamIds[2],
   });
   console.log("PASS commissioner assigns teams");
+
+  const league = await rpc(commissioner, "create_league", {
+    p_name: "Owner Sync League",
+    p_slug: `owner-sync-${Date.now()}`,
+  });
+  leagueId = league.id;
+  const seasonResult = await database.query(
+    `select id from public.league_seasons
+      where league_id = $1
+      order by year desc
+      limit 1`,
+    [leagueId]
+  );
+  const leagueSeasonId = seasonResult.rows[0]?.id;
+  assert.ok(leagueSeasonId, "create_league should create a season.");
+
+  const { data: leagueTeams, error: leagueTeamsError } = await commissioner
+    .from("league_teams")
+    .insert([
+      { league_id: leagueId, name: "League Alpha" },
+      { league_id: leagueId, name: "League Bravo" },
+    ])
+    .select("id")
+    .order("name");
+  if (leagueTeamsError) throw leagueTeamsError;
+  assert.equal(leagueTeams.length, 2, "Expected two league teams.");
+
+  const { error: memberInsertError } = await commissioner
+    .from("league_members")
+    .insert([
+      { league_id: leagueId, user_id: ownerParticipant.user_id, role: "member" },
+      { league_id: leagueId, user_id: otherOwnerParticipant.user_id, role: "member" },
+    ]);
+  if (memberInsertError) throw memberInsertError;
+
+  const linkedSeason = await rpc(commissioner, "create_draft_for_season", {
+    p_season_id: leagueSeasonId,
+    p_name: "Linked Owner Sync Draft",
+    p_team_count: 2,
+    p_rounds: 1,
+    p_display_name: "commissioner",
+  });
+  leagueDraftId = linkedSeason.draft_id;
+  assert.ok(leagueDraftId, "create_draft_for_season should link a draft.");
+
+  await rpc(commissioner, "start_draft", { p_draft_id: leagueDraftId });
+  await rpc(commissioner, "pause_draft", { p_draft_id: leagueDraftId });
+
+  const linkedBefore = await readLinkedLeagueOwnerState(leagueDraftId);
+  assert.equal(linkedBefore[0].participant_user_id, null);
+  await rpc(commissioner, "assign_league_team_owner", {
+    p_league_id: leagueId,
+    p_league_team_id: leagueTeams[0].id,
+    p_user_id: ownerParticipant.user_id,
+  });
+
+  const linkedAfter = await readLinkedLeagueOwnerState(leagueDraftId);
+  assert.equal(linkedAfter[0].owner_user_id, ownerParticipant.user_id);
+  assert.equal(linkedAfter[0].participant_user_id, ownerParticipant.user_id);
+  assert.equal(linkedAfter[0].participant_team_id, linkedAfter[0].draft_team_id);
+  console.log("PASS league owner assignment syncs into paused linked draft");
+
+  await rpc(commissioner, "assign_draft_team_owner_from_league_member", {
+    p_draft_id: leagueDraftId,
+    p_draft_team_id: linkedAfter[1].draft_team_id,
+    p_user_id: otherOwnerParticipant.user_id,
+  });
+
+  const linkedDraftAssigned = await readLinkedLeagueOwnerState(leagueDraftId);
+  assert.equal(linkedDraftAssigned[1].owner_user_id, otherOwnerParticipant.user_id);
+  assert.equal(linkedDraftAssigned[1].participant_user_id, otherOwnerParticipant.user_id);
+  assert.equal(linkedDraftAssigned[1].participant_team_id, linkedDraftAssigned[1].draft_team_id);
+  console.log("PASS draft settings can assign a league member by user id");
+
+  await rpc(commissioner, "resume_draft", { p_draft_id: leagueDraftId });
+  const linkedActiveBefore = await readLinkedLeagueOwnerState(leagueDraftId);
+  const { error: activeAssignError } = await commissioner.rpc("assign_league_team_owner", {
+    p_league_id: leagueId,
+    p_league_team_id: leagueTeams[0].id,
+    p_user_id: otherOwnerParticipant.user_id,
+  });
+  assert.ok(activeAssignError, "league owner assignment should fail for active linked drafts.");
+  assert.equal(activeAssignError.code, "P0001");
+  assert.deepEqual(
+    await readLinkedLeagueOwnerState(leagueDraftId),
+    linkedActiveBefore,
+    "active linked draft assignment changed authoritative state."
+  );
+  console.log("PASS active linked draft blocks league owner reassignment");
 
   await expectRejectedWithoutWrites(
     owner,
@@ -398,6 +506,12 @@ try {
 } finally {
   if (draftId && databaseConnected) {
     await database.query("delete from public.drafts where id = $1", [draftId]);
+  }
+  if (leagueDraftId && databaseConnected) {
+    await database.query("delete from public.drafts where id = $1", [leagueDraftId]);
+  }
+  if (leagueId && databaseConnected) {
+    await database.query("delete from public.leagues where id = $1", [leagueId]);
   }
 
   await Promise.allSettled(
