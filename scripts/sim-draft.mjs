@@ -61,13 +61,23 @@ async function cleanup({ draftId, seasonId, leagueId } = {}) {
 
   if (draftId) {
     assert.notEqual(draftId, PROTECTED_DRAFT_ID, "Refusing to delete the league's real draft.");
-    await admin.from("drafts").delete().eq("id", draftId);
-    removed.drafts += 1;
+    const { data: deletedDrafts, error } = await admin
+      .from("drafts")
+      .delete()
+      .eq("id", draftId)
+      .select("id");
+    if (error) throw error;
+    removed.drafts += deletedDrafts?.length ?? 0;
   }
 
   if (seasonId) {
-    await admin.from("league_seasons").delete().eq("id", seasonId);
-    removed.seasons += 1;
+    const { data: deletedSeasons, error } = await admin
+      .from("league_seasons")
+      .delete()
+      .eq("id", seasonId)
+      .select("id");
+    if (error) throw error;
+    removed.seasons += deletedSeasons?.length ?? 0;
   }
 
   // Any stray simulated season from an interrupted run.
@@ -79,11 +89,21 @@ async function cleanup({ draftId, seasonId, leagueId } = {}) {
       .eq("year", SIM_SEASON_YEAR);
     for (const stray of strays ?? []) {
       if (stray.draft_id && stray.draft_id !== PROTECTED_DRAFT_ID) {
-        await admin.from("drafts").delete().eq("id", stray.draft_id);
-        removed.drafts += 1;
+        const { data: deletedDrafts, error } = await admin
+          .from("drafts")
+          .delete()
+          .eq("id", stray.draft_id)
+          .select("id");
+        if (error) throw error;
+        removed.drafts += deletedDrafts?.length ?? 0;
       }
-      await admin.from("league_seasons").delete().eq("id", stray.id);
-      removed.seasons += 1;
+      const { data: deletedSeasons, error: seasonError } = await admin
+        .from("league_seasons")
+        .delete()
+        .eq("id", stray.id)
+        .select("id");
+      if (seasonError) throw seasonError;
+      removed.seasons += deletedSeasons?.length ?? 0;
     }
   }
 
@@ -91,9 +111,15 @@ async function cleanup({ draftId, seasonId, leagueId } = {}) {
   const { data: listed } = await admin.auth.admin.listUsers({ perPage: 1000 });
   for (const user of listed?.users ?? []) {
     if (!isSimEmail(user.email)) continue;
-    await admin.from("league_members").delete().eq("user_id", user.id);
-    removed.members += 1;
-    await admin.auth.admin.deleteUser(user.id);
+    const { data: deletedMembers, error: memberError } = await admin
+      .from("league_members")
+      .delete()
+      .eq("user_id", user.id)
+      .select("id");
+    if (memberError) throw memberError;
+    removed.members += deletedMembers?.length ?? 0;
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
+    if (deleteUserError) throw deleteUserError;
     removed.users += 1;
   }
 
