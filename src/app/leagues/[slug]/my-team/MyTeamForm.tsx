@@ -56,6 +56,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [uploadingOwnerPhoto, setUploadingOwnerPhoto] = useState(false);
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
+  const [songSaving, setSongSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -121,9 +122,42 @@ export default function MyTeamForm({ slug }: { slug: string }) {
     setSuccess(false);
   }
 
+  /** The song list saves on its own, so a pick is never lost to a forgotten
+   *  Save. Every other field is sent at its LAST SAVED value — the RPC reads
+   *  null as "clear", so all fields must go on every write, and sending the
+   *  live inputs here would commit a half-typed team name as a side effect of
+   *  adding a song. Those still belong to Save Team Profile. */
+  async function persistSongs(songs: WalkUpSong[]) {
+    if (!team || !league) return;
+    setSongSaving(true);
+    setError("");
+    try {
+      const updated = await updateMyLeagueTeamDetails(league.id, team.id, {
+        name: team.name,
+        shortName: team.shortName ?? null,
+        ownerName: team.ownerName ?? null,
+        logoUrl: team.logoUrl,
+        ownerPhotoUrl: team.ownerPhotoUrl,
+        walkUpSongs: songs,
+        ttsName: team.ttsName ?? null,
+        lastSeasonPickPlayer: team.lastSeasonPickPlayer,
+        lastSeasonRecord: team.lastSeasonRecord,
+        lastSeasonPlayoffs: team.lastSeasonPlayoffs,
+      });
+      setTeam(updated);
+      setWalkUpSongs(updated.walkUpSongs);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to save your songs.");
+    } finally {
+      setSongSaving(false);
+    }
+  }
+
   function removeSong(index: number) {
-    setWalkUpSongs((prev) => prev.filter((_, i) => i !== index));
+    const next = walkUpSongs.filter((_, i) => i !== index);
+    setWalkUpSongs(next);
     setSuccess(false);
+    void persistSongs(next);
   }
 
   function closeSongPicker() {
@@ -132,9 +166,11 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   }
 
   function addSong(song: WalkUpSong) {
-    setWalkUpSongs((prev) => [...prev, song].slice(0, MAX_WALK_UP_SONGS));
+    const next = [...walkUpSongs, song].slice(0, MAX_WALK_UP_SONGS);
+    setWalkUpSongs(next);
     closeSongPicker();
     setSuccess(false);
+    void persistSongs(next);
   }
 
   async function handleSave() {
@@ -387,13 +423,21 @@ export default function MyTeamForm({ slug }: { slug: string }) {
           <Panel
             title="Draft Night Walk-Up Songs"
             actions={
-              <Button
-                scope="league"
-                onClick={() => setShowSongPicker(true)}
-                disabled={walkUpSongs.length >= MAX_WALK_UP_SONGS}
-              >
-                Add Song
-              </Button>
+              <div className="flex items-center gap-[var(--space-3)]">
+                <span
+                  className="text-xs text-[color:var(--color-text-muted)]"
+                  aria-live="polite"
+                >
+                  {songSaving ? "Saving…" : "Saved automatically"}
+                </span>
+                <Button
+                  scope="league"
+                  onClick={() => setShowSongPicker(true)}
+                  disabled={walkUpSongs.length >= MAX_WALK_UP_SONGS || songSaving}
+                >
+                  Add Song
+                </Button>
+              </div>
             }
           >
             {walkUpSongs.length === 0 ? (
@@ -423,7 +467,11 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                       </div>
                       <p className="truncate text-xs text-[color:var(--color-text-muted)]">{song.artist || "Unknown artist"}</p>
                     </div>
-                    <IconButton label={`Remove ${song.title}`} onClick={() => removeSong(index)}>
+                    <IconButton
+                      label={`Remove ${song.title}`}
+                      onClick={() => removeSong(index)}
+                      disabled={songSaving}
+                    >
                       <svg viewBox="0 0 16 16" fill="none" className="h-4 w-4" aria-hidden="true">
                         <path d="M4 4l8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
                       </svg>
