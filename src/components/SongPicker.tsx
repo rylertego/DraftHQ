@@ -69,6 +69,9 @@ const TAB_META: Record<SongPickerTabId, { label: string; Icon: ComponentType }> 
   spotify: { label: "Spotify", Icon: SpotifyLogo },
 };
 
+/** Searching Spotify needs no user account — /api/music/spotify-search runs on
+ *  app credentials. Linking only buys full-track playback on THIS device, so
+ *  this is an optional strip under the results, never a gate in front of them. */
 export function SpotifyConnectPanel({
   accentColor,
   connecting,
@@ -79,20 +82,17 @@ export function SpotifyConnectPanel({
   onConnect: () => void;
 }) {
   return (
-    <div className="flex flex-col items-center gap-3 py-10 text-center">
-      <span style={{ color: accentColor }}>
-        <SpotifyLogo />
-      </span>
-      <p className="text-sm text-slate-300">
-        Link Spotify to search tracks without leaving this page.
+    <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-800/40 px-3 py-2.5">
+      <p className="text-xs leading-5 text-slate-400">
+        Pick any track without linking. Connect Spotify Premium to play full tracks on this device.
       </p>
       <button
         onClick={onConnect}
         disabled={connecting}
-        className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-950 transition-opacity disabled:opacity-60"
+        className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-950 transition-opacity disabled:opacity-60"
         style={{ background: accentColor }}
       >
-        {connecting ? "Opening Spotify…" : "Connect Spotify"}
+        {connecting ? "Opening Spotify…" : "Connect"}
       </button>
     </div>
   );
@@ -248,10 +248,6 @@ export default function SongPicker({ onSelect, onClose }: Props) {
         </div>
 
         <div className="p-4 space-y-3">
-          {tab === "spotify" && !connected ? (
-            <SpotifyConnectPanel accentColor={accentColor} connecting={connecting} onConnect={handleConnect} />
-          ) : (
-            <>
           <input
             ref={inputRef}
             type="text"
@@ -302,7 +298,9 @@ export default function SongPicker({ onSelect, onClose }: Props) {
               </button>
             ))}
           </div>
-            </>
+
+          {tab === "spotify" && !connected && (
+            <SpotifyConnectPanel accentColor={accentColor} connecting={connecting} onConnect={handleConnect} />
           )}
         </div>
       </div>

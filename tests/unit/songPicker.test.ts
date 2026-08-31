@@ -147,7 +147,7 @@ describe("song picker tabs", () => {
 });
 
 describe("SpotifyConnectPanel", () => {
-  it("offers to link Spotify without leaving the picker", () => {
+  it("offers linking as optional, not as a gate in front of search", () => {
     const html = renderToStaticMarkup(
       createElement(SpotifyConnectPanel, {
         accentColor: "#22D3EE",
@@ -155,7 +155,10 @@ describe("SpotifyConnectPanel", () => {
         onConnect: () => undefined,
       }),
     );
-    expect(html).toContain("Connect Spotify");
+    // Searching runs on app credentials, so the copy must not imply a login is
+    // required to pick a track — linking only unlocks playback on this device.
+    expect(html).toContain("Pick any track without linking.");
+    expect(html).toMatch(/<button[^>]*>Connect<\/button>/);
   });
 
   it("shows progress while the popup is open", () => {
