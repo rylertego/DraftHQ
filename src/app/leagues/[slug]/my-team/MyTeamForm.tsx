@@ -44,6 +44,7 @@ export function TeamOwnerPanel({
   onInvite,
   assigning,
   inviting,
+  statusMessage,
 }: {
   ownerDisplayName: string | null;
   members: Array<{ userId: string; displayName: string }>;
@@ -52,8 +53,17 @@ export function TeamOwnerPanel({
   onInvite: (email: string) => void;
   assigning: boolean;
   inviting: boolean;
+  statusMessage?: string | null;
 }) {
   const [email, setEmail] = useState("");
+
+  function submitInvite() {
+    const trimmed = email.trim();
+    if (!trimmed || inviting) return;
+    onInvite(trimmed);
+    setEmail("");
+  }
+
   return (
     <Panel title="Owner">
       <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
@@ -72,6 +82,11 @@ export function TeamOwnerPanel({
             <option key={m.userId} value={m.userId}>{m.displayName}</option>
           ))}
         </Select>
+        {assigning && (
+          <p className="mt-1 text-xs font-bold text-[color:var(--color-league-accent)]">
+            Updating owner…
+          </p>
+        )}
       </Field>
 
       <Field label="Or invite by email" controlId="team-owner-invite">
@@ -81,11 +96,17 @@ export function TeamOwnerPanel({
             type="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                submitInvite();
+              }
+            }}
             placeholder="owner@example.com"
           />
           <Button
             scope="league"
-            onClick={() => { onInvite(email.trim()); setEmail(""); }}
+            onClick={submitInvite}
             disabled={!email.trim() || inviting}
             loading={inviting}
           >
@@ -93,6 +114,12 @@ export function TeamOwnerPanel({
           </Button>
         </div>
       </Field>
+
+      {statusMessage && (
+        <p className="mt-1 text-xs font-bold text-[color:var(--color-success)]">
+          {statusMessage}
+        </p>
+      )}
     </Panel>
   );
 }
@@ -134,7 +161,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
   const isOwnTeam = Boolean(team && myTeamRef && team.id === myTeamRef.id);
 
   useEffect(() => {
-    if (!league || !myTeamRef) return;
+    if (!league) return;
     let active = true;
 
     void getLeagueTeams(league.id)
@@ -143,7 +170,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
         const sorted = [...leagueTeams].sort((a, b) => a.name.localeCompare(b.name));
         setTeams(sorted);
         const initialId = resolveInitialTeamId(
-          teamIdParam ?? null,
+          canManage ? teamIdParam ?? null : null,
           myTeamRef?.id ?? null,
           sorted.map((t) => t.id)
         );
@@ -167,7 +194,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     return () => {
       active = false;
     };
-  }, [league, myTeamRef]);
+  }, [league, myTeamRef, canManage, teamIdParam]);
 
   useEffect(() => {
     function syncSpotifyState() {
@@ -289,6 +316,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     setOwnerPhotoFile(null);
     setError("");
     setSuccess(false);
+    setOwnerStatus("");
   }
 
   function addSong(song: WalkUpSong) {
@@ -301,6 +329,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
 
   const [assigningOwner, setAssigningOwner] = useState(false);
   const [invitingOwner, setInvitingOwner] = useState(false);
+  const [ownerStatus, setOwnerStatus] = useState("");
 
   async function handleAssignOwner(userId: string) {
     if (!team || !league) return;
@@ -309,8 +338,13 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     try {
       await assignLeagueTeamOwner(league.id, team.id, userId || null);
       const refreshed = await getLeagueTeams(league.id);
-      const updated = refreshed.find((t) => t.id === team.id);
-      if (updated) applyUpdatedTeam(updated);
+      const sorted = [...refreshed].sort((a, b) => a.name.localeCompare(b.name));
+      setTeams(sorted);
+      const updated = sorted.find((t) => t.id === team.id);
+      if (updated) {
+        setTeam(updated);
+        setWalkUpSongs(updated.walkUpSongs);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to assign that owner.");
     } finally {
@@ -324,7 +358,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     setError("");
     try {
       await inviteLeagueMember(league.id, email, { leagueTeamId: team.id });
-      setSuccess(true);
+      setOwnerStatus(`Invite sent to ${email}.`);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to send that invite.");
     } finally {
@@ -414,7 +448,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     );
   }
 
-  if (!myTeamRef) {
+  if (!myTeamRef && !canManage) {
     return (
       <div className="mx-auto max-w-2xl rounded-2xl border border-slate-800 bg-slate-900/75 p-8 text-center shadow-[0_24px_80px_rgba(0,0,0,0.22)]">
         <div
@@ -434,7 +468,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     );
   }
 
-  const initials = (team?.name ?? myTeamRef.name).trim().slice(0, 2).toUpperCase() || "T";
+  const initials = (team?.name ?? myTeamRef?.name ?? "").trim().slice(0, 2).toUpperCase() || "T";
 
   return (
     <>
@@ -465,13 +499,15 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
 
             <div className="min-w-0 self-stretch lg:mt-5">
               <p className="text-[11px] font-black uppercase tracking-[0.18em] text-[color:var(--color-league-accent)]">
-                My Franchise
+                {isOwnTeam ? "My Franchise" : "League Team"}
               </p>
               <h1 className="mt-2 truncate text-3xl font-black text-[color:var(--color-text-primary)]">
-                {name || myTeamRef.name}
+                {name || team?.name || myTeamRef?.name || "Team"}
               </h1>
               <p className="mt-2 text-sm leading-6 text-[color:var(--color-text-secondary)]">
-                These details are your league-level defaults and carry into draft night unless a commissioner overrides a draft.
+                {isOwnTeam
+                  ? "These details are your league-level defaults and carry into draft night unless a commissioner overrides a draft."
+                  : "These are this team's league-level defaults, carried into draft night unless a commissioner overrides a draft."}
               </p>
             </div>
           </div>
@@ -689,6 +725,7 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
               inviting={invitingOwner}
               onAssign={handleAssignOwner}
               onInvite={handleInviteOwner}
+              statusMessage={ownerStatus}
             />
           )}
 

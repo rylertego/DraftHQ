@@ -1034,31 +1034,6 @@ export async function updateMyLeagueTeamDetails(
   return mapLeagueTeamRow(row as LeagueTeamRow, new Map(), new Set());
 }
 
-export async function uploadLeagueTeamLogo(leagueId: string, teamId: string, file: File): Promise<string> {
-  const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
-  const path = `${leagueId}/${teamId}/logo.${ext}`;
-
-  const { error: uploadError } = await supabase.storage
-    .from("league-team-logos")
-    .upload(path, file, { upsert: true, contentType: file.type });
-
-  if (uploadError) throw uploadError;
-
-  const { data } = supabase.storage.from("league-team-logos").getPublicUrl(path);
-  const url = `${data.publicUrl}?t=${Date.now()}`;
-
-  const { error: updateError } = await supabase
-    .from("league_teams")
-    .update({ logo_url: url })
-    .eq("id", teamId)
-    .eq("league_id", leagueId)
-    .select("id")
-    .single();
-
-  if (updateError) throw updateError;
-  return url;
-}
-
 export async function uploadMyLeagueTeamLogoAsset(leagueId: string, teamId: string, file: File): Promise<string> {
   const ext = file.name.split(".").pop()?.toLowerCase() ?? "jpg";
   const path = `${leagueId}/${teamId}/logo.${ext}`;
