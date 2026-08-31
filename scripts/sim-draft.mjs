@@ -359,8 +359,10 @@ try {
   await rpc(clients[0], "start_draft", { p_draft_id: draftId });
   console.log("Draft started.\n");
 
+  // players and picks grant SELECT to `authenticated` only — the service role
+  // has no read on either, so these two reads must use a signed-in client.
   const players = await selectRows(
-    admin.from("players").select("id,full_name").eq("active", true).limit(400),
+    clients[0].from("players").select("id,full_name").eq("active", true).limit(400),
     "players"
   );
   assert.ok(players.length >= PICK_COUNT, `Need ${PICK_COUNT} players, found ${players.length}.`);
@@ -395,7 +397,7 @@ try {
       "completed draft"
     ),
     selectRows(
-      admin.from("picks").select("team_id,player_id,overall_pick_number").eq("draft_id", draftId).order("overall_pick_number"),
+      clients[0].from("picks").select("team_id,player_id,overall_pick_number").eq("draft_id", draftId).order("overall_pick_number"),
       "completed picks"
     ),
   ]);
