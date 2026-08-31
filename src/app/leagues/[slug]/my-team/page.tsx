@@ -1,6 +1,13 @@
 import MyTeamForm from "./MyTeamForm";
 
-export default async function MyTeamPage({ params }: { params: Promise<{ slug: string }> }) {
+export default async function MyTeamPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ slug: string }>;
+  searchParams: Promise<{ teamId?: string }>;
+}) {
   const { slug } = await params;
-  return <MyTeamForm slug={slug} />;
+  const { teamId } = await searchParams;
+  return <MyTeamForm slug={slug} teamId={teamId ?? null} />;
 }

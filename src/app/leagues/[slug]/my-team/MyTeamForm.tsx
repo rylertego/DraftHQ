@@ -8,13 +8,15 @@ import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
 import { isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import {
   getLeagueTeams,
+  updateLeagueTeamDetails,
   updateMyLeagueTeamDetails,
   uploadMyLeagueTeamLogoAsset,
   uploadMyLeagueTeamOwnerPhotoAsset,
 } from "@/lib/leagueApi";
+import { resolveInitialTeamId, isTeamProfileDirty } from "@/lib/teamEditing";
 import type { LeagueTeam } from "@/types/league";
 import type { WalkUpSong } from "@/types/draft";
-import { Alert, Button, EmptyState, Field, IconButton, Input, Panel } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, IconButton, Input, Panel, Select } from "@/components/ui";
 
 function SongSourceBadge({ platform }: { platform: WalkUpSong["platform"] }) {
   return (
@@ -32,10 +34,12 @@ export function SongPlaybackBadge() {
   );
 }
 
-export default function MyTeamForm({ slug }: { slug: string }) {
+export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string; teamId?: string | null }) {
   void slug;
   const { workspace, isLoading } = useWorkspace();
   const { accentColor: primary } = useLeagueTheme();
+  const [teams, setTeams] = useState<LeagueTeam[]>([]);
+  const [selectedTeamId, setSelectedTeamId] = useState<string | null>(null);
   const [team, setTeam] = useState<LeagueTeam | null>(null);
   const [name, setName] = useState("");
   const [shortName, setShortName] = useState("");
@@ -63,15 +67,25 @@ export default function MyTeamForm({ slug }: { slug: string }) {
 
   const league = workspace?.league;
   const myTeamRef = workspace?.myTeam;
+  const canManage = Boolean(workspace?.canManage);
+  const isOwnTeam = Boolean(team && myTeamRef && team.id === myTeamRef.id);
 
   useEffect(() => {
     if (!league || !myTeamRef) return;
     let active = true;
 
     void getLeagueTeams(league.id)
-      .then((teams) => {
+      .then((leagueTeams) => {
         if (!active) return;
-        const found = teams.find((t) => t.id === myTeamRef.id) ?? null;
+        const sorted = [...leagueTeams].sort((a, b) => a.name.localeCompare(b.name));
+        setTeams(sorted);
+        const initialId = resolveInitialTeamId(
+          teamIdParam ?? null,
+          myTeamRef?.id ?? null,
+          sorted.map((t) => t.id)
+        );
+        setSelectedTeamId(initialId);
+        const found = sorted.find((t) => t.id === initialId) ?? null;
         if (!found) return;
 
         setTeam(found);
@@ -127,25 +141,38 @@ export default function MyTeamForm({ slug }: { slug: string }) {
    *  null as "clear", so all fields must go on every write, and sending the
    *  live inputs here would commit a half-typed team name as a side effect of
    *  adding a song. Those still belong to Save Team Profile. */
+  /** Keep `team`, the form's song list, and the switcher's copy in agreement —
+   *  the selector reads from `teams`, so a save that skipped it would show
+   *  stale data the moment you switched away and back. */
+  function applyUpdatedTeam(updated: LeagueTeam) {
+    setTeam(updated);
+    setWalkUpSongs(updated.walkUpSongs);
+    setTeams((prev) => prev.map((t) => (t.id === updated.id ? updated : t)));
+  }
+
   async function persistSongs(songs: WalkUpSong[]) {
     if (!team || !league) return;
     setSongSaving(true);
     setError("");
     try {
-      const updated = await updateMyLeagueTeamDetails(league.id, team.id, {
-        name: team.name,
-        shortName: team.shortName ?? null,
-        ownerName: team.ownerName ?? null,
-        logoUrl: team.logoUrl,
-        ownerPhotoUrl: team.ownerPhotoUrl,
-        walkUpSongs: songs,
-        ttsName: team.ttsName ?? null,
-        lastSeasonPickPlayer: team.lastSeasonPickPlayer,
-        lastSeasonRecord: team.lastSeasonRecord,
-        lastSeasonPlayoffs: team.lastSeasonPlayoffs,
-      });
-      setTeam(updated);
-      setWalkUpSongs(updated.walkUpSongs);
+      if (isOwnTeam) {
+        const updated = await updateMyLeagueTeamDetails(league.id, team.id, {
+          name: team.name,
+          shortName: team.shortName ?? null,
+          ownerName: team.ownerName ?? null,
+          logoUrl: team.logoUrl,
+          ownerPhotoUrl: team.ownerPhotoUrl,
+          walkUpSongs: songs,
+          ttsName: team.ttsName ?? null,
+          lastSeasonPickPlayer: team.lastSeasonPickPlayer,
+          lastSeasonRecord: team.lastSeasonRecord,
+          lastSeasonPlayoffs: team.lastSeasonPlayoffs,
+        });
+        applyUpdatedTeam(updated);
+      } else {
+        await updateLeagueTeamDetails(league.id, team.id, { walkUpSongs: songs });
+        applyUpdatedTeam({ ...team, walkUpSongs: songs });
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to save your songs.");
     } finally {
@@ -163,6 +190,42 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   function closeSongPicker() {
     setShowSongPicker(false);
     setSpotifyConnected(isSpotifyConnected());
+  }
+
+  function selectTeam(nextId: string) {
+    if (nextId === selectedTeamId) return;
+    if (
+      team &&
+      isTeamProfileDirty(
+        { name, shortName, ownerName, ttsName },
+        {
+          name: team.name,
+          shortName: team.shortName ?? "",
+          ownerName: team.ownerName ?? "",
+          ttsName: team.ttsName ?? "",
+        },
+        Boolean(logoFile || ownerPhotoFile)
+      ) &&
+      !window.confirm("Discard unsaved changes to this team?")
+    ) {
+      return;
+    }
+
+    const next = teams.find((t) => t.id === nextId);
+    if (!next) return;
+    setSelectedTeamId(nextId);
+    setTeam(next);
+    setName(next.name);
+    setShortName(next.shortName ?? "");
+    setOwnerName(next.ownerName ?? "");
+    setWalkUpSongs(Array.isArray(next.walkUpSongs) ? next.walkUpSongs : []);
+    setTtsName(next.ttsName ?? "");
+    setLogoPreview(next.logoUrl);
+    setOwnerPhotoPreview(next.ownerPhotoUrl);
+    setLogoFile(null);
+    setOwnerPhotoFile(null);
+    setError("");
+    setSuccess(false);
   }
 
   function addSong(song: WalkUpSong) {
@@ -193,27 +256,47 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         setUploadingOwnerPhoto(false);
       }
 
-      const updated = await updateMyLeagueTeamDetails(league.id, team.id, {
-        name: name.trim(),
-        shortName: shortName.trim() || null,
-        ownerName: ownerName.trim() || null,
-        logoUrl,
-        ownerPhotoUrl,
-        walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
-        ttsName: ttsName.trim() || null,
-        lastSeasonPickPlayer: team.lastSeasonPickPlayer,
-        lastSeasonRecord: team.lastSeasonRecord,
-        lastSeasonPlayoffs: team.lastSeasonPlayoffs,
-      });
-
-      setTeam(updated);
-      setName(updated.name);
-      setShortName(updated.shortName ?? "");
-      setOwnerName(updated.ownerName ?? "");
-      setWalkUpSongs(updated.walkUpSongs);
-      setTtsName(updated.ttsName ?? "");
-      setLogoPreview(updated.logoUrl);
-      setOwnerPhotoPreview(updated.ownerPhotoUrl);
+      if (isOwnTeam) {
+        const updated = await updateMyLeagueTeamDetails(league.id, team.id, {
+          name: name.trim(),
+          shortName: shortName.trim() || null,
+          ownerName: ownerName.trim() || null,
+          logoUrl,
+          ownerPhotoUrl,
+          walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
+          ttsName: ttsName.trim() || null,
+          lastSeasonPickPlayer: team.lastSeasonPickPlayer,
+          lastSeasonRecord: team.lastSeasonRecord,
+          lastSeasonPlayoffs: team.lastSeasonPlayoffs,
+        });
+        applyUpdatedTeam(updated);
+        setName(updated.name);
+        setShortName(updated.shortName ?? "");
+        setOwnerName(updated.ownerName ?? "");
+        setTtsName(updated.ttsName ?? "");
+        setLogoPreview(updated.logoUrl);
+        setOwnerPhotoPreview(updated.ownerPhotoUrl);
+      } else {
+        await updateLeagueTeamDetails(league.id, team.id, {
+          name: name.trim(),
+          shortName: shortName.trim() || null,
+          ownerName: ownerName.trim() || null,
+          logoUrl,
+          ownerPhotoUrl,
+          walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
+          ttsName: ttsName.trim() || null,
+        });
+        applyUpdatedTeam({
+          ...team,
+          name: name.trim(),
+          shortName: shortName.trim() || null,
+          ownerName: ownerName.trim() || null,
+          logoUrl,
+          ownerPhotoUrl,
+          walkUpSongs: walkUpSongs.slice(0, MAX_WALK_UP_SONGS),
+          ttsName: ttsName.trim() || null,
+        });
+      }
       setLogoFile(null);
       setOwnerPhotoFile(null);
       setSuccess(true);
@@ -309,6 +392,25 @@ export default function MyTeamForm({ slug }: { slug: string }) {
         </aside>
 
         <div className="flex flex-col gap-[var(--space-4)]">
+          {canManage && teams.length > 1 && (
+            <div className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)]">
+              <Field label="Editing team" controlId="team-switcher">
+                <Select
+                  id="team-switcher"
+                  value={selectedTeamId ?? ""}
+                  onChange={(e) => selectTeam(e.target.value)}
+                >
+                  {teams.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                      {myTeamRef && t.id === myTeamRef.id ? " (your team)" : ""}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+          )}
+
           {/* No "Team Identity" descriptor. Panel renders description below the
               title, so it read as a subtitle restating the heading — the same
               redundant-eyebrow pattern that was stripped from the dashboard. */}
