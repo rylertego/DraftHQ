@@ -103,6 +103,54 @@ export function getTeamOnClock(
   return teams.find((team) => team.draftPosition === draftPosition) ?? null;
 }
 
+export type TeamPickStatus =
+  | { state: "unassigned" }
+  | { state: "complete"; teamId: string }
+  | {
+      state: "on_clock" | "upcoming";
+      teamId: string;
+      round: number;
+      pickNumber: number;
+      overallPickNumber: number;
+      picksAway: number;
+    };
+
+export function getTeamPickStatus(
+  teams: readonly Team[],
+  teamId: string | null,
+  currentPick: number,
+  rounds: number
+): TeamPickStatus {
+  if (!teamId) return { state: "unassigned" };
+
+  assertPositiveInteger(currentPick, "Current pick");
+  assertPositiveInteger(rounds, "Rounds");
+
+  const teamCount = teams.length;
+  assertPositiveInteger(teamCount, "Team count");
+
+  for (
+    let overallPickNumber = currentPick;
+    overallPickNumber <= teamCount * rounds;
+    overallPickNumber += 1
+  ) {
+    const team = getTeamOnClock(teams, overallPickNumber, rounds);
+    if (team?.id !== teamId) continue;
+
+    const pickNumber = getPickNumberInRound(overallPickNumber, teamCount);
+    return {
+      state: overallPickNumber === currentPick ? "on_clock" : "upcoming",
+      teamId,
+      round: getRoundForPick(overallPickNumber, teamCount),
+      pickNumber,
+      overallPickNumber,
+      picksAway: overallPickNumber - currentPick,
+    };
+  }
+
+  return { state: "complete", teamId };
+}
+
 export function getPickEligibility(
   input: PickEligibilityInput
 ): PickEligibility {

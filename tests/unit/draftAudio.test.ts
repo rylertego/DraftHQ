@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming, resolvePlaybackRoute } from "@/lib/draftAudio";
+import { getEffectiveWalkUpVolume, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming, resolvePlaybackRoute } from "@/lib/draftAudio";
 
 describe("synchronized draft audio", () => {
   it("selects the same song from the shared pick number", () => {
@@ -98,5 +98,19 @@ describe("resolvePlaybackRoute", () => {
     const yt = { platform: "youtube" as const, youtubeTrackId: null, previewUrl: null };
     expect(resolvePlaybackRoute(yt, true)).toBe("youtube");
     expect(resolvePlaybackRoute(yt, false)).toBe("youtube");
+  });
+});
+
+describe("getEffectiveWalkUpVolume", () => {
+  it("uses the music volume outside TV mode", () => {
+    expect(getEffectiveWalkUpVolume({ musicVolume: 55, tvMode: false, tvMasterVolume: 20, tvMuted: false })).toBe(55);
+  });
+
+  it("scales music by the TV master volume", () => {
+    expect(getEffectiveWalkUpVolume({ musicVolume: 55, tvMode: true, tvMasterVolume: 80, tvMuted: false })).toBe(44);
+  });
+
+  it("mutes every route when TV audio is muted", () => {
+    expect(getEffectiveWalkUpVolume({ musicVolume: 55, tvMode: true, tvMasterVolume: 80, tvMuted: true })).toBe(0);
   });
 });

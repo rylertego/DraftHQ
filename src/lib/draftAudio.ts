@@ -81,6 +81,24 @@ export function getWalkUpPlaybackTiming(
   };
 }
 
+export function getEffectiveWalkUpVolume({
+  musicVolume,
+  tvMode,
+  tvMasterVolume,
+  tvMuted,
+}: {
+  musicVolume: number;
+  tvMode: boolean;
+  tvMasterVolume: number;
+  tvMuted: boolean;
+}) {
+  const base = Math.max(0, Math.min(100, musicVolume));
+  if (!tvMode) return base;
+  if (tvMuted) return 0;
+  const tv = Math.max(0, Math.min(100, tvMasterVolume));
+  return Math.round(base * (tv / 100));
+}
+
 export type PlaybackRoute = "spotify-sdk" | "youtube" | "preview" | "unavailable";
 
 /** Which mechanism can actually play this song right now.

@@ -20,6 +20,7 @@ import {
   expireCurrentPick,
   extendClock,
   getByeWeeks,
+  getDraftAssignableMembers,
   listLandmineVideos,
   makePick,
   pauseDraft,
@@ -34,6 +35,7 @@ import { buildDraftRecap } from "@/lib/draftRecap";
 import {
   getPickNumberInRound,
   getRoundForPick,
+  getTeamPickStatus,
   getTeamOnClock,
 } from "@/lib/draftLogic";
 import type { Draft, DraftParticipant, Pick as DraftPick, Player, RosterPosition, Team, WalkUpSong } from "@/types/draft";
@@ -44,7 +46,7 @@ import {
 import { useRealtimeDraftRoom } from "@/hooks/useRealtimeDraftRoom";
 import { formatLastSyncedAt } from "@/lib/draftRecovery";
 import { getDraftClockSeconds, formatDraftClock } from "@/lib/draftTimer";
-import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
+import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getEffectiveWalkUpVolume, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { getLeagueBranding, getLeagueBrandingForDraft, type LeagueBranding } from "@/lib/leagueApi";
 import DraftHQLogo from "@/components/DraftHQLogo";
@@ -906,7 +908,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [showDraftComplete, setShowDraftComplete] = useState(false);
   const [showAwards, setShowAwards] = useState(false);
   const [showTvMode, setShowTvMode] = useState(false);
-  const showTvModeRef = useRef(false);
+  const showTvModeRef = useRef(showTvMode);
   const [tvMasterVolume, setTvMasterVolume] = useState(() => lsNum("tv:masterVolume", 80));
   const [tvMuted, setTvMuted] = useState(() => lsBool("tv:muted", false));
   const tvMasterVolumeRef = useRef(
@@ -935,6 +937,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   }
 
   const [showCommishControls, setShowCommishControls] = useState(() => lsBool("dr:commishControls", true));
+  const [ownerMode, setOwnerMode] = useState(() => lsBool("dr:ownerMode", false));
   const [showPickReveal, setShowPickReveal] = useState(() => lsBool("dr:pickReveal", true));
   const [announcePickEnabled, setAnnouncePickEnabled] = useState(() => lsBool("dr:announcer", true));
   const [clockSoundEnabled, setClockSoundEnabled] = useState(() => lsBool("dr:clockSound", true));
@@ -995,6 +998,35 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const musicVolumeRef = useRef(typeof window !== "undefined" && localStorage.getItem("dr:musicVolume") !== null ? Number(localStorage.getItem("dr:musicVolume")) : 55);
   const [timerSeconds, setTimerSeconds] = useState(0);
   const timerExpiredFiredRef = useRef(false);
+  const [leagueMemberRole, setLeagueMemberRole] = useState<string | null>(null);
+  const tvMutedRef = useRef(tvMuted);
+  const effectiveMusicVolumeRef = useRef(getEffectiveWalkUpVolume({
+    musicVolume: musicVolumeRef.current,
+    tvMode: showTvModeRef.current,
+    tvMasterVolume: tvMasterVolumeRef.current,
+    tvMuted: tvMutedRef.current,
+  }));
+
+  function computeEffectiveWalkUpVolume() {
+    return getEffectiveWalkUpVolume({
+      musicVolume: musicVolumeRef.current,
+      tvMode: showTvModeRef.current,
+      tvMasterVolume: tvMasterVolumeRef.current,
+      tvMuted: tvMutedRef.current,
+    });
+  }
+
+  function applyWalkUpVolume(volume = computeEffectiveWalkUpVolume()) {
+    effectiveMusicVolumeRef.current = volume;
+    walkUpPlayerRef.current?.setVolume(volume);
+    if (walkUpDefaultAudioRef.current) {
+      walkUpDefaultAudioRef.current.volume = volume / 100;
+    }
+  }
+
+  function duckedWalkUpVolume(maxPercent = 7) {
+    return Math.min(maxPercent, effectiveMusicVolumeRef.current) / 100;
+  }
 
   function cancelPickAnnouncement() {
     if (announcementCloseTimerRef.current) clearTimeout(announcementCloseTimerRef.current);
@@ -1081,14 +1113,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
   useEffect(() => {
     musicVolumeRef.current = musicVolume;
-    walkUpPlayerRef.current?.setVolume(musicVolume);
-    if (walkUpDefaultAudioRef.current) {
-      walkUpDefaultAudioRef.current.volume = musicVolume / 100;
-    }
+    applyWalkUpVolume();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [musicVolume]);
 
   // Keep showTvModeRef in sync so audio closures read the current value.
-  useEffect(() => { showTvModeRef.current = showTvMode; }, [showTvMode]);
+  useEffect(() => {
+    showTvModeRef.current = showTvMode;
+    applyWalkUpVolume();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showTvMode]);
 
   const revealActiveRef = useRef(false);
   useEffect(() => { revealActiveRef.current = revealPick !== null; }, [revealPick]);
@@ -1143,15 +1177,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       prevOnClockTeamIdRef.current = null;
       walkUpPlayerRef.current?.duck();
       if (walkUpDefaultAudioRef.current) {
-        walkUpDefaultAudioRef.current.volume = Math.min(0.04, musicVolumeRef.current / 100);
+        walkUpDefaultAudioRef.current.volume = duckedWalkUpVolume(4);
       }
     } else {
       // Reveal dismissed — unduck any still-playing audio and re-trigger walk-up for the current team.
       walkUpPlayerRef.current?.unduck();
-      if (walkUpDefaultAudioRef.current) {
-        walkUpDefaultAudioRef.current.volume = (musicVolumeRef.current / 100) *
-          (showTvModeRef.current ? tvMasterVolumeRef.current / 100 : 1);
-      }
+      applyWalkUpVolume();
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setAudioUnlockTick((n) => n + 1);
     }
@@ -1160,23 +1191,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
   // TV master volume — persists per device, independent of per-user music volume.
   useEffect(() => {
-    const effective = tvMuted ? 0 : tvMasterVolume;
-    tvMasterVolumeRef.current = effective;
+    tvMutedRef.current = tvMuted;
+    tvMasterVolumeRef.current = tvMasterVolume;
     persist("tv:masterVolume", tvMasterVolume);
     persist("tv:muted", tvMuted);
-    const mul = effective / 100;
-    if (showTvMode) {
-      if (walkUpDefaultAudioRef.current) {
-        walkUpDefaultAudioRef.current.volume = (musicVolumeRef.current / 100) * mul;
-      }
-      walkUpPlayerRef.current?.setVolume(Math.round(musicVolumeRef.current * mul));
-    } else {
-      // Restore normal volume when TV mode is off or just exited.
-      if (walkUpDefaultAudioRef.current) {
-        walkUpDefaultAudioRef.current.volume = musicVolumeRef.current / 100;
-      }
-      walkUpPlayerRef.current?.setVolume(musicVolumeRef.current);
-    }
+    applyWalkUpVolume();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tvMasterVolume, tvMuted, showTvMode]);
 
   useEffect(() => {
@@ -1211,6 +1231,28 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       void getLeagueBrandingForDraft(draftId).then(apply);
     }
   }, [draftId, leagueSlug, setAccentColor, setBgColor]);
+
+  useEffect(() => {
+    if (!draftId || !snapshot?.currentUserId || !snapshot.draft.leagueId) {
+      setLeagueMemberRole(null);
+      return;
+    }
+
+    let cancelled = false;
+    void getDraftAssignableMembers(draftId)
+      .then((members) => {
+        if (cancelled) return;
+        const member = members.find((candidate) => candidate.userId === snapshot.currentUserId);
+        setLeagueMemberRole(member?.role ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setLeagueMemberRole(null);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [draftId, snapshot?.currentUserId, snapshot?.draft.leagueId]);
 
   // Load the landmine video pool once per draft (missing/empty → bomb fallback)
   useEffect(() => {
@@ -1510,15 +1552,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         const audio = pickIsInAudioRef.current;
         audio.currentTime = 0;
         walkUpPlayerRef.current?.duck();
-        if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = Math.min(0.07, musicVolumeRef.current / 100);
+        if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = duckedWalkUpVolume();
         const restoreWalkUpVolume = () => {
           // A reveal or landmine now owns the mix — leave their duck/stop in place.
           if (revealActiveRef.current || landmineActiveRef.current) return;
           walkUpPlayerRef.current?.unduck();
-          if (walkUpDefaultAudioRef.current) {
-            walkUpDefaultAudioRef.current.volume = (musicVolumeRef.current / 100) *
-              (showTvModeRef.current ? tvMasterVolumeRef.current / 100 : 1);
-          }
+          applyWalkUpVolume();
         };
         audio.onended = restoreWalkUpVolume;
         audio.play().catch(() => {
@@ -1721,7 +1760,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     if (pickMade && !isNewTeam) {
       if (walkUpDelayRef.current) { clearTimeout(walkUpDelayRef.current); walkUpDelayRef.current = null; }
       walkUpPlayerRef.current?.duck();
-      if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = Math.min(0.07, musicVolumeRef.current / 100);
+      if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = duckedWalkUpVolume();
       return;
     }
 
@@ -1735,7 +1774,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     // If a pick was just confirmed in the same Supabase event, duck briefly before cutting
     if (pickMade) {
       walkUpPlayerRef.current?.duck();
-      if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = Math.min(0.07, musicVolumeRef.current / 100);
+      if (walkUpDefaultAudioRef.current) walkUpDefaultAudioRef.current.volume = duckedWalkUpVolume();
     }
     walkUpPlayerRef.current?.stop();
     if (walkUpDefaultAudioRef.current) {
@@ -1794,8 +1833,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         }
         const audio = walkUpDefaultAudioRef.current;
         if (!audio) return;
-        audio.volume = (musicVolumeRef.current / 100) *
-          (showTvModeRef.current ? tvMasterVolumeRef.current / 100 : 1);
+        audio.volume = effectiveMusicVolumeRef.current / 100;
         const start = () => {
           if (!audioLifecycleActiveRef.current || walkUpDefaultAudioRef.current !== audio) return;
           if (revealActiveRef.current || landmineActiveRef.current) return;
@@ -1962,11 +2000,22 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const draftAcceptsPicks = snapshot.draft.status === "active";
   const isCommissioner =
     snapshot.currentUserId === snapshot.draft.commissionerUserId;
+  const isDraftStaff =
+    isCommissioner ||
+    currentParticipant?.role === "commissioner" ||
+    leagueMemberRole === "co-commissioner";
+  const ownerTeamId = accessState.kind === "assigned" ? accessState.teamId : null;
+  const ownerPerspectiveEnabled = ownerTeamId !== null && (!isDraftStaff || ownerMode);
+  const ownerPickStatus = ownerPerspectiveEnabled
+    ? getTeamPickStatus(snapshot.teams, ownerTeamId, snapshot.draft.currentPick, snapshot.draft.rounds)
+    : null;
+  const ownerTeam = ownerTeamId ? snapshot.teams.find((team) => team.id === ownerTeamId) ?? null : null;
+  const ownerIsOnClock = ownerPickStatus?.state === "on_clock";
   const canMakePick =
     status === "connected" &&
     draftAcceptsPicks &&
     (
-      (accessState.kind === "assigned" && accessState.teamId === teamOnClock?.id) ||
+      ownerIsOnClock ||
       isCommissioner
     );
   const canUndoPick = isCommissioner;
@@ -2244,7 +2293,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
               <span className="h-8 w-px bg-[color:var(--color-border-subtle)]" />
               <div className="flex min-w-0 items-baseline gap-3">
                 <span className="hidden shrink-0 text-[11px] font-black uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] sm:inline">On the clock</span>
-                <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
+                <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={ownerIsOnClock && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
                   {teamOnClock.name}
                 </span>
               </div>
@@ -2398,9 +2447,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 ) : (
                   <>
                     <div className="text-[10px] font-black uppercase tracking-[0.2em] text-[color:var(--color-text-muted)] leading-none mb-0.5">
-                      {canMakePick ? "Your pick" : "On the clock"}
+                      {ownerIsOnClock ? "Your pick" : "On the clock"}
                     </div>
-                    <div className="truncate text-2xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={canMakePick && primaryColor ? { color: primaryColor } : { color: "var(--color-text-primary)" }}>
+                    <div className="truncate text-2xl sm:text-5xl font-black uppercase leading-none tracking-wide" style={ownerIsOnClock && primaryColor ? { color: primaryColor } : { color: "var(--color-text-primary)" }}>
                       {teamOnClock.name}
                     </div>
                   </>
@@ -2757,6 +2806,58 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         </div>
       </div>
 
+      {ownerPerspectiveEnabled && ownerPickStatus && ownerTeam && (
+        <div className="shrink-0 border-b border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-surface-1)_82%,transparent)] px-3 py-2">
+          <div
+            className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-panel)] border px-3 py-2"
+            style={{
+              borderColor: ownerIsOnClock ? (primaryColor ?? "var(--color-league-accent)") : "var(--color-border-subtle)",
+              backgroundColor: ownerIsOnClock
+                ? "color-mix(in srgb, var(--color-league-accent) 14%, transparent)"
+                : "color-mix(in srgb, var(--color-surface-2) 70%, transparent)",
+            }}
+          >
+            <div className="flex min-w-0 items-center gap-3">
+              {ownerTeam.logoUrl ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={ownerTeam.logoUrl} alt="" className="h-9 w-9 shrink-0 object-contain" />
+              ) : (
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--radius-control)] bg-[color:var(--color-surface-3)] text-xs font-black text-[color:var(--color-text-secondary)]">
+                  {ownerTeam.name.slice(0, 2).toUpperCase()}
+                </div>
+              )}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-black text-[color:var(--color-text-primary)]">
+                  {ownerIsOnClock
+                    ? `${ownerTeam.name}, you are on the clock`
+                    : ownerPickStatus.state === "upcoming"
+                    ? `${ownerTeam.name}'s next pick`
+                    : `${ownerTeam.name}'s draft status`}
+                </p>
+                <p className="text-xs font-semibold text-[color:var(--color-text-muted)]">
+                  {ownerPickStatus.state === "on_clock" || ownerPickStatus.state === "upcoming"
+                    ? `Round ${ownerPickStatus.round}, Pick ${ownerPickStatus.pickNumber} · Overall ${ownerPickStatus.overallPickNumber}${ownerPickStatus.picksAway > 0 ? ` · ${ownerPickStatus.picksAway} picks away` : ""}`
+                    : "No more scheduled picks for your team."}
+                </p>
+              </div>
+            </div>
+            {ownerIsOnClock && canMakePick && (
+              <button
+                type="button"
+                className="rounded-[var(--radius-control)] px-3 py-1.5 text-xs font-black uppercase tracking-wider transition-opacity hover:opacity-90"
+                style={accentStyle.backgroundColor ? accentStyle : { backgroundColor: "var(--color-league-accent)", color: "#0f172a" }}
+                onClick={() => {
+                  setActionError("");
+                  setShowPickModal(true);
+                }}
+              >
+                Make Pick
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* ── Board area (fills remaining space) ── */}
       <div className={`min-h-0 flex-1 overflow-hidden ${boardView === "draft" ? "p-0" : "p-2"}`}>
         {boardView === "draft" && (
@@ -3092,6 +3193,15 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                   description="Show clock controls in header"
                   value={showCommishControls}
                   onChange={(v) => { setShowCommishControls(v); persist("dr:commishControls", v); }}
+                />
+              )}
+
+              {isDraftStaff && ownerTeamId && (
+                <SettingsToggleRow
+                  label="Owner Mode"
+                  description="Show your team and upcoming pick"
+                  value={ownerMode}
+                  onChange={(v) => { setOwnerMode(v); persist("dr:ownerMode", v); }}
                 />
               )}
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   getPickEligibility,
   getPickNumberInRound,
+  getTeamPickStatus,
   getRoundForPick,
   getSnakeDraftPosition,
   getTeamOnClock,
@@ -164,6 +165,43 @@ describe("getPickEligibility", () => {
     expect(getPickEligibility({ ...eligibleInput, teams: [] })).toEqual({
       eligible: false,
       reason: "invalid_state",
+    });
+  });
+});
+
+describe("getTeamPickStatus", () => {
+  it("identifies the assigned team's live pick", () => {
+    expect(getTeamPickStatus(teams, "team-1", 1, 2)).toEqual({
+      state: "on_clock",
+      teamId: "team-1",
+      round: 1,
+      pickNumber: 1,
+      overallPickNumber: 1,
+      picksAway: 0,
+    });
+  });
+
+  it("finds the assigned team's next pick in snake order", () => {
+    expect(getTeamPickStatus(teams, "team-1", 2, 2)).toEqual({
+      state: "upcoming",
+      teamId: "team-1",
+      round: 2,
+      pickNumber: 4,
+      overallPickNumber: 8,
+      picksAway: 6,
+    });
+  });
+
+  it("reports complete after the assigned team's final slot passes", () => {
+    expect(getTeamPickStatus(teams, "team-1", 9, 2)).toEqual({
+      state: "complete",
+      teamId: "team-1",
+    });
+  });
+
+  it("reports unassigned when there is no team to track", () => {
+    expect(getTeamPickStatus(teams, null, 1, 2)).toEqual({
+      state: "unassigned",
     });
   });
 });
