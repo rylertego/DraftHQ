@@ -7,7 +7,7 @@ const TEAM_COUNT = 10;
 const ROUNDS = 15;
 const PICK_COUNT = TEAM_COUNT * ROUNDS;
 const PICK_DELAY_MS = 5000;
-const SIM_SEASON_YEAR = 2999;
+const SIM_SEASON_YEAR = 2100; // league_seasons.year has a [2000, 2100] CHECK
 
 /** The league's real draft. Guarded against explicitly: 150 simulated picks
  *  would destroy it. */
@@ -54,62 +54,112 @@ async function prompt(message) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-/** Removes everything this script creates, whether or not the run that created
- *  it finished. Safe to run repeatedly. */
-async function cleanup({ draftId, seasonId, leagueId } = {}) {
+/** CAPTCHA protection is enabled on this project, so signInWithPassword is
+ *  refused for a headless script. An admin-generated link carries a
+ *  server-minted token, which verifyOtp accepts without a captcha. No password
+ *  is ever created or used. */
+async function createSimUser(client, displayName) {
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const email = `${SIM_EMAIL_PREFIX}${suffix}@example.com`;
+
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    user_metadata: { display_name: displayName },
+  });
+  if (createError || !created.user) throw createError ?? new Error("User creation returned no user.");
+
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  if (linkError || !link?.properties?.hashed_token) {
+    throw linkError ?? new Error("generateLink returned no token.");
+  }
+
+  const { data: session, error: verifyError } = await client.auth.verifyOtp({
+    token_hash: link.properties.hashed_token,
+    type: "email",
+  });
+  if (verifyError || !session.session) throw verifyError ?? new Error("verifyOtp returned no session.");
+
+  return created.user;
+}
+
+/** Seats a signed-in sim user as a league commissioner so it can call the
+ *  draft RPCs. league_members is one of the few tables the service role may
+ *  write, which is what makes this possible at all. */
+async function ensureCommissioner(userId, leagueId) {
+  const { error } = await admin.from("league_members").upsert(
+    { league_id: leagueId, user_id: userId, role: "commissioner", nickname: "Sim Commissioner" },
+    { onConflict: "league_id,user_id" }
+  );
+  if (error) throw error;
+}
+
+/** Teardown runs as an authenticated commissioner, because drafts, teams, and
+ *  draft_participants are SELECT-only for every role — all writes go through
+ *  SECURITY DEFINER RPCs. reset_season_draft deletes the draft and cascades to
+ *  teams, picks, and participants. Safe to run repeatedly. */
+async function cleanup({ leagueId } = {}) {
   const removed = { drafts: 0, seasons: 0, members: 0, users: 0 };
+  if (!leagueId) return removed;
 
-  if (draftId) {
-    assert.notEqual(draftId, PROTECTED_DRAFT_ID, "Refusing to delete the league's real draft.");
-    const { data: deletedDrafts, error } = await admin
-      .from("drafts")
-      .delete()
-      .eq("id", draftId)
-      .select("id");
-    if (error) throw error;
-    removed.drafts += deletedDrafts?.length ?? 0;
-  }
+  // Find leftover simulated seasons. Reading is permitted for the service role.
+  const { data: seasons, error: seasonReadError } = await admin
+    .from("league_seasons")
+    .select("id,draft_id")
+    .eq("league_id", leagueId)
+    .eq("year", SIM_SEASON_YEAR);
+  if (seasonReadError) throw seasonReadError;
 
-  if (seasonId) {
-    const { data: deletedSeasons, error } = await admin
-      .from("league_seasons")
-      .delete()
-      .eq("id", seasonId)
-      .select("id");
-    if (error) throw error;
-    removed.seasons += deletedSeasons?.length ?? 0;
-  }
+  const { data: listed, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (listError) throw listError;
+  const simUsers = (listed?.users ?? []).filter((u) => isSimEmail(u.email));
 
-  // Any stray simulated season from an interrupted run.
-  if (leagueId) {
-    const { data: strays } = await admin
-      .from("league_seasons")
-      .select("id,draft_id")
-      .eq("league_id", leagueId)
-      .eq("year", SIM_SEASON_YEAR);
-    for (const stray of strays ?? []) {
-      if (stray.draft_id && stray.draft_id !== PROTECTED_DRAFT_ID) {
-        const { data: deletedDrafts, error } = await admin
-          .from("drafts")
-          .delete()
-          .eq("id", stray.draft_id)
-          .select("id");
-        if (error) throw error;
-        removed.drafts += deletedDrafts?.length ?? 0;
+  if ((seasons ?? []).length > 0) {
+    // Deleting a draft needs an authenticated commissioner. Reuse a leftover sim
+    // user if one exists, otherwise mint one just for the teardown.
+    const client = createPublicClient();
+    let janitorId;
+    if (simUsers.length > 0) {
+      const email = simUsers[0].email;
+      const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+      if (linkError || !link?.properties?.hashed_token) throw linkError ?? new Error("generateLink returned no token.");
+      const { data: session, error: verifyError } = await client.auth.verifyOtp({
+        token_hash: link.properties.hashed_token,
+        type: "email",
+      });
+      if (verifyError || !session.session) throw verifyError ?? new Error("verifyOtp returned no session.");
+      janitorId = simUsers[0].id;
+    } else {
+      const janitor = await createSimUser(client, "Sim Janitor");
+      janitorId = janitor.id;
+    }
+    await ensureCommissioner(janitorId, leagueId);
+
+    for (const season of seasons) {
+      if (season.draft_id === PROTECTED_DRAFT_ID) {
+        throw new Error("A simulated season points at the real draft — refusing to reset it.");
       }
-      const { data: deletedSeasons, error: seasonError } = await admin
+      await rpc(client, "reset_season_draft", { p_season_id: season.id });
+      if (season.draft_id) removed.drafts += 1;
+
+      const { data: deletedSeasons, error: seasonDeleteError } = await client
         .from("league_seasons")
         .delete()
-        .eq("id", stray.id)
+        .eq("id", season.id)
         .select("id");
-      if (seasonError) throw seasonError;
+      if (seasonDeleteError) throw seasonDeleteError;
       removed.seasons += deletedSeasons?.length ?? 0;
     }
   }
 
-  // Simulated users, found by email prefix so no bookkeeping is needed.
-  const { data: listed } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  for (const user of listed?.users ?? []) {
+  // Re-list: the janitor may have been created above.
+  const { data: relisted, error: relistError } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (relistError) throw relistError;
+
+  for (const user of relisted?.users ?? []) {
     if (!isSimEmail(user.email)) continue;
     const { data: deletedMembers, error: memberError } = await admin
       .from("league_members")
@@ -118,6 +168,7 @@ async function cleanup({ draftId, seasonId, leagueId } = {}) {
       .select("id");
     if (memberError) throw memberError;
     removed.members += deletedMembers?.length ?? 0;
+
     const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
     if (deleteUserError) throw deleteUserError;
     removed.users += 1;
