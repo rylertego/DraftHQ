@@ -344,11 +344,20 @@ try {
     });
   }
 
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.drafthq.net";
+  // This script writes to whichever Supabase project .env.local points at —
+  // in practice production — so the draft is reachable on the deployed site
+  // even when NEXT_PUBLIC_SITE_URL is a localhost dev server. Print both, since
+  // a phone on another network can only reach the hosted one.
+  const localUrl = process.env.NEXT_PUBLIC_SITE_URL;
+  const hostedUrl = process.env.SIM_HOSTED_SITE_URL ?? "https://www.drafthq.net";
   console.log("");
-  console.log(`  Draft room:  ${siteUrl}/draft?draftId=${draftId}`);
-  console.log(`  Join code:   ${draft.join_code}`);
+  if (localUrl && !localUrl.startsWith(hostedUrl)) {
+    console.log(`  Draft room (local):   ${localUrl}/draft?draftId=${draftId}`);
+  }
+  console.log(`  Draft room (hosted):  ${hostedUrl}/draft?draftId=${draftId}`);
+  console.log(`  Join code:            ${draft.join_code}`);
   console.log("");
+  console.log("  On a phone, use the hosted link and sign in as yourself.");
   console.log(
     "  If you abort with Ctrl-C, a simulated commissioner remains in the league's " +
     "member list until you run \"npm run sim:draft -- --cleanup-only\"."
