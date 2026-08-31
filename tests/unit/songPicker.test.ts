@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseYouTubeVideoId } from "@/components/SongPicker";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SpotifyConnectionPanel, SongPlaybackBadge } from "@/app/leagues/[slug]/my-team/MyTeamForm";
+import { SongPlaybackBadge } from "@/app/leagues/[slug]/my-team/MyTeamForm";
 import { needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import type { WalkUpSong } from "@/types/draft";
 import SongPicker, {
@@ -44,33 +44,6 @@ describe("parseYouTubeVideoId", () => {
     expect(parseYouTubeVideoId("https://www.youtube.com/results?search_query=song")).toBeNull();
     expect(parseYouTubeVideoId("https://youtu.be/short")).toBeNull();
     expect(parseYouTubeVideoId("")).toBeNull();
-  });
-});
-
-describe("SpotifyConnectionPanel", () => {
-  it("points the owner at the song picker instead of offering its own connect action", () => {
-    const html = renderToStaticMarkup(
-      createElement(SpotifyConnectionPanel, {
-        connected: false,
-        onDisconnect: () => undefined,
-      }),
-    );
-
-    expect(html).toContain("Spotify not connected");
-    expect(html).toContain("Add a song and pick the Spotify tab to link your account.");
-    expect(html).not.toMatch(/<button/);
-  });
-
-  it("shows connected state and a disconnect action after Spotify is linked", () => {
-    const html = renderToStaticMarkup(
-      createElement(SpotifyConnectionPanel, {
-        connected: true,
-        onDisconnect: () => undefined,
-      }),
-    );
-
-    expect(html).toContain("Spotify connected");
-    expect(html).toContain("Disconnect");
   });
 });
 
@@ -151,8 +124,10 @@ describe("SpotifyConnectPanel", () => {
     const html = renderToStaticMarkup(
       createElement(SpotifyConnectPanel, {
         accentColor: "#22D3EE",
+        connected: false,
         connecting: false,
         onConnect: () => undefined,
+        onDisconnect: () => undefined,
       }),
     );
     // Searching runs on app credentials, so the copy must not imply a login is
@@ -165,11 +140,28 @@ describe("SpotifyConnectPanel", () => {
     const html = renderToStaticMarkup(
       createElement(SpotifyConnectPanel, {
         accentColor: "#22D3EE",
+        connected: false,
         connecting: true,
         onConnect: () => undefined,
+        onDisconnect: () => undefined,
       }),
     );
     expect(html).toContain("Opening Spotify");
     expect(html).toMatch(/<button[^>]*\sdisabled/);
+  });
+
+  it("offers the only way to unlink once connected", () => {
+    const html = renderToStaticMarkup(
+      createElement(SpotifyConnectPanel, {
+        accentColor: "#22D3EE",
+        connected: true,
+        connecting: false,
+        onConnect: () => undefined,
+        onDisconnect: () => undefined,
+      }),
+    );
+    expect(html).toContain("Spotify connected.");
+    expect(html).toMatch(/<button[^>]*>Disconnect<\/button>/);
+    expect(html).not.toContain(">Connect<");
   });
 });

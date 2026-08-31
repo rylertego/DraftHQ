@@ -5,7 +5,7 @@ import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import SongPicker from "@/components/SongPicker";
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
-import { disconnectSpotify, isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
+import { isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import {
   getLeagueTeams,
   updateMyLeagueTeamDetails,
@@ -29,49 +29,6 @@ export function SongPlaybackBadge() {
     <span className="rounded-full border border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-[color:var(--color-warning)]">
       Reconnect to play
     </span>
-  );
-}
-
-interface SpotifyConnectionPanelProps {
-  connected: boolean;
-  onDisconnect: () => void;
-}
-
-/** Status only. Linking happens inside the Add Song picker so there is one
- *  place to connect; this panel just reports state and offers the way out. */
-export function SpotifyConnectionPanel({
-  connected,
-  onDisconnect,
-}: SpotifyConnectionPanelProps) {
-  return (
-    <div className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] px-[var(--space-4)] py-[var(--space-3)]">
-      <div className="flex flex-col gap-[var(--space-3)] sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <div className="flex items-center gap-[var(--space-2)]">
-            <span
-              className={`h-2.5 w-2.5 rounded-full ${
-                connected ? "bg-[color:var(--color-success)]" : "bg-[color:var(--color-text-muted)]"
-              }`}
-              aria-hidden="true"
-            />
-            <p className="text-sm font-black text-[color:var(--color-text-primary)]">
-              {connected ? "Spotify connected" : "Spotify not connected"}
-            </p>
-          </div>
-          <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
-            {connected
-              ? "Spotify search is available when you add walk-up songs on this device."
-              : "Add a song and pick the Spotify tab to link your account."}
-          </p>
-        </div>
-
-        {connected && (
-          <Button variant="secondary" onClick={onDisconnect}>
-            Disconnect
-          </Button>
-        )}
-      </div>
-    </div>
   );
 }
 
@@ -178,11 +135,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
     setWalkUpSongs((prev) => [...prev, song].slice(0, MAX_WALK_UP_SONGS));
     closeSongPicker();
     setSuccess(false);
-  }
-
-  function handleSpotifyDisconnect() {
-    disconnectSpotify();
-    setSpotifyConnected(false);
   }
 
   async function handleSave() {
@@ -444,13 +396,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
               </Button>
             }
           >
-            <div className="mb-[var(--space-4)]">
-              <SpotifyConnectionPanel
-                connected={spotifyConnected}
-                onDisconnect={handleSpotifyDisconnect}
-              />
-            </div>
-
             {walkUpSongs.length === 0 ? (
               <div className="rounded-[var(--radius-surface)] border border-dashed border-[color:var(--color-border-strong)] bg-[var(--color-surface-2)]">
                 <EmptyState

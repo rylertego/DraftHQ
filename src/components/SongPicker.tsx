@@ -1,7 +1,7 @@
 "use client";
 import { useState, useEffect, useRef, type ComponentType } from "react";
 import type { WalkUpSong } from "@/types/draft";
-import { isSpotifyConnected, initiateSpotifyPopup } from "@/lib/spotifyAuth";
+import { isSpotifyConnected, initiateSpotifyPopup, disconnectSpotify } from "@/lib/spotifyAuth";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 
 interface SearchResult {
@@ -74,26 +74,41 @@ const TAB_META: Record<SongPickerTabId, { label: string; Icon: ComponentType }> 
  *  this is an optional strip under the results, never a gate in front of them. */
 export function SpotifyConnectPanel({
   accentColor,
+  connected,
   connecting,
   onConnect,
+  onDisconnect,
 }: {
   accentColor: string;
+  connected: boolean;
   connecting: boolean;
   onConnect: () => void;
+  onDisconnect: () => void;
 }) {
   return (
     <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-700/70 bg-slate-800/40 px-3 py-2.5">
       <p className="text-xs leading-5 text-slate-400">
-        Pick any track without linking. Connect Spotify Premium to play full tracks on this device.
+        {connected
+          ? "Spotify connected. Full tracks will play on this device."
+          : "Pick any track without linking. Connect Spotify Premium to play full tracks on this device."}
       </p>
-      <button
-        onClick={onConnect}
-        disabled={connecting}
-        className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-950 transition-opacity disabled:opacity-60"
-        style={{ background: accentColor }}
-      >
-        {connecting ? "Opening Spotify…" : "Connect"}
-      </button>
+      {connected ? (
+        <button
+          onClick={onDisconnect}
+          className="shrink-0 rounded-lg border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-300 transition-colors hover:bg-white/5"
+        >
+          Disconnect
+        </button>
+      ) : (
+        <button
+          onClick={onConnect}
+          disabled={connecting}
+          className="shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-950 transition-opacity disabled:opacity-60"
+          style={{ background: accentColor }}
+        >
+          {connecting ? "Opening Spotify…" : "Connect"}
+        </button>
+      )}
     </div>
   );
 }
@@ -190,6 +205,12 @@ export default function SongPicker({ onSelect, onClose }: Props) {
       setConnected(true);
       setConnecting(false);
     });
+  }
+
+  function handleDisconnect() {
+    disconnectSpotify();
+    setConnected(false);
+    setConnecting(false);
   }
 
   function handleSelect(r: SearchResult) {
@@ -299,8 +320,14 @@ export default function SongPicker({ onSelect, onClose }: Props) {
             ))}
           </div>
 
-          {tab === "spotify" && !connected && (
-            <SpotifyConnectPanel accentColor={accentColor} connecting={connecting} onConnect={handleConnect} />
+          {tab === "spotify" && (
+            <SpotifyConnectPanel
+              accentColor={accentColor}
+              connected={connected}
+              connecting={connecting}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+            />
           )}
         </div>
       </div>
