@@ -26,6 +26,7 @@
     "verify:release": "npm run verify:release:local && npm run test:db:contracts && npm run test:integration && npm run test:e2e",
     "test:multiplayer": "node --env-file=.env.local scripts/test-multiplayer.mjs",
     "test:full-draft": "node --env-file=.env.local scripts/test-full-draft.mjs",
+    "sim:draft": "node --env-file=.env.local scripts/sim-draft.mjs",
     "players:import": "node --env-file=.env.local scripts/import-nflverse-players.mjs"
   },
   "dependencies": {
