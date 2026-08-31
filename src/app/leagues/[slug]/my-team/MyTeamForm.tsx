@@ -256,7 +256,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   }
 
   const initials = (team?.name ?? myTeamRef.name).trim().slice(0, 2).toUpperCase() || "T";
-  const savedSongCount = team?.walkUpSongs.length ?? 0;
 
   return (
     <>
@@ -298,17 +297,14 @@ export default function MyTeamForm({ slug }: { slug: string }) {
             </div>
           </div>
 
-          <div className="mt-[var(--space-4)] grid grid-cols-2 gap-[var(--space-3)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">Songs</p>
-              <p className="mt-1 text-xl font-black tabular-nums text-[color:var(--color-text-primary)]">
-                {walkUpSongs.length}/{MAX_WALK_UP_SONGS}
-              </p>
-            </div>
-            <div>
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">Saved</p>
-              <p className="mt-1 text-xl font-black tabular-nums text-[color:var(--color-text-primary)]">{savedSongCount}</p>
-            </div>
+          {/* Songs only. A separate "Saved" count existed to show the list had
+              unsaved picks — the song list now writes itself, so the two
+              numbers could never disagree. */}
+          <div className="mt-[var(--space-4)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
+            <p className="text-[10px] font-black uppercase tracking-[0.16em] text-[color:var(--color-text-muted)]">Songs</p>
+            <p className="mt-1 text-xl font-black tabular-nums text-[color:var(--color-text-primary)]">
+              {walkUpSongs.length}/{MAX_WALK_UP_SONGS}
+            </p>
           </div>
         </aside>
 
