@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
+import { getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming, resolvePlaybackRoute } from "@/lib/draftAudio";
 
 describe("synchronized draft audio", () => {
   it("selects the same song from the shared pick number", () => {
@@ -69,5 +69,34 @@ describe("getTeamCumulativeListenSeconds", () => {
   it("tolerates a missing preceding pick (skipped/gap in history)", () => {
     const picks = [pick("a", 1, 0), pick("b", 3, 60)]; // pick 2 missing
     expect(getTeamCumulativeListenSeconds(picks, "b")).toBe(0);
+  });
+});
+
+describe("resolvePlaybackRoute", () => {
+  const spotifySong = { platform: "spotify" as const, youtubeTrackId: null, previewUrl: null };
+
+  it("uses the SDK when the Spotify device is ready", () => {
+    expect(resolvePlaybackRoute(spotifySong, true)).toBe("spotify-sdk");
+  });
+
+  it("falls back to YouTube when the device is not ready", () => {
+    expect(resolvePlaybackRoute({ ...spotifySong, youtubeTrackId: "dQw4w9WgXcQ" }, false)).toBe("youtube");
+  });
+
+  it("falls back to a preview clip when there is no YouTube match", () => {
+    expect(resolvePlaybackRoute({ ...spotifySong, previewUrl: "https://p.scdn.co/mp3/x" }, false)).toBe("preview");
+  });
+
+  // The bug: a Spotify song with no fallback and no device used to resolve to
+  // silence with no signal, so the lobby showed an "Enable audio" button that
+  // could not possibly help. Exhausting the options must be reportable.
+  it("reports unavailable when nothing can play", () => {
+    expect(resolvePlaybackRoute(spotifySong, false)).toBe("unavailable");
+  });
+
+  it("always routes YouTube songs to YouTube, device state notwithstanding", () => {
+    const yt = { platform: "youtube" as const, youtubeTrackId: null, previewUrl: null };
+    expect(resolvePlaybackRoute(yt, true)).toBe("youtube");
+    expect(resolvePlaybackRoute(yt, false)).toBe("youtube");
   });
 });

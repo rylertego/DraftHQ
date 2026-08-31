@@ -80,3 +80,24 @@ export function getWalkUpPlaybackTiming(
     offsetSeconds: Math.max(0, (serverNowMs - startsAtMs) / 1_000),
   };
 }
+
+export type PlaybackRoute = "spotify-sdk" | "youtube" | "preview" | "unavailable";
+
+/** Which mechanism can actually play this song right now.
+ *
+ *  "unavailable" is the case that used to disappear: a Spotify track with no
+ *  YouTube match and no preview clip, on a page whose Spotify device is not
+ *  ready. Spotify stopped returning preview_url for newer apps, and the
+ *  YouTube match is only stored when YOUTUBE_DATA_API_KEY is configured, so
+ *  this is the common state — not an edge case. Callers must report it rather
+ *  than fall through to silence. */
+export function resolvePlaybackRoute(
+  song: { platform: "youtube" | "spotify"; youtubeTrackId?: string | null; previewUrl?: string | null },
+  spotifyDeviceReady: boolean
+): PlaybackRoute {
+  if (song.platform === "youtube") return "youtube";
+  if (spotifyDeviceReady) return "spotify-sdk";
+  if (song.youtubeTrackId) return "youtube";
+  if (song.previewUrl) return "preview";
+  return "unavailable";
+}

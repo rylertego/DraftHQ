@@ -145,6 +145,7 @@ export default function DraftLobby({
   const [advanceMode, setAdvanceMode] = useState<AdvanceMode>("song");
   const [isPlaying, setIsPlaying] = useState(true);
   const [audioBlocked, setAudioBlocked] = useState(false);
+  const [songUnavailable, setSongUnavailable] = useState(false);
   const [participantManagerOpen, setParticipantManagerOpen] = useState(false);
   const activeTeam = sortedTeams[activeIndex] ?? null;
   const activeSong = activeTeam?.walkUpSongs?.[0] ?? null;
@@ -242,6 +243,7 @@ export default function DraftLobby({
     }
     if (!isPlayingRef.current) return;
     playbackConfirmedRef.current = false;
+    setSongUnavailable(false);
     if (activeSong) {
       playerRef.current?.play(activeSong);
     } else if (defaultSongUrl) {
@@ -266,7 +268,9 @@ export default function DraftLobby({
 
   useEffect(() => {
     if (!isPlaying || sortedTeams.length < 2) return;
-    if (advanceMode === "song" && (activeSong || defaultSongUrl) && !audioBlocked) return;
+    // A song that cannot play never fires onEnded, so without this the lobby
+    // would sit on that team forever.
+    if (advanceMode === "song" && (activeSong || defaultSongUrl) && !audioBlocked && !songUnavailable) return;
     const seconds = advanceMode === "song" ? 15 : Number(advanceMode);
     const timer = window.setTimeout(showNext, seconds * 1000);
     return () => window.clearTimeout(timer);
@@ -302,7 +306,9 @@ export default function DraftLobby({
     }
     setIsPlaying(true);
     isPlayingRef.current = true;
-    setAudioBlocked(false);
+    // Deliberately NOT clearing audioBlocked here. Clearing it optimistically
+    // hid the button whether or not anything started, which is what made this
+    // read as "the button does nothing". onPlaying clears it on real playback.
   }
 
   if (!activeTeam) {
@@ -324,8 +330,16 @@ export default function DraftLobby({
     >
       <WalkUpPlayer
         ref={playerRef}
-        onPlaying={() => { playbackConfirmedRef.current = true; setAudioBlocked(false); }}
+        onPlaying={() => { playbackConfirmedRef.current = true; setAudioBlocked(false); setSongUnavailable(false); }}
         onPlaybackBlocked={() => setAudioBlocked(true)}
+        onPlaybackUnavailable={() => {
+          // Nothing can play this track here. Mark playback "resolved" so the
+          // 2200ms timer does not also raise an Enable audio button that
+          // cannot help, and say what is actually wrong.
+          playbackConfirmedRef.current = true;
+          setAudioBlocked(false);
+          setSongUnavailable(true);
+        }}
         onEnded={() => { if (advanceMode === "song" && isPlaying) showNext(); }}
       />
 
@@ -573,6 +587,14 @@ export default function DraftLobby({
           </div>
 
           {audioBlocked && <button type="button" onClick={enableAudio} className="min-h-11 rounded-[var(--radius-control)] border border-[color:var(--color-warning-border)] bg-[color-mix(in_srgb,var(--color-warning)_12%,transparent)] px-3 py-2 text-xs font-bold text-[color:var(--color-warning)] focus:outline-none focus:ring-2 focus:ring-[var(--color-focus-ring)]">Enable audio</button>}
+
+          {/* Not a button: no click can fix a track with no playable source.
+              Saying why beats offering a control that cannot work. */}
+          {songUnavailable && !audioBlocked && (
+            <span className="max-w-56 text-xs font-semibold leading-4 text-[color:var(--color-text-muted)]">
+              Can&rsquo;t play this track here — connect Spotify Premium on this device.
+            </span>
+          )}
         </div>
 
         {/* Right: online count + start/waiting */}

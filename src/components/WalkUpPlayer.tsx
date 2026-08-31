@@ -2,6 +2,7 @@
 import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
 import type { WalkUpSong } from "@/types/draft";
 import { getSpotifyToken } from "@/lib/spotifyAuth";
+import { resolvePlaybackRoute } from "@/lib/draftAudio";
 
 export interface WalkUpPlayerHandle {
   play: (song: WalkUpSong, playbackOffsetSeconds?: number) => void;
@@ -82,15 +83,19 @@ interface WalkUpPlayerProps {
   onEnded?: () => void;
   onPlaying?: () => void;
   onPlaybackBlocked?: () => void;
+  /** Every playback route is exhausted — retrying cannot help. Distinct from
+   *  onPlaybackBlocked, which means the browser refused an autoplay. */
+  onPlaybackUnavailable?: () => void;
 }
 
-const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function WalkUpPlayer({ onEnded, onPlaying, onPlaybackBlocked }, ref) {
+const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function WalkUpPlayer({ onEnded, onPlaying, onPlaybackBlocked, onPlaybackUnavailable }, ref) {
   const ytContainerRef = useRef<HTMLDivElement>(null);
   const ytPlayerRef = useRef<YTPlayer | null>(null);
   const ytReadyRef = useRef(false);
   const ytReadyToPlayRef = useRef(false); // true only after onReady fires
   const pendingSongRef = useRef<WalkUpSong | null>(null); // queued if YT not ready yet
   const spSDKPlayerRef = useRef<SpotifySDKPlayer | null>(null);
+  const spReconnectingRef = useRef(false);
   const spDeviceIdRef = useRef<string | null>(null);
   const currentPlatformRef = useRef<"youtube" | "spotify-sdk" | "preview" | null>(null);
   const spPreviewAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -102,10 +107,12 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
   const onEndedRef = useRef(onEnded);
   const onPlayingRef = useRef(onPlaying);
   const onPlaybackBlockedRef = useRef(onPlaybackBlocked);
+  const onPlaybackUnavailableRef = useRef(onPlaybackUnavailable);
 
   useEffect(() => { onEndedRef.current = onEnded; }, [onEnded]);
   useEffect(() => { onPlayingRef.current = onPlaying; }, [onPlaying]);
   useEffect(() => { onPlaybackBlockedRef.current = onPlaybackBlocked; }, [onPlaybackBlocked]);
+  useEffect(() => { onPlaybackUnavailableRef.current = onPlaybackUnavailable; }, [onPlaybackUnavailable]);
 
   // ── YouTube setup ──────────────────────────────────────────────────────
   const initYT = useCallback(() => {
@@ -165,7 +172,19 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
       player.addListener("ready", (state) => {
         if (state?.device_id) spDeviceIdRef.current = state.device_id;
       });
-      player.addListener("not_ready", () => { spDeviceIdRef.current = null; });
+      // Spotify marks the device not_ready when it goes idle — which happens
+      // as soon as the lobby stops a track to switch teams. Nothing else ever
+      // re-arms the id, so without this reconnect the SDK is dead for the rest
+      // of the page's life and every later Spotify song silently fails.
+      player.addListener("not_ready", () => {
+        spDeviceIdRef.current = null;
+        if (!activeRef.current || spReconnectingRef.current) return;
+        spReconnectingRef.current = true;
+        void player
+          .connect()
+          .catch(() => {})
+          .finally(() => { spReconnectingRef.current = false; });
+      });
       player.addListener("player_state_changed", (state) => {
         if (!state) return;
         if (!state.paused) {
@@ -237,7 +256,16 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
     const startSeconds = Math.max(0, (song.startSeconds ?? 0) + playbackOffsetSeconds);
     currentPlatformRef.current = song.platform === "spotify" ? "spotify-sdk" : song.platform as "youtube" | "preview";
 
-    if (song.platform === "youtube" || (song.platform === "spotify" && song.youtubeTrackId && !spDeviceIdRef.current)) {
+    const route = resolvePlaybackRoute(song, Boolean(spDeviceIdRef.current));
+
+    if (route === "unavailable") {
+      // No device, no YouTube match, no preview. Say so instead of leaving the
+      // caller to time out and guess at an autoplay block.
+      onPlaybackUnavailableRef.current?.();
+      return;
+    }
+
+    if (route === "youtube") {
       const videoId = song.platform === "youtube" ? song.trackId : song.youtubeTrackId!;
       currentPlatformRef.current = "youtube";
       if (!playYT(videoId, startSeconds)) {
@@ -329,13 +357,23 @@ const WalkUpPlayer = forwardRef<WalkUpPlayerHandle, WalkUpPlayerProps>(function 
 
     if (song.previewUrl) { playPreview(song.previewUrl); return; }
 
-    // Spotify iFrame embed API is shut down for third parties — nothing more to try
+    // Spotify iFrame embed API is shut down for third parties — nothing more to
+    // try. When this last lookup comes back empty the song genuinely cannot
+    // play, and staying silent left the lobby to guess: it timed out and
+    // offered an "Enable audio" button that could never work, because the
+    // problem was never an autoplay block. Report it instead.
     fetch(`/api/music/spotify-preview?trackId=${encodeURIComponent(song.trackId)}`)
       .then((r) => r.json() as Promise<{ previewUrl: string | null }>)
       .then(({ previewUrl }) => {
-        if (activeRef.current && requestId === playbackRequestRef.current && previewUrl) playPreview(previewUrl);
+        if (!activeRef.current || requestId !== playbackRequestRef.current) return;
+        if (previewUrl) playPreview(previewUrl);
+        else onPlaybackUnavailableRef.current?.();
       })
-      .catch(() => {});
+      .catch(() => {
+        if (activeRef.current && requestId === playbackRequestRef.current) {
+          onPlaybackUnavailableRef.current?.();
+        }
+      });
   }
 
   const duck = useCallback(() => {
