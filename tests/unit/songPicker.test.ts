@@ -48,34 +48,29 @@ describe("parseYouTubeVideoId", () => {
 });
 
 describe("SpotifyConnectionPanel", () => {
-  it("shows the connect action when the owner has not linked Spotify", () => {
+  it("points the owner at the song picker instead of offering its own connect action", () => {
     const html = renderToStaticMarkup(
       createElement(SpotifyConnectionPanel, {
         connected: false,
-        connecting: false,
-        onConnect: () => undefined,
         onDisconnect: () => undefined,
       }),
     );
 
-    expect(html).toContain("Connect Spotify");
-    expect(html).toContain("Link Spotify to search Spotify tracks from this page.");
-    expect(html).not.toContain("Disconnect");
+    expect(html).toContain("Spotify not connected");
+    expect(html).toContain("Add a song and pick the Spotify tab to link your account.");
+    expect(html).not.toMatch(/<button/);
   });
 
   it("shows connected state and a disconnect action after Spotify is linked", () => {
     const html = renderToStaticMarkup(
       createElement(SpotifyConnectionPanel, {
         connected: true,
-        connecting: false,
-        onConnect: () => undefined,
         onDisconnect: () => undefined,
       }),
     );
 
     expect(html).toContain("Spotify connected");
     expect(html).toContain("Disconnect");
-    expect(html).not.toContain("Connect Spotify");
   });
 });
 

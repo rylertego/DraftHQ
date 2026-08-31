@@ -5,7 +5,7 @@ import { useWorkspace } from "@/context/LeagueWorkspaceContext";
 import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import SongPicker from "@/components/SongPicker";
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
-import { disconnectSpotify, initiateSpotifyPopup, isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
+import { disconnectSpotify, isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import {
   getLeagueTeams,
   updateMyLeagueTeamDetails,
@@ -34,15 +34,13 @@ export function SongPlaybackBadge() {
 
 interface SpotifyConnectionPanelProps {
   connected: boolean;
-  connecting: boolean;
-  onConnect: () => void;
   onDisconnect: () => void;
 }
 
+/** Status only. Linking happens inside the Add Song picker so there is one
+ *  place to connect; this panel just reports state and offers the way out. */
 export function SpotifyConnectionPanel({
   connected,
-  connecting,
-  onConnect,
   onDisconnect,
 }: SpotifyConnectionPanelProps) {
   return (
@@ -57,23 +55,19 @@ export function SpotifyConnectionPanel({
               aria-hidden="true"
             />
             <p className="text-sm font-black text-[color:var(--color-text-primary)]">
-              {connected ? "Spotify connected" : "Connect Spotify"}
+              {connected ? "Spotify connected" : "Spotify not connected"}
             </p>
           </div>
           <p className="mt-1 text-sm leading-6 text-[color:var(--color-text-secondary)]">
             {connected
               ? "Spotify search is available when you add walk-up songs on this device."
-              : "Link Spotify to search Spotify tracks from this page."}
+              : "Add a song and pick the Spotify tab to link your account."}
           </p>
         </div>
 
-        {connected ? (
+        {connected && (
           <Button variant="secondary" onClick={onDisconnect}>
             Disconnect
-          </Button>
-        ) : (
-          <Button scope="league" onClick={onConnect} loading={connecting}>
-            {connecting ? "Opening Spotify..." : "Connect Spotify"}
           </Button>
         )}
       </div>
@@ -105,7 +99,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   const [uploadingOwnerPhoto, setUploadingOwnerPhoto] = useState(false);
   const [showSongPicker, setShowSongPicker] = useState(false);
   const [spotifyConnected, setSpotifyConnected] = useState(false);
-  const [spotifyConnecting, setSpotifyConnecting] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -144,7 +137,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
   useEffect(() => {
     function syncSpotifyState() {
       setSpotifyConnected(isSpotifyConnected());
-      setSpotifyConnecting(false);
     }
 
     syncSpotifyState();
@@ -188,18 +180,9 @@ export default function MyTeamForm({ slug }: { slug: string }) {
     setSuccess(false);
   }
 
-  function handleSpotifyConnect() {
-    setSpotifyConnecting(true);
-    initiateSpotifyPopup(() => {
-      setSpotifyConnected(true);
-      setSpotifyConnecting(false);
-    });
-  }
-
   function handleSpotifyDisconnect() {
     disconnectSpotify();
     setSpotifyConnected(false);
-    setSpotifyConnecting(false);
   }
 
   async function handleSave() {
@@ -464,8 +447,6 @@ export default function MyTeamForm({ slug }: { slug: string }) {
             <div className="mb-[var(--space-4)]">
               <SpotifyConnectionPanel
                 connected={spotifyConnected}
-                connecting={spotifyConnecting}
-                onConnect={handleSpotifyConnect}
                 onDisconnect={handleSpotifyDisconnect}
               />
             </div>
