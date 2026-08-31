@@ -469,6 +469,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
                     </div>
                     <IconButton
                       label={`Remove ${song.title}`}
+                      scope="league"
                       onClick={() => removeSong(index)}
                       disabled={songSaving}
                     >
