@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import DraftAwardsCeremony from "@/components/DraftAwardsCeremony";
 import DraftGradesBoard from "@/components/DraftGradesBoard";
-import { gradeDraft, type DraftGradeReport } from "@/lib/draftGrading";
+import { gradeDraft, type DraftGradeReport, type TeamGrade } from "@/lib/draftGrading";
 import PickModal from "@/components/PickModal";
 import DraftBoard from "@/components/DraftBoard";
 import DraftLobby from "@/components/DraftLobby";
@@ -25,10 +25,12 @@ import {
   pauseDraft,
   resetPickTimer,
   resumeDraft,
+  sendDraftRecapEmail,
   startDraft,
   undoPick,
 } from "@/lib/draftApi";
 import { createDraftResultsCsv } from "@/lib/draftExport";
+import { buildDraftRecap } from "@/lib/draftRecap";
 import {
   getPickNumberInRound,
   getRoundForPick,
@@ -78,7 +80,9 @@ function DraftCompleteModal({
   teams,
   leagueSlug,
   myTeamId,
+  isCommissioner,
   accentColor,
+  teamGrades,
   onShowAwards,
   onClose,
 }: {
@@ -87,12 +91,28 @@ function DraftCompleteModal({
   teams: Team[];
   leagueSlug: string | null | undefined;
   myTeamId: string | null;
+  isCommissioner: boolean;
   accentColor: string | null;
+  teamGrades: TeamGrade[] | null;
   onShowAwards: () => void;
   onClose: () => void;
 }) {
+  const [emailState, setEmailState] = useState<{
+    status: "idle" | "sending" | "sent" | "error";
+    message: string;
+  }>({ status: "idle", message: "" });
   const duration = computeDraftDuration(picks);
   const accent = accentColor ?? "var(--color-league-accent)";
+  const recap = buildDraftRecap({
+    draftName: draft.name,
+    teams,
+    picks,
+    teamGrades,
+  });
+  const topGrades = recap.teamRecaps
+    .filter((team) => team.grade && team.score !== null)
+    .sort((first, second) => (second.score ?? 0) - (first.score ?? 0))
+    .slice(0, 3);
   const myPicks = myTeamId
     ? [...picks]
         .filter((p) => p.teamId === myTeamId)
@@ -108,6 +128,23 @@ function DraftCompleteModal({
     a.download = `${draft.name.replace(/\s+/g, "-")}-results.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  }
+
+  async function emailRecap() {
+    setEmailState({ status: "sending", message: "Sending recap..." });
+
+    try {
+      const sentCount = await sendDraftRecapEmail(draft.id);
+      setEmailState({
+        status: "sent",
+        message: `Recap emailed to ${sentCount} ${sentCount === 1 ? "member" : "members"}.`,
+      });
+    } catch (error) {
+      setEmailState({
+        status: "error",
+        message: error instanceof Error ? error.message : "Unable to email draft recap.",
+      });
+    }
   }
 
   const particles = Array.from({ length: 24 }, (_, i) => ({
@@ -138,7 +175,7 @@ function DraftCompleteModal({
         />
       ))}
 
-      <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
+      <div className="relative flex max-h-[calc(100dvh-32px)] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-white/10 bg-slate-900 shadow-2xl">
         {/* Header with radial glow */}
         <div
           className="px-6 pb-5 pt-8 text-center"
@@ -176,9 +213,10 @@ function DraftCompleteModal({
           )}
         </div>
 
+        <div className="overflow-y-auto [scrollbar-width:thin]">
         {/* Your team picks */}
         {myPicks.length > 0 && (
-          <div className="px-5 py-4">
+          <div className="border-b border-white/8 px-5 py-4">
             <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Your Team</p>
             <div className="max-h-44 space-y-0.5 overflow-y-auto [scrollbar-width:thin]">
               {myPicks.map((pick) => (
@@ -195,6 +233,61 @@ function DraftCompleteModal({
           </div>
         )}
 
+        {topGrades.length > 0 && (
+          <div className="border-b border-white/8 px-5 py-4">
+            <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Draft Recap</p>
+            <div className="grid gap-2 sm:grid-cols-3">
+              {topGrades.map((team) => (
+                <div key={team.teamId} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                  <div className="text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">
+                    Top {topGrades.indexOf(team) + 1}
+                  </div>
+                  <div className="mt-1 truncate text-sm font-black text-white">{team.teamName}</div>
+                  <div className="mt-0.5 text-xs font-bold" style={{ color: accent }}>
+                    {team.grade} - {Math.round(team.score ?? 0)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="border-b border-white/8 px-5 py-4">
+          <p className="mb-2.5 text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Team Rosters</p>
+          <div className="grid max-h-56 gap-2 overflow-y-auto pr-1 [scrollbar-width:thin] sm:grid-cols-2">
+            {recap.teamRecaps.map((team) => (
+              <div key={team.teamId} className="rounded-xl border border-white/10 bg-white/[0.03] px-3 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-black text-white">{team.teamName}</div>
+                    <div className="truncate text-[11px] text-slate-500">{team.ownerName ?? "No owner assigned"}</div>
+                  </div>
+                  {team.grade && (
+                    <div className="shrink-0 text-xs font-black" style={{ color: accent }}>
+                      {team.grade}
+                    </div>
+                  )}
+                </div>
+                <div className="mt-2 space-y-1">
+                  {team.picks.slice(0, 4).map((pick) => (
+                    <div key={pick.id} className="flex items-center gap-2 text-xs">
+                      <span className="w-7 shrink-0 font-bold text-slate-600">{pick.round}.{pick.pickNumber}</span>
+                      <span className="min-w-0 flex-1 truncate font-semibold text-slate-200">{pick.playerName}</span>
+                      <span className="shrink-0 font-black text-slate-500">{pick.playerPosition}</span>
+                    </div>
+                  ))}
+                  {team.picks.length > 4 && (
+                    <div className="text-[11px] font-semibold text-slate-500">
+                      +{team.picks.length - 4} more picks
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        </div>
+
         {/* Actions */}
         <div className="px-5 pb-2 pt-3">
           <button
@@ -206,21 +299,48 @@ function DraftCompleteModal({
             🏆 Awards Ceremony
           </button>
         </div>
-        <div className="flex gap-3 px-5 pb-6 pt-1">
+        {emailState.message && (
+          <div className="px-5 pb-2">
+            <div
+              className={`rounded-xl border px-3 py-2 text-sm font-semibold ${
+                emailState.status === "error"
+                  ? "border-red-500/40 bg-red-950/40 text-red-100"
+                  : "border-emerald-400/30 bg-emerald-950/30 text-emerald-100"
+              }`}
+            >
+              {emailState.message}
+            </div>
+          </div>
+        )}
+        <div className={`grid gap-3 px-5 pb-6 pt-1 ${isCommissioner ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}>
           <button
             type="button"
             onClick={downloadCsv}
-            className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
+            className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
           >
             <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0">
               <path d="M8 2v8M5 7l3 3 3-3M2 12h12" />
             </svg>
             Download Results
           </button>
+          {isCommissioner && (
+            <button
+              type="button"
+              onClick={emailRecap}
+              disabled={emailState.status === "sending"}
+              className="flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10 disabled:cursor-wait disabled:opacity-60"
+            >
+              <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" className="h-4 w-4 shrink-0">
+                <path d="M2.5 4.5h11v7h-11z" />
+                <path d="m3 5 5 4 5-4" />
+              </svg>
+              Email Recap
+            </button>
+          )}
           {leagueSlug ? (
             <a
               href={`/leagues/${leagueSlug}`}
-              className="flex flex-1 items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
+              className="flex items-center justify-center rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
             >
               Return to League
             </a>
@@ -228,7 +348,7 @@ function DraftCompleteModal({
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
+              className="rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-bold text-slate-200 transition-colors hover:bg-white/10"
             >
               View Results
             </button>
@@ -1955,7 +2075,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     gradeCacheRef.current = { key, report };
     return report;
   }
-  const gradeReport = boardView === "grades" || showAwards ? getGradeReport() : null;
+  const gradeReport = boardView === "grades" || showAwards || showDraftComplete ? getGradeReport() : null;
   const currentRound = teamOnClock
     ? getRoundForPick(snapshot.draft.currentPick, snapshot.draft.teamCount)
     : null;
@@ -2916,7 +3036,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           teams={snapshot.teams}
           leagueSlug={leagueSlug}
           myTeamId={accessState.kind === "assigned" ? accessState.teamId : null}
+          isCommissioner={isCommissioner}
           accentColor={primaryColor}
+          teamGrades={gradeReport?.teams ?? null}
           onShowAwards={() => { setShowDraftComplete(false); setShowAwards(true); }}
           onClose={() => setShowDraftComplete(false)}
         />

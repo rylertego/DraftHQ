@@ -522,6 +522,40 @@ export async function inviteOwner(
   };
 }
 
+export async function sendDraftRecapEmail(draftId: string) {
+  await ensureAnonymousUser();
+  const { data: sessionData, error: sessionError } =
+    await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const accessToken = sessionData.session?.access_token;
+
+  if (!accessToken) {
+    throw new Error("Authentication session is missing.");
+  }
+
+  const response = await fetch(`/api/drafts/${draftId}/recap-email`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+    },
+  });
+  const payload = (await response.json()) as {
+    sentCount?: number;
+    error?: string;
+  };
+
+  if (!response.ok || typeof payload.sentCount !== "number") {
+    throw new Error(payload.error ?? "Unable to email draft recap.");
+  }
+
+  return payload.sentCount;
+}
+
 export async function updateTeamSetup(draftId: string, teams: Team[]) {
   await ensureAnonymousUser();
 
