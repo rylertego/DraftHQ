@@ -205,4 +205,131 @@ if (cleanupOnly) {
   process.exit(0);
 }
 
-console.log("Simulation not implemented yet.");
+let seasonId = null;
+let draftId = null;
+let leagueId = null;
+
+try {
+  const league = await selectRows(
+    admin.from("leagues").select("id,name,slug").limit(1).single(),
+    "league"
+  );
+  leagueId = league.id;
+  console.log(`League: ${league.name}`);
+
+  const clients = Array.from({ length: TEAM_COUNT }, createPublicClient);
+
+  const commissioner = await createSimUser(clients[0], "Sim Commissioner");
+  await ensureCommissioner(commissioner.id, leagueId);
+
+  const season = await rpc(clients[0], "create_league_season_draft", {
+    p_league_id: leagueId,
+    p_year: SIM_SEASON_YEAR,
+    p_season_name: `Simulation ${SIM_SEASON_YEAR}`,
+    p_draft_name: `SIMULATION — safe to delete (${new Date().toISOString()})`,
+    p_team_count: TEAM_COUNT,
+    p_rounds: ROUNDS,
+    p_display_name: "Sim Commissioner",
+  });
+  assert.ok(season?.id, "create_league_season_draft returned no season.");
+  assert.ok(season?.draft_id, "create_league_season_draft returned no draft id.");
+  seasonId = season.id;
+  draftId = season.draft_id;
+  assert.notEqual(draftId, PROTECTED_DRAFT_ID, "Simulation must not run on the league's real draft.");
+
+  const draft = await selectRows(
+    admin.from("drafts").select("id,join_code,status").eq("id", draftId).single(),
+    "draft"
+  );
+
+  const teams = await selectRows(
+    admin.from("teams").select("id,name,draft_position").eq("draft_id", draftId).order("draft_position"),
+    "teams"
+  );
+  assert.equal(teams.length, TEAM_COUNT, `Expected ${TEAM_COUNT} teams, got ${teams.length}.`);
+  console.log(`Teams seeded from the league: ${teams.map((t) => t.name).join(", ")}`);
+
+  // join_draft is the only way to create a participant — draft_participants is
+  // SELECT-only for every role. It also adds each joiner to the league's member
+  // list, which teardown removes.
+  for (let index = 1; index < TEAM_COUNT; index += 1) {
+    await createSimUser(clients[index], `Sim Owner ${index + 1}`);
+    await rpc(clients[index], "join_draft", {
+      p_join_code: draft.join_code,
+      p_display_name: `Sim Owner ${index + 1}`,
+    });
+  }
+
+  const participants = await selectRows(
+    admin.from("draft_participants").select("id,user_id,team_id").eq("draft_id", draftId),
+    "participants"
+  );
+
+  // clients[i] holds the session for the user seated at teams[i].
+  const orderedUserIds = [commissioner.id];
+  for (let index = 1; index < TEAM_COUNT; index += 1) {
+    const { data: sessionUser } = await clients[index].auth.getUser();
+    orderedUserIds.push(sessionUser.user.id);
+  }
+
+  // Do not assert participants.length === TEAM_COUNT: league teams with a
+  // continuing owner_user_id are auto-seated into every new season's draft by
+  // materialize_league_season, so the participant count exceeds TEAM_COUNT
+  // whenever the league already has owned teams (as this one does). What
+  // matters is that each of THIS run's ten clients has a seat to assign —
+  // extras belong to real owners and disappear when the draft is deleted.
+  const simParticipants = orderedUserIds.map((userId) =>
+    participants.find((p) => p.user_id === userId)
+  );
+  simParticipants.forEach((participant, index) => {
+    assert.ok(participant, `No participant found for simulated client ${index}.`);
+  });
+
+  const extras = participants.length - TEAM_COUNT;
+  if (extras > 0) {
+    console.log(
+      `Note: ${extras} continuing owner(s) were auto-seated by materialize_league_season. ` +
+      `Their teams are reassigned to simulated owners for this run, and every participant ` +
+      `row goes away when the draft is deleted.`
+    );
+  }
+
+  // Continuing owners are auto-seated WITH their team already assigned, and
+  // assign_team has no reassign mode — it raises 23505 on an occupied team.
+  // p_team_id: null is a supported unassign, so release those teams first.
+  // This only ever touches the throwaway simulated draft; the league team and
+  // its real owner_user_id are untouched.
+  const simUserIds = new Set(orderedUserIds);
+  for (const participant of participants) {
+    if (!participant.team_id || simUserIds.has(participant.user_id)) continue;
+    await rpc(clients[0], "assign_team", {
+      p_draft_id: draftId,
+      p_participant_id: participant.id,
+      p_team_id: null,
+    });
+    console.log(`Released a team held by a continuing owner for this simulated draft.`);
+  }
+
+  for (let index = 0; index < TEAM_COUNT; index += 1) {
+    const participant = simParticipants[index];
+    await rpc(clients[0], "assign_team", {
+      p_draft_id: draftId,
+      p_participant_id: participant.id,
+      p_team_id: teams[index].id,
+    });
+  }
+
+  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL ?? "https://www.drafthq.net";
+  console.log("");
+  console.log(`  Draft room:  ${siteUrl}/draft?draftId=${draftId}`);
+  console.log(`  Join code:   ${draft.join_code}`);
+  console.log("");
+  await prompt("Open the draft room, then press Enter to start the simulation… ");
+
+  await rpc(clients[0], "start_draft", { p_draft_id: draftId });
+  console.log("Draft started.\n");
+} catch (err) {
+  console.error(err);
+  await cleanup({ leagueId });
+  process.exit(1);
+}
