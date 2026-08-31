@@ -46,6 +46,16 @@ async function selectRows(query, description) {
   return data;
 }
 
+/** Both setup and standalone cleanup must resolve the SAME league. Without an
+ *  explicit order, Postgres may return a different row to each, which would
+ *  strand a simulated draft that cleanup then cannot find. */
+async function resolveLeague() {
+  return selectRows(
+    admin.from("leagues").select("id,name,slug").order("created_at", { ascending: true }).limit(1).single(),
+    "league"
+  );
+}
+
 async function prompt(message) {
   const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
   await rl.question(message);
@@ -175,6 +185,9 @@ async function cleanup({ leagueId } = {}) {
     if (relistError) throw relistError;
 
     for (const user of relisted?.users ?? []) {
+      // Bare prefix match on the email local part — a real account registered
+      // as sim-draft-*@... would be deleted here too. Acceptable only because
+      // this is a controlled sim script, not general-purpose user cleanup.
       if (!isSimEmail(user.email)) continue;
       const { data: deletedMembers, error: memberError } = await admin
         .from("league_members")
@@ -196,10 +209,7 @@ async function cleanup({ leagueId } = {}) {
 const cleanupOnly = process.argv.includes("--cleanup-only");
 
 if (cleanupOnly) {
-  const league = await selectRows(
-    admin.from("leagues").select("id,name").limit(1).single(),
-    "league"
-  );
+  const league = await resolveLeague();
   const removed = await cleanup({ leagueId: league.id });
   console.log(`Cleanup complete: ${JSON.stringify(removed)}`);
   process.exit(0);
@@ -210,12 +220,27 @@ let draftId = null;
 let leagueId = null;
 
 try {
-  const league = await selectRows(
-    admin.from("leagues").select("id,name,slug").limit(1).single(),
-    "league"
-  );
+  const league = await resolveLeague();
   leagueId = league.id;
   console.log(`League: ${league.name}`);
+
+  // Refuse to start a second run on top of a live one. Cleanup keys on
+  // year = 2100 + the sim email prefix, so an overlapping run's failure-path
+  // cleanup would delete the FIRST run's season, draft, members, and users
+  // out from under it. Do not auto-clean here — a live run must not be
+  // destroyed by a second invocation.
+  const existingSeasons = await selectRows(
+    admin.from("league_seasons").select("id").eq("league_id", leagueId).eq("year", SIM_SEASON_YEAR),
+    "existing simulated seasons"
+  );
+  if (existingSeasons.length > 0) {
+    console.error(
+      `A simulated season (year ${SIM_SEASON_YEAR}) already exists for this league. ` +
+      `Another run may be in progress. Run "npm run sim:draft -- --cleanup-only" first, ` +
+      `then retry.`
+    );
+    process.exit(1);
+  }
 
   const clients = Array.from({ length: TEAM_COUNT }, createPublicClient);
 
@@ -324,13 +349,18 @@ try {
   console.log(`  Draft room:  ${siteUrl}/draft?draftId=${draftId}`);
   console.log(`  Join code:   ${draft.join_code}`);
   console.log("");
+  console.log(
+    "  If you abort with Ctrl-C, a simulated commissioner remains in the league's " +
+    "member list until you run \"npm run sim:draft -- --cleanup-only\"."
+  );
+  console.log("");
   await prompt("Open the draft room, then press Enter to start the simulation… ");
 
   await rpc(clients[0], "start_draft", { p_draft_id: draftId });
   console.log("Draft started.\n");
 
   const players = await selectRows(
-    admin.from("players").select("id,name").limit(400),
+    admin.from("players").select("id,full_name").eq("active", true).limit(400),
     "players"
   );
   assert.ok(players.length >= PICK_COUNT, `Need ${PICK_COUNT} players, found ${players.length}.`);
@@ -353,7 +383,7 @@ try {
         overallPickNumber: overall,
         teamCount: TEAM_COUNT,
         teamName: teams[teamIndex].name,
-        playerName: player.name,
+        playerName: player.full_name,
       })
     );
     if (overall < PICK_COUNT) await sleep(PICK_DELAY_MS);
@@ -389,7 +419,7 @@ try {
   assert.equal(completedDraft.current_pick, PICK_COUNT + 1, `current_pick is ${completedDraft.current_pick}, expected ${PICK_COUNT + 1}.`);
 
   console.log("");
-  console.log(`✓ ${PICK_COUNT} picks, snake order correct, all players distinct, draft complete.`);
+  console.log(`✓ ${PICK_COUNT} picks, server accepted all picks in snake order, all players distinct, draft complete.`);
   console.log("");
   await prompt("Inspect the finished board, then press Enter to delete the simulation… ");
 } catch (err) {
