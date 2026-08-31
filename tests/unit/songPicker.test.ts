@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 import { parseYouTubeVideoId } from "@/components/SongPicker";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SongPlaybackBadge } from "@/app/leagues/[slug]/my-team/MyTeamForm";
+import { SongPlaybackBadge, TeamOwnerPanel } from "@/app/leagues/[slug]/my-team/MyTeamForm";
 import { needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import type { WalkUpSong } from "@/types/draft";
 import SongPicker, {
@@ -163,5 +163,41 @@ describe("SpotifyConnectPanel", () => {
     expect(html).toContain("Spotify connected.");
     expect(html).toMatch(/<button[^>]*>Disconnect<\/button>/);
     expect(html).not.toContain(">Connect<");
+  });
+});
+
+describe("TeamOwnerPanel", () => {
+  const members = [{ userId: "u1", displayName: "Tyler" }];
+
+  it("offers assignment and invitation for an unowned team", () => {
+    const html = renderToStaticMarkup(
+      createElement(TeamOwnerPanel, {
+        ownerDisplayName: null,
+        members,
+        selectedOwnerUserId: "",
+        onAssign: () => undefined,
+        onInvite: () => undefined,
+        assigning: false,
+        inviting: false,
+      }),
+    );
+    expect(html).toContain("Unassigned");
+    expect(html).toContain("Tyler");
+  });
+
+  it("names the current owner", () => {
+    const html = renderToStaticMarkup(
+      createElement(TeamOwnerPanel, {
+        ownerDisplayName: "Tyler",
+        members,
+        selectedOwnerUserId: "u1",
+        onAssign: () => undefined,
+        onInvite: () => undefined,
+        assigning: false,
+        inviting: false,
+      }),
+    );
+    expect(html).toContain("Tyler");
+    expect(html).not.toContain("Unassigned");
   });
 });

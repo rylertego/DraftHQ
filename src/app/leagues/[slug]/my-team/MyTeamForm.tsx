@@ -7,7 +7,9 @@ import SongPicker from "@/components/SongPicker";
 import { MAX_WALK_UP_SONGS } from "@/lib/draftAudio";
 import { isSpotifyConnected, needsSpotifyReconnect } from "@/lib/spotifyAuth";
 import {
+  assignLeagueTeamOwner,
   getLeagueTeams,
+  inviteLeagueMember,
   updateLeagueTeamDetails,
   updateMyLeagueTeamDetails,
   uploadMyLeagueTeamLogoAsset,
@@ -31,6 +33,67 @@ export function SongPlaybackBadge() {
     <span className="rounded-full border border-[color:var(--color-warning)]/40 bg-[color:var(--color-warning)]/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-[color:var(--color-warning)]">
       Reconnect to play
     </span>
+  );
+}
+
+export function TeamOwnerPanel({
+  ownerDisplayName,
+  members,
+  selectedOwnerUserId,
+  onAssign,
+  onInvite,
+  assigning,
+  inviting,
+}: {
+  ownerDisplayName: string | null;
+  members: Array<{ userId: string; displayName: string }>;
+  selectedOwnerUserId: string;
+  onAssign: (userId: string) => void;
+  onInvite: (email: string) => void;
+  assigning: boolean;
+  inviting: boolean;
+}) {
+  const [email, setEmail] = useState("");
+  return (
+    <Panel title="Owner">
+      <p className="text-sm leading-6 text-[color:var(--color-text-secondary)]">
+        Current owner: {ownerDisplayName ?? "Unassigned"}
+      </p>
+
+      <Field label="Assign a league member" controlId="team-owner-select">
+        <Select
+          id="team-owner-select"
+          value={selectedOwnerUserId}
+          disabled={assigning}
+          onChange={(e) => onAssign(e.target.value)}
+        >
+          <option value="">{ownerDisplayName ? "Remove owner" : "Unassigned"}</option>
+          {members.map((m) => (
+            <option key={m.userId} value={m.userId}>{m.displayName}</option>
+          ))}
+        </Select>
+      </Field>
+
+      <Field label="Or invite by email" controlId="team-owner-invite">
+        <div className="flex gap-[var(--space-2)]">
+          <Input
+            id="team-owner-invite"
+            type="email"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            placeholder="owner@example.com"
+          />
+          <Button
+            scope="league"
+            onClick={() => { onInvite(email.trim()); setEmail(""); }}
+            disabled={!email.trim() || inviting}
+            loading={inviting}
+          >
+            Invite
+          </Button>
+        </div>
+      </Field>
+    </Panel>
   );
 }
 
@@ -234,6 +297,39 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
     closeSongPicker();
     setSuccess(false);
     void persistSongs(next);
+  }
+
+  const [assigningOwner, setAssigningOwner] = useState(false);
+  const [invitingOwner, setInvitingOwner] = useState(false);
+
+  async function handleAssignOwner(userId: string) {
+    if (!team || !league) return;
+    setAssigningOwner(true);
+    setError("");
+    try {
+      await assignLeagueTeamOwner(league.id, team.id, userId || null);
+      const refreshed = await getLeagueTeams(league.id);
+      const updated = refreshed.find((t) => t.id === team.id);
+      if (updated) applyUpdatedTeam(updated);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to assign that owner.");
+    } finally {
+      setAssigningOwner(false);
+    }
+  }
+
+  async function handleInviteOwner(email: string) {
+    if (!team || !league || !email) return;
+    setInvitingOwner(true);
+    setError("");
+    try {
+      await inviteLeagueMember(league.id, email, { leagueTeamId: team.id });
+      setSuccess(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unable to send that invite.");
+    } finally {
+      setInvitingOwner(false);
+    }
   }
 
   async function handleSave() {
@@ -580,6 +676,21 @@ export default function MyTeamForm({ slug, teamId: teamIdParam }: { slug: string
               </div>
             )}
           </Panel>
+
+          {canManage && team && (
+            <TeamOwnerPanel
+              ownerDisplayName={team.ownerDisplayName}
+              members={(workspace?.members ?? []).map((m) => ({
+                userId: m.userId,
+                displayName: m.displayName ?? "Member",
+              }))}
+              selectedOwnerUserId={team.ownerUserId ?? ""}
+              assigning={assigningOwner}
+              inviting={invitingOwner}
+              onAssign={handleAssignOwner}
+              onInvite={handleInviteOwner}
+            />
+          )}
 
           {error && <Alert status="danger">{error}</Alert>}
           {success && (

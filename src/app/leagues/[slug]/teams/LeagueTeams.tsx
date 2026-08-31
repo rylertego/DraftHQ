@@ -8,12 +8,9 @@ import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import {
   getLeagueTeams,
   createLeagueTeam,
-  updateLeagueTeamDetails,
-  uploadLeagueTeamLogo,
   deleteLeagueTeam,
   archiveLeagueTeam,
   unarchiveLeagueTeam,
-  assignLeagueTeamOwner,
   inviteLeagueMember,
 } from "@/lib/leagueApi";
 import type { LeagueMember, LeagueTeam } from "@/types/league";
@@ -237,302 +234,6 @@ function ConfirmDeleteModal({
   );
 }
 
-// ── Edit Team modal ───────────────────────────────────────────────────────────
-
-function EditTeamModal({
-  team,
-  members,
-  onClose,
-  onSaved,
-  onInvite,
-}: {
-  team: LeagueTeam;
-  members: LeagueMember[];
-  onClose: () => void;
-  onSaved: (updates: Partial<LeagueTeam>) => void;
-  onInvite: (email: string) => Promise<void>;
-}) {
-  const [name, setName] = useState(team.name);
-  const [shortName, setShortName] = useState(team.shortName ?? "");
-  const [ownerName, setOwnerName] = useState(team.ownerName ?? "");
-  const [ownerUserId, setOwnerUserId] = useState(team.ownerUserId ?? "");
-  const [logoPreview, setLogoPreview] = useState<string | null>(team.logoUrl);
-  const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviting, setInviting] = useState(false);
-  const [inviteStatus, setInviteStatus] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [assigningOwner, setAssigningOwner] = useState(false);
-  const [error, setError] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
-
-  const avatarColor = "#" + ((team.name.charCodeAt(0) * 9999991) % 0xffffff).toString(16).padStart(6, "0");
-  const initials = team.name.trim().slice(0, 2).toUpperCase() || "T";
-  const ownerAssigned = Boolean(ownerUserId);
-  const selectedOwnerName = ownerUserId
-    ? members.find((member) => member.userId === ownerUserId)?.displayName ?? team.ownerDisplayName ?? "Assigned owner"
-    : "Unassigned";
-
-  function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setLogoFile(file);
-    setLogoPreview(URL.createObjectURL(file));
-  }
-
-  async function handleInvite() {
-    if (!inviteEmail.trim()) return;
-    setInviting(true);
-    setInviteStatus("");
-    try {
-      await onInvite(inviteEmail.trim());
-      setInviteStatus(`Invite sent to ${inviteEmail.trim()}`);
-      setInviteEmail("");
-    } catch (err) {
-      setInviteStatus(err instanceof Error ? err.message : "Unable to send invite.");
-    } finally {
-      setInviting(false);
-    }
-  }
-
-  async function handleAssignOwner(userId: string | null) {
-    setAssigningOwner(true);
-    setError("");
-    try {
-      await assignLeagueTeamOwner(team.leagueId, team.id, userId);
-      const member = userId ? members.find((m) => m.userId === userId) : undefined;
-      onSaved({
-        ownerUserId: userId,
-        ownerDisplayName: member?.displayName ?? null,
-        ownerAvatarUrl: member?.avatarUrl ?? null,
-      });
-      setOwnerUserId(userId ?? "");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Unable to assign owner.");
-    } finally {
-      setAssigningOwner(false);
-    }
-  }
-
-  async function handleSave() {
-    if (!name.trim()) return;
-    setSaving(true);
-    setError("");
-    try {
-      let logoUrl = team.logoUrl;
-      if (logoFile) {
-        setUploadingLogo(true);
-        logoUrl = await uploadLeagueTeamLogo(team.leagueId, team.id, logoFile);
-        setUploadingLogo(false);
-      }
-      await updateLeagueTeamDetails(team.leagueId, team.id, {
-        name: name.trim(),
-        shortName: shortName.trim() || null,
-        ownerName: ownerName.trim() || null,
-        logoUrl,
-      });
-      onSaved({ name: name.trim(), shortName: shortName.trim() || null, ownerName: ownerName.trim() || null, logoUrl });
-      onClose();
-    } catch (err) {
-      setUploadingLogo(false);
-      setError(err instanceof Error ? err.message : "Unable to save.");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Dialog
-      open
-      onClose={onClose}
-      size="large"
-      title="Edit Team"
-      description="Manage franchise identity and owner assignment for draft night."
-      footer={
-        <>
-          <Button variant="secondary" onClick={onClose} disabled={saving}>
-            Cancel
-          </Button>
-          <Button
-            scope="league"
-            loading={saving}
-            disabled={assigningOwner || !name.trim()}
-            onClick={() => void handleSave()}
-          >
-            {saving ? (uploadingLogo ? "Uploading logo..." : "Saving...") : "Save Changes"}
-          </Button>
-        </>
-      }
-    >
-      <div className="flex flex-col gap-[var(--space-5)]">
-        {/* Team Identity stays a separate section from Owner Assignment — they
-            are different jobs, and the task treats them as such. */}
-        <section className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-4)]">
-          <div className="mb-[var(--space-4)]">
-            <h3 className="text-sm font-black text-[color:var(--color-text-primary)]">Team Identity</h3>
-            <p className="mt-1 text-xs leading-5 text-[color:var(--color-text-muted)]">
-              Name, abbreviation, and logo used across DraftHQ.
-            </p>
-          </div>
-
-          <div className="grid gap-[var(--space-5)] sm:grid-cols-[112px_1fr]">
-            <div>
-              {/* Kept as a custom dropzone rather than FileUpload: the preview
-                  is the control here, and a file-input row would lose that. */}
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="group relative flex h-28 w-28 items-center justify-center overflow-hidden rounded-2xl border border-dashed border-[color:var(--color-border-strong)] bg-[var(--color-surface-1)] text-[color:var(--color-text-primary)] transition-colors hover:border-[color:var(--color-league-accent)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--color-league-focus-ring)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--color-canvas)]"
-                title="Upload team logo"
-                aria-label="Upload team logo"
-              >
-                {logoPreview ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={logoPreview} alt="" className="h-full w-full object-contain p-2" />
-                ) : (
-                  <div className="flex h-full w-full items-center justify-center text-2xl font-black text-[color:var(--color-text-primary)]" style={{ backgroundColor: avatarColor + "55" }}>
-                    {initials}
-                  </div>
-                )}
-                <div className="absolute inset-x-0 bottom-0 bg-[var(--color-canvas)]/80 px-2 py-2 text-center text-[10px] font-black uppercase tracking-[0.14em] opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
-                  {logoPreview ? "Replace" : "Upload"}
-                </div>
-              </button>
-              <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
-              <p className="mt-1 text-xs text-[color:var(--color-text-muted)]">PNG, JPG, or WEBP. 4MB max.</p>
-              {logoFile && !uploadingLogo && (
-                <p className="mt-1 text-xs font-semibold text-[color:var(--color-league-accent)]">New logo selected. Save to apply.</p>
-              )}
-              {uploadingLogo && (
-                <p className="mt-1 text-xs font-semibold text-[color:var(--color-league-accent)]">Uploading logo...</p>
-              )}
-            </div>
-
-            <div className="grid content-start gap-[var(--space-4)] sm:grid-cols-2">
-              <div className="sm:col-span-2">
-                <Field
-                  label="Team Name"
-                  controlId="edit-team-name"
-                  required
-                  description="This is the primary franchise name shown in league views."
-                >
-                  <Input
-                    required
-                    maxLength={100}
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                  />
-                </Field>
-              </div>
-              <Field
-                label="Short Name"
-                controlId="edit-team-short-name"
-                description="Optional compact label for tight draft displays."
-              >
-                <Input
-                  maxLength={10}
-                  placeholder="e.g. Eagles"
-                  value={shortName}
-                  onChange={(e) => setShortName(e.target.value)}
-                />
-              </Field>
-            </div>
-          </div>
-        </section>
-
-        <section className="rounded-[var(--radius-surface)] border border-[color:var(--color-border-subtle)] bg-[var(--color-surface-2)] p-[var(--space-4)]">
-          <div className="mb-[var(--space-4)] flex items-start justify-between gap-[var(--space-3)]">
-            <div>
-              <h3 className="text-sm font-black text-[color:var(--color-text-primary)]">Owner Assignment</h3>
-              <p className="mt-1 text-xs leading-5 text-[color:var(--color-text-muted)]">
-                Assign a league member, invite an owner, or leave this franchise open.
-              </p>
-            </div>
-            <StatusBadge label={selectedOwnerName} tone={ownerAssigned ? "complete" : "warning"} />
-          </div>
-
-          <div className="grid gap-[var(--space-4)]">
-            <Field
-              label="Assigned Owner"
-              controlId="edit-team-owner"
-              description="Select Unassigned to remove the current owner from this team."
-            >
-              <Select
-                value={ownerUserId}
-                disabled={assigningOwner || saving}
-                onChange={(e) => void handleAssignOwner(e.target.value || null)}
-              >
-                <option value="">Unassigned</option>
-                {members.map((m) => <option key={m.userId} value={m.userId}>{m.displayName}</option>)}
-              </Select>
-            </Field>
-
-            {assigningOwner && (
-              <p className="-mt-[var(--space-2)] text-xs font-semibold text-[color:var(--color-league-accent)]">
-                Updating owner assignment...
-              </p>
-            )}
-
-            <Field
-              label="Owner Display Name"
-              controlId="edit-team-owner-name"
-              description="Optional draft-room display name. This does not change the owner account profile."
-            >
-              <Input
-                maxLength={100}
-                placeholder="Name shown during the draft"
-                value={ownerName}
-                onChange={(e) => setOwnerName(e.target.value)}
-              />
-            </Field>
-          </div>
-
-          {!ownerUserId && (
-            <div className="mt-[var(--space-4)] border-t border-[color:var(--color-border-subtle)] pt-[var(--space-4)]">
-              <Field
-                label="Invite Owner by Email"
-                controlId="edit-team-invite"
-                description="Use this when the owner is not yet listed as a league member."
-              >
-                <div className="flex flex-col gap-[var(--space-2)] sm:flex-row">
-                  <Input
-                    type="email"
-                    maxLength={320}
-                    placeholder="owner@example.com"
-                    value={inviteEmail}
-                    onChange={(e) => setInviteEmail(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); void handleInvite(); } }}
-                  />
-                  <div className="shrink-0">
-                    <Button
-                      variant="secondary"
-                      loading={inviting}
-                      disabled={!inviteEmail.trim()}
-                      onClick={() => void handleInvite()}
-                    >
-                      {inviting ? "Sending..." : "Invite"}
-                    </Button>
-                  </div>
-                </div>
-              </Field>
-              {inviteStatus && (
-                <div className="mt-[var(--space-2)]">
-                  <Alert status={inviteStatus.startsWith("Invite sent") ? "success" : "danger"}>
-                    {inviteStatus}
-                  </Alert>
-                </div>
-              )}
-            </div>
-          )}
-        </section>
-
-        {error && <Alert status="danger">{error}</Alert>}
-      </div>
-    </Dialog>
-  );
-}
-
 // One definition of the table geometry, used by the header and by every row.
 // These were two separate literals and they had drifted: the rows carried gap-4
 // and the header did not, so the Actions label sat a gap-width right of the
@@ -750,7 +451,6 @@ export default function LeagueTeams({ slug }: { slug: string }) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [successMessage, setSuccessMessage] = useState("");
   const [pendingDelete, setPendingDelete] = useState<LeagueTeam | null>(null);
-  const [editingTeam, setEditingTeam] = useState<LeagueTeam | null>(null);
 
   const league = workspace?.league;
   const canManage = workspace?.canManage ?? false;
@@ -768,10 +468,6 @@ export default function LeagueTeams({ slug }: { slug: string }) {
       .finally(() => { if (active) setTeamsLoading(false); });
     return () => { active = false; };
   }, [league]);
-
-  function handleTeamSaved(teamId: string, updates: Partial<LeagueTeam>) {
-    setTeams((prev) => prev.map((t) => t.id === teamId ? { ...t, ...updates } : t));
-  }
 
   async function handleDelete(teamId: string) {
     if (!league) return;
@@ -888,19 +584,6 @@ export default function LeagueTeams({ slug }: { slug: string }) {
         />
       )}
 
-      {editingTeam && (
-        <EditTeamModal
-          team={editingTeam}
-          members={members}
-          onClose={() => setEditingTeam(null)}
-          onSaved={(updates) => {
-            handleTeamSaved(editingTeam.id, updates);
-            setEditingTeam((prev) => prev ? { ...prev, ...updates } : null);
-          }}
-          onInvite={async (email) => { await inviteLeagueMember(editingTeam.leagueId, email, { leagueTeamId: editingTeam.id }); }}
-        />
-      )}
-
       {showImportModal && league && (
         <LeagueImportModal
           leagueId={league.id}
@@ -980,7 +663,7 @@ export default function LeagueTeams({ slug }: { slug: string }) {
                   teamChangesLocked={teamChangesLocked}
                   onRequestDelete={setPendingDelete}
                   onArchive={handleArchive}
-                  onEdit={setEditingTeam}
+                  onEdit={(team) => router.push(`/leagues/${slug}/my-team?teamId=${team.id}`)}
                 />
               ))}
             </div>
