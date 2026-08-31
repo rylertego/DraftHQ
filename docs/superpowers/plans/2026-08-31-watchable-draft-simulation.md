@@ -4,333 +4,253 @@
 
 **Goal:** A script that runs a full 15-round draft inside the real league at a watchable pace, so the commissioner can see every pick land on the right team, then verify snake order and completion before deleting everything it created.
 
-**Architecture:** Pure decision logic lives in `scripts/lib/simDraft.mjs` and is unit-tested with vitest. The orchestration script `scripts/sim-draft.mjs` does the I/O: service-role setup, authenticated picks through `make_pick`, assertions, and teardown. Setup may use the service role; the pick path may not, because pick ordering is the thing under test.
+**Architecture:** Pure decision logic lives in `scripts/lib/simDraft.mjs` and is unit-tested with vitest. The orchestration script `scripts/sim-draft.mjs` does the I/O. **Every write goes through a SECURITY DEFINER RPC called by an authenticated commissioner** — this database grants no INSERT/UPDATE/DELETE on `drafts`, `teams`, or `draft_participants` to any role, including `service_role`. The service role is used only for creating auth users, reading, and writing `league_members`.
 
 **Tech Stack:** Node ESM (`.mjs`), `@supabase/supabase-js`, `node:assert/strict`, `node:readline`, Vitest 4.
 
+## REVISION NOTE — read before implementing
+
+Version 1 of this plan assumed the service role could insert `draft_participants`
+and delete `drafts`. That is false, and it caused a failed run that left orphaned
+rows in the production database. The facts below were verified directly against
+the live project and supersede any contrary instinct:
+
+| Table | `service_role` | `authenticated` |
+| --- | --- | --- |
+| `drafts` | SELECT only | SELECT only |
+| `teams` | SELECT only | SELECT only |
+| `draft_participants` | SELECT only | SELECT only |
+| `league_seasons` | SELECT only | SELECT, INSERT, UPDATE, DELETE |
+| `league_members` | SELECT, INSERT, DELETE | SELECT, INSERT, UPDATE, DELETE |
+
+Consequences, all of which this revision bakes in:
+
+- Participants are seated with the `join_draft` RPC, not a direct insert.
+- The draft is deleted with the `reset_season_draft(p_season_id)` RPC as an
+  authenticated commissioner, which cascades to teams, picks, and participants.
+- `join_draft` adds each joiner to the league's member list. That is now
+  acceptable **because `league_members` rows can be deleted**, which was not true
+  of `drafts`. Teardown removes them.
+- `is_league_commissioner` recognises only role `'commissioner'` — NOT
+  `'co-commissioner'`.
+- `league_seasons.year` has a `[2000, 2100]` CHECK, so the sentinel year is
+  `2100`, not `2999`.
+- CAPTCHA protection is enabled on Auth, so `signInWithPassword` is refused for
+  headless scripts. Sessions come from `admin.auth.admin.generateLink` +
+  `client.auth.verifyOtp({ type: "email" })`, which is confirmed working.
+
 ## Global Constraints
 
-- Runs against PRODUCTION Supabase. It may create only a disposable draft, a
-  disposable league season, disposable auth users, and one disposable
-  `league_members` row. It must never UPDATE or DELETE any pre-existing league,
-  league team, walk-up song, or draft.
-- It must never touch the real draft `bed6865c-2795-4ef9-823f-d4f031f841c5`
-  ("2026 Draft", status `setup`). Assert the id it operates on differs from this.
-- Existing scripts are the house pattern: read `scripts/test-full-draft.mjs`
-  before writing anything. Reuse its `rpc()`, `selectRows()`, and
-  `createUserAndSignIn()` shapes rather than inventing new ones.
-- Secrets come from `.env.local` via `node --env-file=.env.local`, as the other
-  scripts do. Never print a key or a generated password.
-- Vitest tests live in `tests/unit/` and may not click, type, or fire events.
-  There is no jsdom. These tests are pure-function tests, so that does not arise.
+- Runs against PRODUCTION Supabase. It may create only: one `league_seasons` row
+  (year 2100), one draft (via RPC), ten auth users with `sim-draft-` emails, the
+  `league_members` rows `join_draft` creates, and the participants `join_draft`
+  creates. It must never UPDATE or DELETE any pre-existing league, league team,
+  walk-up song, or draft.
+- It must never touch the real draft `bed6865c-2795-4ef9-823f-d4f031f841c5`.
+- Never print a Supabase key or an auth token.
+- Node ESM `.mjs` under `scripts/`; follow `scripts/test-full-draft.mjs` for
+  `rpc()` and `selectRows()` shapes.
+- Secrets come from `.env.local` via `node --env-file=.env.local`.
+- Vitest tests live in `tests/unit/`; no jsdom, no event firing.
 - 10 teams, 15 rounds, 150 picks, ~5 seconds per pick.
 - Commit after every task.
 
-## Deviation From The Spec
+---
 
-The spec says setup runs "via service role". That is not fully possible:
-`create_league_draft` guards on `is_league_commissioner(p_league_id)`, which
-resolves identity through `auth.uid()` (`20260622000000_add_league_identity_layer.sql:75-91`).
-Under a service-role client `auth.uid()` is null, so the guard rejects it.
+### Task 1: Pure simulation helpers — ALREADY COMPLETE
 
-Therefore one throwaway user is inserted into `league_members` with role
-`co-commissioner`, creates the draft as an authenticated user, and that row is
-deleted during teardown. This is one transient row rather than the ten permanent
-ones `join_draft` would have added, and it keeps draft creation on the same code
-path the app uses. Recorded here rather than silently done.
+Committed as `5a56b98`. `scripts/lib/simDraft.mjs` exports `SIM_EMAIL_PREFIX`,
+`isSimEmail`, `snakeTeamIndex`, and `formatPickLine`, with tests in
+`tests/unit/simDraft.test.ts`. Do not redo it.
 
 ---
 
-### Task 1: Pure simulation helpers
+### Task 2: Rewrite setup and teardown on the RPC path
+
+The scaffold from commit `eacce8a` exists but its `cleanup()` cannot work — it
+deletes from `drafts` and `league_seasons` as the service role, which is denied.
+This task replaces the whole authentication/setup/teardown core.
 
 **Files:**
-- Create: `scripts/lib/simDraft.mjs`
-- Test: `tests/unit/simDraft.test.ts` (new)
-
-**Interfaces:**
-- Produces:
-  - `snakeTeamIndex(overallPickNumber: number, teamCount: number): number`
-  - `formatPickLine({ overallPickNumber, teamCount, teamName, playerName }): string`
-  - `SIM_EMAIL_PREFIX: string` — `"sim-draft-"`
-  - `isSimEmail(email: string | null | undefined): boolean`
-
-- [ ] **Step 1: Write the failing test**
-
-Create `tests/unit/simDraft.test.ts`:
-
-```ts
-import { describe, expect, it } from "vitest";
-import {
-  snakeTeamIndex,
-  formatPickLine,
-  isSimEmail,
-  SIM_EMAIL_PREFIX,
-} from "../../scripts/lib/simDraft.mjs";
-
-describe("snakeTeamIndex", () => {
-  it("runs the first round forwards", () => {
-    expect(snakeTeamIndex(1, 10)).toBe(0);
-    expect(snakeTeamIndex(10, 10)).toBe(9);
-  });
-
-  it("reverses the second round", () => {
-    expect(snakeTeamIndex(11, 10)).toBe(9);
-    expect(snakeTeamIndex(20, 10)).toBe(0);
-  });
-
-  it("turns back again for the third round", () => {
-    expect(snakeTeamIndex(21, 10)).toBe(0);
-    expect(snakeTeamIndex(30, 10)).toBe(9);
-  });
-
-  it("gives the same team back-to-back picks across a turn", () => {
-    // pick 10 ends round 1, pick 11 opens round 2 — both team index 9
-    expect(snakeTeamIndex(10, 10)).toBe(snakeTeamIndex(11, 10));
-  });
-
-  it("covers every team exactly once per round", () => {
-    const round = Array.from({ length: 10 }, (_, i) => snakeTeamIndex(i + 1, 10));
-    expect([...round].sort((a, b) => a - b)).toEqual([0,1,2,3,4,5,6,7,8,9]);
-  });
-});
-
-describe("formatPickLine", () => {
-  it("labels round and pick-in-round, not just the overall number", () => {
-    expect(
-      formatPickLine({ overallPickNumber: 27, teamCount: 10, teamName: "Trap Queens", playerName: "Ja'Marr Chase" })
-    ).toBe("R3.07  overall 27  →  Trap Queens picks Ja'Marr Chase");
-  });
-
-  it("pads the pick-in-round so lines stay aligned", () => {
-    expect(
-      formatPickLine({ overallPickNumber: 1, teamCount: 10, teamName: "A", playerName: "B" })
-    ).toBe("R1.01  overall 1  →  A picks B");
-  });
-});
-
-describe("isSimEmail", () => {
-  it("recognises addresses this script generates", () => {
-    expect(isSimEmail(`${SIM_EMAIL_PREFIX}abc@example.com`)).toBe(true);
-  });
-
-  it("leaves real accounts alone", () => {
-    expect(isSimEmail("rylertego@gmail.com")).toBe(false);
-    expect(isSimEmail("full-draft-123@example.com")).toBe(false);
-    expect(isSimEmail(null)).toBe(false);
-    expect(isSimEmail(undefined)).toBe(false);
-  });
-});
-```
-
-- [ ] **Step 2: Run test to verify it fails**
-
-Run: `npx vitest --run tests/unit/simDraft.test.ts`
-Expected: FAIL — `scripts/lib/simDraft.mjs` does not exist.
-
-- [ ] **Step 3: Write minimal implementation**
-
-Create `scripts/lib/simDraft.mjs`:
-
-```js
-/** Pure helpers for the watchable draft simulation. Kept free of Supabase and
- *  node I/O so they can be unit-tested; the orchestration lives in
- *  scripts/sim-draft.mjs. */
-
-export const SIM_EMAIL_PREFIX = "sim-draft-";
-
-/** Snake order: odd rounds run forwards, even rounds backwards. Matches
- *  getTeamIndex in scripts/test-full-draft.mjs. */
-export function snakeTeamIndex(overallPickNumber, teamCount) {
-  const round = Math.floor((overallPickNumber - 1) / teamCount) + 1;
-  const pickIndex = (overallPickNumber - 1) % teamCount;
-  return round % 2 === 1 ? pickIndex : teamCount - pickIndex - 1;
-}
-
-/** One console line per pick, shaped so it can be read against the draft board
- *  on screen: round, pick-in-round, overall number, team, player. */
-export function formatPickLine({ overallPickNumber, teamCount, teamName, playerName }) {
-  const round = Math.floor((overallPickNumber - 1) / teamCount) + 1;
-  const pickInRound = ((overallPickNumber - 1) % teamCount) + 1;
-  const padded = String(pickInRound).padStart(2, "0");
-  return `R${round}.${padded}  overall ${overallPickNumber}  →  ${teamName} picks ${playerName}`;
-}
-
-/** Cleanup must be able to find this script's users without a prior run's
- *  bookkeeping, and must never match a real account. */
-export function isSimEmail(email) {
-  return typeof email === "string" && email.startsWith(SIM_EMAIL_PREFIX);
-}
-```
-
-- [ ] **Step 4: Run test to verify it passes**
-
-Run: `npx vitest --run tests/unit/simDraft.test.ts`
-Expected: PASS (10 assertions across 3 describes)
-
-- [ ] **Step 5: Commit**
-
-```bash
-git add scripts/lib/simDraft.mjs tests/unit/simDraft.test.ts
-git commit -m "Add pure helpers for the draft simulation"
-```
-
----
-
-### Task 2: Script scaffold and standalone cleanup
-
-Cleanup comes first so that every later task can be run and undone safely.
-
-**Files:**
-- Create: `scripts/sim-draft.mjs`
-- Modify: `package.json` (scripts section)
+- Modify: `scripts/sim-draft.mjs`
 
 **Interfaces:**
 - Consumes: `SIM_EMAIL_PREFIX`, `isSimEmail` from Task 1
-- Produces: `npm run sim:draft` and `npm run sim:draft -- --cleanup-only`
+- Produces: `createSimUser(client, displayName)`, `ensureCommissioner(client)`, `cleanup({ seasonId, leagueId })`, and a working `--cleanup-only` path
 
-- [ ] **Step 1: Write the scaffold**
+- [ ] **Step 1: Replace user creation with admin-minted sessions**
 
-Create `scripts/sim-draft.mjs`:
+Replace the whole `createSimUser` function (or add it if the scaffold lacks one)
+with:
 
 ```js
-import assert from "node:assert/strict";
-import readline from "node:readline/promises";
-import { createClient } from "@supabase/supabase-js";
-import { SIM_EMAIL_PREFIX, isSimEmail, snakeTeamIndex, formatPickLine } from "./lib/simDraft.mjs";
+/** CAPTCHA protection is enabled on this project, so signInWithPassword is
+ *  refused for a headless script. An admin-generated link carries a
+ *  server-minted token, which verifyOtp accepts without a captcha. No password
+ *  is ever created or used. */
+async function createSimUser(client, displayName) {
+  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const email = `${SIM_EMAIL_PREFIX}${suffix}@example.com`;
 
-const TEAM_COUNT = 10;
-const ROUNDS = 15;
-const PICK_COUNT = TEAM_COUNT * ROUNDS;
-const PICK_DELAY_MS = 5000;
-const SIM_SEASON_YEAR = 2999;
-
-/** The league's real draft. Guarded against explicitly: 150 simulated picks
- *  would destroy it. */
-const PROTECTED_DRAFT_ID = "bed6865c-2795-4ef9-823f-d4f031f841c5";
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const publishableKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-const secretKey = process.env.SUPABASE_SECRET_KEY ?? process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-if (!supabaseUrl || !publishableKey || !secretKey) {
-  throw new Error(
-    "NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY, and a Supabase secret key are required. Run via: npm run sim:draft"
-  );
-}
-
-const admin = createClient(supabaseUrl, secretKey, {
-  auth: { autoRefreshToken: false, persistSession: false },
-});
-
-function createPublicClient() {
-  return createClient(supabaseUrl, publishableKey, {
-    auth: { autoRefreshToken: false, persistSession: false },
+  const { data: created, error: createError } = await admin.auth.admin.createUser({
+    email,
+    email_confirm: true,
+    user_metadata: { display_name: displayName },
   });
-}
+  if (createError || !created.user) throw createError ?? new Error("User creation returned no user.");
 
-async function rpc(client, name, args) {
-  const { data, error } = await client.rpc(name, args);
+  const { data: link, error: linkError } = await admin.auth.admin.generateLink({
+    type: "magiclink",
+    email,
+  });
+  if (linkError || !link?.properties?.hashed_token) {
+    throw linkError ?? new Error("generateLink returned no token.");
+  }
+
+  const { data: session, error: verifyError } = await client.auth.verifyOtp({
+    token_hash: link.properties.hashed_token,
+    type: "email",
+  });
+  if (verifyError || !session.session) throw verifyError ?? new Error("verifyOtp returned no session.");
+
+  return created.user;
+}
+```
+
+- [ ] **Step 2: Add the commissioner helper**
+
+`create_league_season_draft` and `reset_season_draft` both require
+`is_league_commissioner`, which reads `auth.uid()` and accepts ONLY the role
+`'commissioner'`. Add:
+
+```js
+/** Seats a signed-in sim user as a league commissioner so it can call the
+ *  draft RPCs. league_members is one of the few tables the service role may
+ *  write, which is what makes this possible at all. */
+async function ensureCommissioner(userId, leagueId) {
+  const { error } = await admin.from("league_members").upsert(
+    { league_id: leagueId, user_id: userId, role: "commissioner", nickname: "Sim Commissioner" },
+    { onConflict: "league_id,user_id" }
+  );
   if (error) throw error;
-  return Array.isArray(data) ? data[0] : data;
 }
+```
 
-async function selectRows(query, description) {
-  const { data, error } = await query;
-  if (error) throw error;
-  assert.ok(data, `${description} returned no data.`);
-  return data;
-}
+- [ ] **Step 3: Rewrite cleanup on the RPC path**
 
-async function prompt(message) {
-  const rl = readline.createInterface({ input: process.stdin, output: process.stdout });
-  await rl.question(message);
-  rl.close();
-}
+Replace the entire `cleanup` function with:
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-
-/** Removes everything this script creates, whether or not the run that created
- *  it finished. Safe to run repeatedly. */
-async function cleanup({ draftId, seasonId, leagueId } = {}) {
+```js
+/** Teardown runs as an authenticated commissioner, because drafts, teams, and
+ *  draft_participants are SELECT-only for every role — all writes go through
+ *  SECURITY DEFINER RPCs. reset_season_draft deletes the draft and cascades to
+ *  teams, picks, and participants. Safe to run repeatedly. */
+async function cleanup({ leagueId } = {}) {
   const removed = { drafts: 0, seasons: 0, members: 0, users: 0 };
+  if (!leagueId) return removed;
 
-  if (draftId) {
-    assert.notEqual(draftId, PROTECTED_DRAFT_ID, "Refusing to delete the league's real draft.");
-    await admin.from("drafts").delete().eq("id", draftId);
-    removed.drafts += 1;
-  }
+  // Find leftover simulated seasons. Reading is permitted for the service role.
+  const { data: seasons, error: seasonReadError } = await admin
+    .from("league_seasons")
+    .select("id,draft_id")
+    .eq("league_id", leagueId)
+    .eq("year", SIM_SEASON_YEAR);
+  if (seasonReadError) throw seasonReadError;
 
-  if (seasonId) {
-    await admin.from("league_seasons").delete().eq("id", seasonId);
-    removed.seasons += 1;
-  }
+  const { data: listed, error: listError } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (listError) throw listError;
+  const simUsers = (listed?.users ?? []).filter((u) => isSimEmail(u.email));
 
-  // Any stray simulated season from an interrupted run.
-  if (leagueId) {
-    const { data: strays } = await admin
-      .from("league_seasons")
-      .select("id,draft_id")
-      .eq("league_id", leagueId)
-      .eq("year", SIM_SEASON_YEAR);
-    for (const stray of strays ?? []) {
-      if (stray.draft_id && stray.draft_id !== PROTECTED_DRAFT_ID) {
-        await admin.from("drafts").delete().eq("id", stray.draft_id);
-        removed.drafts += 1;
+  if ((seasons ?? []).length > 0) {
+    // Deleting a draft needs an authenticated commissioner. Reuse a leftover sim
+    // user if one exists, otherwise mint one just for the teardown.
+    const client = createPublicClient();
+    let janitorId;
+    if (simUsers.length > 0) {
+      const email = simUsers[0].email;
+      const { data: link, error: linkError } = await admin.auth.admin.generateLink({ type: "magiclink", email });
+      if (linkError || !link?.properties?.hashed_token) throw linkError ?? new Error("generateLink returned no token.");
+      const { data: session, error: verifyError } = await client.auth.verifyOtp({
+        token_hash: link.properties.hashed_token,
+        type: "email",
+      });
+      if (verifyError || !session.session) throw verifyError ?? new Error("verifyOtp returned no session.");
+      janitorId = simUsers[0].id;
+    } else {
+      const janitor = await createSimUser(client, "Sim Janitor");
+      janitorId = janitor.id;
+    }
+    await ensureCommissioner(janitorId, leagueId);
+
+    for (const season of seasons) {
+      if (season.draft_id === PROTECTED_DRAFT_ID) {
+        throw new Error("A simulated season points at the real draft — refusing to reset it.");
       }
-      await admin.from("league_seasons").delete().eq("id", stray.id);
-      removed.seasons += 1;
+      await rpc(client, "reset_season_draft", { p_season_id: season.id });
+      if (season.draft_id) removed.drafts += 1;
+
+      const { data: deletedSeasons, error: seasonDeleteError } = await client
+        .from("league_seasons")
+        .delete()
+        .eq("id", season.id)
+        .select("id");
+      if (seasonDeleteError) throw seasonDeleteError;
+      removed.seasons += deletedSeasons?.length ?? 0;
     }
   }
 
-  // Simulated users, found by email prefix so no bookkeeping is needed.
-  const { data: listed } = await admin.auth.admin.listUsers({ perPage: 1000 });
-  for (const user of listed?.users ?? []) {
+  // Re-list: the janitor may have been created above.
+  const { data: relisted, error: relistError } = await admin.auth.admin.listUsers({ perPage: 1000 });
+  if (relistError) throw relistError;
+
+  for (const user of relisted?.users ?? []) {
     if (!isSimEmail(user.email)) continue;
-    await admin.from("league_members").delete().eq("user_id", user.id);
-    removed.members += 1;
-    await admin.auth.admin.deleteUser(user.id);
+    const { data: deletedMembers, error: memberError } = await admin
+      .from("league_members")
+      .delete()
+      .eq("user_id", user.id)
+      .select("id");
+    if (memberError) throw memberError;
+    removed.members += deletedMembers?.length ?? 0;
+
+    const { error: deleteUserError } = await admin.auth.admin.deleteUser(user.id);
+    if (deleteUserError) throw deleteUserError;
     removed.users += 1;
   }
 
   return removed;
 }
+```
 
-const cleanupOnly = process.argv.includes("--cleanup-only");
+Also change the constant near the top:
 
-if (cleanupOnly) {
-  const league = await selectRows(
-    admin.from("leagues").select("id,name").limit(1).single(),
-    "league"
-  );
+```js
+const SIM_SEASON_YEAR = 2100; // league_seasons.year has a [2000, 2100] CHECK
+```
+
+And make `--cleanup-only` pass the league id, which it already looks up:
+
+```js
   const removed = await cleanup({ leagueId: league.id });
-  console.log(`Cleanup complete: ${JSON.stringify(removed)}`);
-  process.exit(0);
-}
-
-console.log("Simulation not implemented yet.");
 ```
 
-- [ ] **Step 2: Add the npm scripts**
-
-In `package.json`, after the existing `"test:full-draft"` line, add:
-
-```json
-    "sim:draft": "node --env-file=.env.local scripts/sim-draft.mjs",
-```
-
-- [ ] **Step 3: Verify cleanup runs against a clean database**
+- [ ] **Step 4: Verify cleanup against a clean database**
 
 Run: `npm run sim:draft -- --cleanup-only`
-Expected: prints `Cleanup complete: {"drafts":0,"seasons":0,"members":0,"users":0}` and exits 0. Nothing was created yet, so nothing should be removed. A non-zero count here means the database already holds strays and is worth investigating before continuing.
+Expected: `Cleanup complete: {"drafts":0,"seasons":0,"members":0,"users":0}`, exit 0.
+
+This still proves little on its own — Task 3's verification is where cleanup is
+proven against real rows. Note that honestly in the report rather than claiming
+cleanup is verified.
 
 Run: `npx vitest --run tests/unit/simDraft.test.ts`
-Expected: PASS — the helpers are imported by the script now, so this catches a broken import path.
+Expected: PASS.
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
-git add scripts/sim-draft.mjs package.json
-git commit -m "Add draft simulation scaffold with standalone cleanup"
+git add scripts/sim-draft.mjs
+git commit -m "Move simulation setup and teardown onto the RPC path"
 ```
 
 ---
@@ -341,36 +261,17 @@ git commit -m "Add draft simulation scaffold with standalone cleanup"
 - Modify: `scripts/sim-draft.mjs`
 
 **Interfaces:**
-- Consumes: `rpc`, `selectRows`, `cleanup`, `prompt` from Task 2
-- Produces: a started draft with 10 assigned participants, ready for picks
+- Consumes: `createSimUser`, `ensureCommissioner`, `cleanup` from Task 2
+- Produces: a started draft with ten assigned participants, ready for picks
 
 - [ ] **Step 1: Replace the placeholder with setup**
 
-Replace the final `console.log("Simulation not implemented yet.");` with:
+Replace the trailing `console.log("Simulation not implemented yet.");` with:
 
 ```js
-const createdUserIds = [];
-let draftId = null;
 let seasonId = null;
+let draftId = null;
 let leagueId = null;
-
-async function createSimUser(client, displayName) {
-  const suffix = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
-  const email = `${SIM_EMAIL_PREFIX}${suffix}@example.com`;
-  const password = `Sim-${suffix}-Aa!`;
-  const { data: created, error: createError } = await admin.auth.admin.createUser({
-    email,
-    password,
-    email_confirm: true,
-    user_metadata: { display_name: displayName },
-  });
-  if (createError || !created.user) throw createError ?? new Error("User creation returned no user.");
-  createdUserIds.push(created.user.id);
-
-  const { data: signedIn, error: signInError } = await client.auth.signInWithPassword({ email, password });
-  if (signInError || !signedIn.session) throw signInError ?? new Error("Sign-in returned no session.");
-  return created.user;
-}
 
 try {
   const league = await selectRows(
@@ -380,20 +281,10 @@ try {
   leagueId = league.id;
   console.log(`League: ${league.name}`);
 
-  // One simulated co-commissioner. create_league_draft guards on
-  // is_league_commissioner, which reads auth.uid(), so the service role cannot
-  // create the draft itself. This row is removed during teardown.
   const clients = Array.from({ length: TEAM_COUNT }, createPublicClient);
+
   const commissioner = await createSimUser(clients[0], "Sim Commissioner");
-  // league_members has no display_name column — the optional label is `nickname`
-  // (verified against the live schema). `co-commissioner` is a permitted role.
-  const { error: memberError } = await admin.from("league_members").insert({
-    league_id: leagueId,
-    user_id: commissioner.id,
-    role: "co-commissioner",
-    nickname: "Sim Commissioner",
-  });
-  if (memberError) throw memberError;
+  await ensureCommissioner(commissioner.id, leagueId);
 
   const season = await rpc(clients[0], "create_league_season_draft", {
     p_league_id: leagueId,
@@ -422,40 +313,33 @@ try {
   assert.equal(teams.length, TEAM_COUNT, `Expected ${TEAM_COUNT} teams, got ${teams.length}.`);
   console.log(`Teams seeded from the league: ${teams.map((t) => t.name).join(", ")}`);
 
-  // Seat the commissioner, then one owner per remaining team. Participants are
-  // inserted directly: join_draft would also add each of them to the real
-  // league's member list.
-  const participantRows = [{
-    draft_id: draftId,
-    user_id: commissioner.id,
-    display_name: "Sim Commissioner",
-    role: "commissioner",
-  }];
+  // join_draft is the only way to create a participant — draft_participants is
+  // SELECT-only for every role. It also adds each joiner to the league's member
+  // list, which teardown removes.
   for (let index = 1; index < TEAM_COUNT; index += 1) {
-    const owner = await createSimUser(clients[index], `Sim Owner ${index + 1}`);
-    participantRows.push({
-      draft_id: draftId,
-      user_id: owner.id,
-      display_name: `Sim Owner ${index + 1}`,
-      role: "owner",
+    await createSimUser(clients[index], `Sim Owner ${index + 1}`);
+    await rpc(clients[index], "join_draft", {
+      p_join_code: draft.join_code,
+      p_display_name: `Sim Owner ${index + 1}`,
     });
   }
 
-  await admin.from("draft_participants").delete().eq("draft_id", draftId);
-  const { error: participantError } = await admin.from("draft_participants").insert(participantRows);
-  if (participantError) throw participantError;
-
   const participants = await selectRows(
-    admin.from("draft_participants").select("id,user_id").eq("draft_id", draftId),
+    admin.from("draft_participants").select("id,user_id,display_name").eq("draft_id", draftId),
     "participants"
   );
-  assert.equal(participants.length, TEAM_COUNT, "Expected one participant per team.");
+  assert.equal(participants.length, TEAM_COUNT, `Expected ${TEAM_COUNT} participants, got ${participants.length}.`);
 
-  // createdUserIds[i] corresponds to clients[i]: the commissioner was created
-  // first, then owners 2..10 in order, each signed in on its own client.
+  // clients[i] holds the session for the user seated at teams[i].
+  const orderedUserIds = [commissioner.id];
+  for (let index = 1; index < TEAM_COUNT; index += 1) {
+    const { data: sessionUser } = await clients[index].auth.getUser();
+    orderedUserIds.push(sessionUser.user.id);
+  }
+
   for (let index = 0; index < TEAM_COUNT; index += 1) {
-    const participant = participants.find((p) => p.user_id === createdUserIds[index]);
-    assert.ok(participant, `Participant ${index + 1} missing.`);
+    const participant = participants.find((p) => p.user_id === orderedUserIds[index]);
+    assert.ok(participant, `Participant for client ${index} not found.`);
     await rpc(clients[0], "assign_team", {
       p_draft_id: draftId,
       p_participant_id: participant.id,
@@ -474,28 +358,27 @@ try {
   console.log("Draft started.\n");
 } catch (err) {
   console.error(err);
-  await cleanup({ draftId, seasonId, leagueId });
+  await cleanup({ leagueId });
   process.exit(1);
 }
 ```
 
-Note: the pick loop in Task 4 indexes `clients` directly by team index, so no user-to-client map is needed.
+- [ ] **Step 2: Verify setup AND prove cleanup works on real rows**
 
-- [ ] **Step 2: Verify setup and immediately clean up**
+This is where cleanup is actually proven. Run all three, and run the second even
+if the first fails:
 
-Run: `npm run sim:draft`
+1. `timeout 180 npm run sim:draft`
+   Expected: prints the league name, ten seeded team names (your real team names),
+   a draft URL, and a join code.
+2. `npm run sim:draft -- --cleanup-only`
+   Expected: **NON-ZERO** counts — the draft, the season, the member rows, and the
+   sim users are removed. This is the real test of Task 2's cleanup.
+3. `npm run sim:draft -- --cleanup-only`
+   Expected: all zeros, proving cleanup is idempotent.
 
-Expected: it prints the league name, the ten seeded team names (your real team names, e.g. "Team 8"), the draft URL, and a join code, then waits at the prompt. Open the URL and confirm the lobby shows your real team logos.
-
-Then press Ctrl-C without continuing, and run:
-
-Run: `npm run sim:draft -- --cleanup-only`
-Expected: reports non-zero counts — the draft, the season, the member row, and the ten users are removed.
-
-Verify nothing of yours was touched:
-
-Run: `npm run sim:draft -- --cleanup-only`
-Expected: all counts back to 0 on the second run.
+If step 3 does not return all zeros, STOP and report BLOCKED with the exact
+counts. Leftover rows in a production database are the one unacceptable outcome.
 
 - [ ] **Step 3: Commit**
 
@@ -517,7 +400,8 @@ git commit -m "Create the simulated draft and seat its participants"
 
 - [ ] **Step 1: Add the pick loop, assertions, and teardown**
 
-Replace the `console.log("Draft started.\n");` line with the following, keeping it inside the same `try`:
+Replace `console.log("Draft started.\n");` with the following, keeping it inside
+the same `try`:
 
 ```js
   console.log("Draft started.\n");
@@ -528,7 +412,6 @@ Replace the `console.log("Draft started.\n");` line with the following, keeping 
   );
   assert.ok(players.length >= PICK_COUNT, `Need ${PICK_COUNT} players, found ${players.length}.`);
 
-  // Shuffle so each run drafts a different board.
   for (let i = players.length - 1; i > 0; i -= 1) {
     const j = Math.floor(Math.random() * (i + 1));
     [players[i], players[j]] = [players[j], players[i]];
@@ -588,54 +471,46 @@ Replace the `console.log("Draft started.\n");` line with the following, keeping 
   await prompt("Inspect the finished board, then press Enter to delete the simulation… ");
 } catch (err) {
   console.error(err);
-  await cleanup({ draftId, seasonId, leagueId });
+  await cleanup({ leagueId });
   process.exit(1);
 }
 
-const removed = await cleanup({ draftId, seasonId, leagueId });
+const removed = await cleanup({ leagueId });
 console.log(`Cleaned up: ${JSON.stringify(removed)}`);
 ```
 
-Delete the now-duplicated `catch` block that Task 3 added — there must be exactly one `try`/`catch`, with the cleanup call after it.
+There must be exactly one `try`/`catch`, with the final cleanup after it.
 
-- [ ] **Step 2: Verify the helpers still pass**
-
-Run: `npx vitest --run tests/unit/simDraft.test.ts`
-Expected: PASS
+- [ ] **Step 2: Verify the suite**
 
 Run: `npm test -- --run`
-Expected: check the "Test Files" line reads all files passed. A file that crashes on import contributes no test results, so a healthy test count can hide a failing file.
+Expected: check the "Test Files" line reads all files passed. A file that crashes
+on import contributes no results, so a healthy test count can hide a failing file.
 
-- [ ] **Step 3: Run the simulation end to end**
+- [ ] **Step 3: Hand the end-to-end run to the plan owner**
 
-Run: `npm run sim:draft`
-
-This takes roughly 13 minutes. Watch the draft room while it runs and confirm:
-- each pick appears on the board against the team named in the console
-- the snake turns at picks 10→11, 20→21, and so on — the same team picks twice in a row
-- the walk-up player behaves as expected
-
-At the end it prints the summary and waits. Inspect the board, press Enter, and confirm the cleanup line reports the draft, season, member row, and ten users removed.
-
-Then confirm your real data survived: open the league, check the roster still lists your ten teams with no extra members, and that the real "2026 Draft" is still there in `setup`.
+The full run takes ~13 minutes and pauses twice for a keypress, so it needs a
+human at the terminal. Do NOT run it to completion yourself. Report that Task 4
+is code-complete and ready for a supervised run.
 
 - [ ] **Step 4: Commit**
 
 ```bash
 git add scripts/sim-draft.mjs
-git commit -m "Run and verify the watchable draft simulation"
+git commit -m "Add the paced pick loop, assertions, and teardown"
 ```
 
 ---
 
 ## Known Risks
 
-- The script writes to production. It creates only a disposable season, draft,
-  ten users, and one `league_members` row, and never updates a pre-existing row.
-- A Ctrl-C between setup and teardown strands those rows until
-  `npm run sim:draft -- --cleanup-only` runs. That is why cleanup landed in
-  Task 2, before anything could create strays.
+- The script writes to production. It creates only a disposable season, a draft
+  (via RPC), ten users, and league-member rows, and never updates a pre-existing
+  row.
+- A Ctrl-C between setup and teardown strands rows until
+  `npm run sim:draft -- --cleanup-only` runs. Cleanup is now on the RPC path, so
+  unlike version 1 of this plan it can actually delete what it created.
 - `cleanup` deletes every auth user whose email starts with `sim-draft-`. That
   prefix must never be used for a real account.
-- The run takes ~13 minutes of wall clock. It is a human-watched rehearsal, not
-  something to put in CI; `test-full-draft.mjs` remains the fast check.
+- The run takes ~13 minutes of wall clock and pauses for keypresses. It is a
+  human-watched rehearsal, not a CI job.
