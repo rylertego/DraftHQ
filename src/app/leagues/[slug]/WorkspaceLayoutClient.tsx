@@ -6,10 +6,11 @@ import LeagueAccessDenied from "@/components/LeagueAccessDenied";
 import { useLeagueWorkspace } from "@/hooks/useLeagueWorkspace";
 import { LeagueWorkspaceContext } from "@/context/LeagueWorkspaceContext";
 import { DEFAULT_ACCENT, DEFAULT_BG, useLeagueTheme } from "@/context/LeagueThemeContext";
+import { teamNavLabel } from "@/lib/teamEditing";
 import { useEffect } from "react";
 import { PageShell } from "@/components/ui";
 
-function SidebarNav({ slug }: { slug: string }) {
+function SidebarNav({ slug, canManage }: { slug: string; canManage: boolean }) {
   const pathname = usePathname();
   const { accentColor: primary } = useLeagueTheme();
   const base = `/leagues/${slug}`;
@@ -39,7 +40,7 @@ function SidebarNav({ slug }: { slug: string }) {
     },
     {
       href: `${base}/my-team`,
-      label: "My Team",
+      label: teamNavLabel(canManage),
       icon: (
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <path d="M10 2.5l5.5 2v4.2c0 3.6-2.2 6.8-5.5 8.8-3.3-2-5.5-5.2-5.5-8.8V4.5l5.5-2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -96,7 +97,7 @@ function SidebarNav({ slug }: { slug: string }) {
   );
 }
 
-function BottomMobileNav({ slug }: { slug: string }) {
+function BottomMobileNav({ slug, canManage }: { slug: string; canManage: boolean }) {
   const pathname = usePathname();
   const { accentColor: primary } = useLeagueTheme();
   const base = `/leagues/${slug}`;
@@ -126,7 +127,7 @@ function BottomMobileNav({ slug }: { slug: string }) {
     },
     {
       href: `${base}/my-team`,
-      label: "My Team",
+      label: teamNavLabel(canManage),
       icon: (
         <svg viewBox="0 0 20 20" fill="none" className="h-5 w-5">
           <path d="M10 2.5l5.5 2v4.2c0 3.6-2.2 6.8-5.5 8.8-3.3-2-5.5-5.2-5.5-8.8V4.5l5.5-2z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
@@ -179,6 +180,7 @@ export default function WorkspaceLayoutClient({
   const { setAccentColor, setBgColor, accentColor: primary, bgColor: secondary } = useLeagueTheme();
 
   const league = ctx.workspace?.league;
+  const canManage = Boolean(ctx.workspace?.canManage);
 
   useEffect(() => {
     if (league) {
@@ -276,7 +278,7 @@ export default function WorkspaceLayoutClient({
             {/* ── Nav ── */}
             <div className="flex-1 overflow-y-auto p-3 pt-4">
               {ctx.workspace && (
-                <SidebarNav slug={slug} />
+                <SidebarNav slug={slug} canManage={canManage} />
               )}
             </div>
 
@@ -294,7 +296,7 @@ export default function WorkspaceLayoutClient({
 
       {/* ── Bottom nav (mobile) ──────────────────────────────────────────── */}
       {ctx.workspace && (
-        <BottomMobileNav slug={slug} />
+        <BottomMobileNav slug={slug} canManage={canManage} />
       )}
     </LeagueWorkspaceContext.Provider>
   );

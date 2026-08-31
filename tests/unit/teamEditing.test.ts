@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { resolveInitialTeamId, isTeamProfileDirty } from "@/lib/teamEditing";
+import { resolveInitialTeamId, isTeamProfileDirty, teamNavLabel } from "@/lib/teamEditing";
 
 describe("resolveInitialTeamId", () => {
   const teams = ["t1", "t2", "t3"];
@@ -46,5 +46,15 @@ describe("isTeamProfileDirty", () => {
 
   it("ignores surrounding whitespace", () => {
     expect(isTeamProfileDirty({ ...saved, name: "  Team 8  " }, saved, false)).toBe(false);
+  });
+});
+
+describe("teamNavLabel", () => {
+  it("says Teams for anyone who can manage the league", () => {
+    expect(teamNavLabel(true)).toBe("Teams");
+  });
+
+  it("says My Team for a plain member", () => {
+    expect(teamNavLabel(false)).toBe("My Team");
   });
 });

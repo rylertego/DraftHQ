@@ -28,3 +28,8 @@ export function isTeamProfileDirty(
   const keys: Array<keyof TeamProfileFields> = ["name", "shortName", "ownerName", "ttsName"];
   return keys.some((key) => form[key].trim() !== team[key].trim());
 }
+
+/** Managers edit any team from this entry, so "My Team" would understate it. */
+export function teamNavLabel(canManage: boolean): string {
+  return canManage ? "Teams" : "My Team";
+}
