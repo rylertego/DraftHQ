@@ -172,6 +172,6 @@ describe("SpotifyConnectPanel", () => {
       }),
     );
     expect(html).toContain("Opening Spotify");
-    expect(html).toContain("disabled");
+    expect(html).toMatch(/<button[^>]*\sdisabled/);
   });
 });

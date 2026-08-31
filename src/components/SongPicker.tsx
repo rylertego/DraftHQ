@@ -123,6 +123,22 @@ export default function SongPicker({ onSelect, onClose }: Props) {
     setTab(defaultSongPickerTab(linked));
   }, []);
 
+  // Self-heal if the user dismisses the Spotify popup without authorizing —
+  // initiateSpotifyPopup only calls back on success, so without this the
+  // Connect button would stay stuck reading "Opening Spotify…" forever.
+  // Mirrors MyTeamForm's syncSpotifyState focus listener.
+  useEffect(() => {
+    function syncSpotifyState() {
+      setConnected(isSpotifyConnected());
+      setConnecting(false);
+    }
+
+    window.addEventListener("focus", syncSpotifyState);
+    return () => {
+      window.removeEventListener("focus", syncSpotifyState);
+    };
+  }, []);
+
   useEffect(() => {
     if (!debouncedQuery.trim()) { setResults([]); setError(""); return; }
 

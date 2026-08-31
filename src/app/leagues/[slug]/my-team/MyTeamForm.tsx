@@ -177,9 +177,14 @@ export default function MyTeamForm({ slug }: { slug: string }) {
     setSuccess(false);
   }
 
+  function closeSongPicker() {
+    setShowSongPicker(false);
+    setSpotifyConnected(isSpotifyConnected());
+  }
+
   function addSong(song: WalkUpSong) {
     setWalkUpSongs((prev) => [...prev, song].slice(0, MAX_WALK_UP_SONGS));
-    setShowSongPicker(false);
+    closeSongPicker();
     setSuccess(false);
   }
 
@@ -533,13 +538,7 @@ export default function MyTeamForm({ slug }: { slug: string }) {
       </div>
 
       {showSongPicker && (
-        <SongPicker
-          onSelect={addSong}
-          onClose={() => {
-            setShowSongPicker(false);
-            setSpotifyConnected(isSpotifyConnected());
-          }}
-        />
+        <SongPicker onSelect={addSong} onClose={closeSongPicker} />
       )}
     </>
   );
