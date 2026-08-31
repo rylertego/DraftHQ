@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { buildLeagueTeamPatch } from "@/lib/leagueApi";
+import { buildLeagueTeamPatch } from "@/lib/leagueTeamPatch";
 
 describe("buildLeagueTeamPatch", () => {
   it("omits every field that was not supplied", () => {
