@@ -328,8 +328,75 @@ try {
 
   await rpc(clients[0], "start_draft", { p_draft_id: draftId });
   console.log("Draft started.\n");
+
+  const players = await selectRows(
+    admin.from("players").select("id,name").limit(400),
+    "players"
+  );
+  assert.ok(players.length >= PICK_COUNT, `Need ${PICK_COUNT} players, found ${players.length}.`);
+
+  for (let i = players.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [players[i], players[j]] = [players[j], players[i]];
+  }
+
+  for (let overall = 1; overall <= PICK_COUNT; overall += 1) {
+    const teamIndex = snakeTeamIndex(overall, TEAM_COUNT);
+    const player = players[overall - 1];
+    await rpc(clients[teamIndex], "make_pick", {
+      p_draft_id: draftId,
+      p_player_id: player.id,
+      p_expected_pick: overall,
+    });
+    console.log(
+      formatPickLine({
+        overallPickNumber: overall,
+        teamCount: TEAM_COUNT,
+        teamName: teams[teamIndex].name,
+        playerName: player.name,
+      })
+    );
+    if (overall < PICK_COUNT) await sleep(PICK_DELAY_MS);
+  }
+
+  const [completedDraft, completedPicks] = await Promise.all([
+    selectRows(
+      admin.from("drafts").select("current_pick,status").eq("id", draftId).single(),
+      "completed draft"
+    ),
+    selectRows(
+      admin.from("picks").select("team_id,player_id,overall_pick_number").eq("draft_id", draftId).order("overall_pick_number"),
+      "completed picks"
+    ),
+  ]);
+
+  const expectedTeamIds = Array.from(
+    { length: PICK_COUNT },
+    (_, index) => teams[snakeTeamIndex(index + 1, TEAM_COUNT)].id
+  );
+  const mismatches = completedPicks
+    .map((pick, index) => (pick.team_id === expectedTeamIds[index] ? null : pick.overall_pick_number))
+    .filter((n) => n !== null);
+
+  assert.equal(completedPicks.length, PICK_COUNT, `Expected ${PICK_COUNT} picks, got ${completedPicks.length}.`);
+  assert.deepEqual(mismatches, [], `Picks landed on the wrong team at: ${mismatches.join(", ")}`);
+  assert.equal(
+    new Set(completedPicks.map((p) => p.player_id)).size,
+    PICK_COUNT,
+    "The same player was drafted more than once."
+  );
+  assert.equal(completedDraft.status, "complete", `Draft status is ${completedDraft.status}, expected complete.`);
+  assert.equal(completedDraft.current_pick, PICK_COUNT + 1, `current_pick is ${completedDraft.current_pick}, expected ${PICK_COUNT + 1}.`);
+
+  console.log("");
+  console.log(`✓ ${PICK_COUNT} picks, snake order correct, all players distinct, draft complete.`);
+  console.log("");
+  await prompt("Inspect the finished board, then press Enter to delete the simulation… ");
 } catch (err) {
   console.error(err);
   await cleanup({ leagueId });
   process.exit(1);
 }
+
+const removed = await cleanup({ leagueId });
+console.log(`Cleaned up: ${JSON.stringify(removed)}`);
