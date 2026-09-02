@@ -17,6 +17,7 @@ import {
   commissionerEditPick,
   commissionerMakePick,
   configureDraftTimer,
+  commissionerSkipPick,
   expireCurrentPick,
   extendClock,
   getByeWeeks,
@@ -1380,7 +1381,6 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const handleTimerExpired = useCallback(() => {
     if (!draftId || !snapshot || isExpiringPick) return;
     if (status !== "connected") return;
-    if (snapshot.currentUserId !== snapshot.draft.commissionerUserId) return;
 
     const expectedPick = snapshot.draft.currentPick;
     setIsExpiringPick(true);
@@ -1399,11 +1399,35 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         setIsExpiringPick(false);
       });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draftId, snapshot?.draft.currentPick, snapshot?.currentUserId, snapshot?.draft.commissionerUserId, isExpiringPick, status]);
+  }, [draftId, snapshot?.draft.currentPick, isExpiringPick, status]);
 
+  /**
+   * Skipping on purpose is a different event from a clock running out, so it
+   * takes a different RPC. Routing it through the expiry path meant the button
+   * silently declined whenever the clock was still running — which is every
+   * time a commissioner actually wants to press it.
+   */
   function handleSkipPick() {
     setShowCommishMenu(false);
-    handleTimerExpired();
+    if (!draftId || !snapshot || isExpiringPick) return;
+
+    const expectedPick = snapshot.draft.currentPick;
+    setIsExpiringPick(true);
+    setActionError("");
+
+    void commissionerSkipPick(draftId, expectedPick)
+      .then((updatedDraft) => {
+        applyDraftUpdate(updatedDraft);
+        return refresh();
+      })
+      .catch((err: unknown) => {
+        setActionError(
+          err instanceof Error ? err.message : "Unable to skip the pick."
+        );
+      })
+      .finally(() => {
+        setIsExpiringPick(false);
+      });
   }
 
   async function handleExtendClock() {

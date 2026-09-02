@@ -1230,6 +1230,28 @@ export async function expireCurrentPick(draftId: string, expectedPick: number) {
   return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
 }
 
+/**
+ * Deliberate commissioner skip, as distinct from a clock expiring.
+ *
+ * expireCurrentPick enforces the automatic policy — it declines while the clock
+ * is still running and declines entirely when timer_behavior is 'nothing' — so
+ * driving the button through it made the button do nothing. This path
+ * authorizes the commissioner and advances regardless of clock or policy.
+ */
+export async function commissionerSkipPick(draftId: string, expectedPick: number) {
+  await ensureAnonymousUser();
+  const { data, error } = await supabase.rpc("commissioner_skip_pick", {
+    p_draft_id: draftId,
+    p_expected_pick: expectedPick,
+  });
+
+  if (error) {
+    throw error;
+  }
+
+  return mapDraft(getSingleRow<DraftRow>(data, "the updated draft"));
+}
+
 export async function resetDraft(draftId: string): Promise<void> {
   await ensureAnonymousUser();
   const { error } = await supabase.rpc("reset_draft", { p_draft_id: draftId });
