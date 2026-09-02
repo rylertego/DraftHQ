@@ -31,6 +31,7 @@ import {
   undoPick,
 } from "@/lib/draftApi";
 import { createDraftResultsCsv } from "@/lib/draftExport";
+import { resolveOnClockStagedPlayerId } from "@/lib/draftStaging";
 import { buildDraftRecap } from "@/lib/draftRecap";
 import {
   getPickNumberInRound,
@@ -895,6 +896,8 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     lastSyncedAt,
     isRefreshing,
     onlineUserIds,
+    stagedByUserId,
+    publishStagedPlayer,
     applyDraftUpdate,
   } = useRealtimeDraftRoom(draftId);
   const [showPickModal, setShowPickModal] = useState(false);
@@ -1551,12 +1554,39 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     setRoundRecap({ round: completedRound, picks: roundPicks });
   }, [snapshot?.draft.currentPick, snapshot?.picks.length, suppressRecap, landmineActive]);
 
-  // "The pick is in" sound when user stages a player
+  // Whether the team on the clock has a pick staged.
+  //
+  // This is the gate for announcing "the pick is in". Keying off the team on
+  // the clock rather than off whoever staged means an owner queueing a pick
+  // three turns early stays silent: their staging is published immediately but
+  // only surfaces once the clock reaches them.
+  //
+  // Own staging is read from local state instead of the presence map so it
+  // shows without waiting for the round trip.
+  const onClockStagedPlayerId = snapshot
+    ? resolveOnClockStagedPlayerId({
+        teams: snapshot.teams,
+        currentPick: snapshot.draft.currentPick,
+        rounds: snapshot.draft.rounds,
+        participants: snapshot.participants,
+        currentUserId: snapshot.currentUserId,
+        localStagedPlayerId: stagedPlayerId,
+        stagedByUserId,
+      })
+    : null;
+
+  // Publish what this client has staged so the rest of the room can see it.
+  // Presence-backed, so it clears itself when the tab goes away.
+  useEffect(() => {
+    publishStagedPlayer(stagedPlayerId);
+  }, [stagedPlayerId, publishStagedPlayer]);
+
+  // "The pick is in" — announced to the room, not just to whoever staged.
   const prevStagedRef = useRef<string | null>(null);
   const pickIsInAudioRef = useRef<HTMLAudioElement | null>(null);
   useEffect(() => {
-    if (stagedPlayerId && stagedPlayerId !== prevStagedRef.current) {
-      prevStagedRef.current = stagedPlayerId;
+    if (onClockStagedPlayerId && onClockStagedPlayerId !== prevStagedRef.current) {
+      prevStagedRef.current = onClockStagedPlayerId;
       const pickIsInEnabled = snapshot?.draft.pickIsInEnabled ?? true;
       const isLastPickOfRound = !!snapshot && snapshot.draft.currentPick % snapshot.draft.teamCount === 0;
       if (typeof window !== "undefined" && pickIsInEnabled && !isLastPickOfRound) {
@@ -1589,8 +1619,9 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         });
       }
     }
-    if (!stagedPlayerId) prevStagedRef.current = null;
-  }, [stagedPlayerId, snapshot?.draft.pickIsInEnabled, snapshot?.draft.pickIsInSfxUrl]);
+    if (!onClockStagedPlayerId) prevStagedRef.current = null;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onClockStagedPlayerId, snapshot?.draft.pickIsInEnabled, snapshot?.draft.pickIsInSfxUrl]);
 
   // TTS announcer after pick reveal appears
   useEffect(() => {
@@ -2352,6 +2383,11 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={ownerIsOnClock && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
                   {teamOnClock.name}
                 </span>
+                {onClockStagedPlayerId && (
+                  <span className="shrink-0 animate-pulse rounded-[var(--radius-control)] bg-[var(--color-success)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--color-success-foreground)]">
+                    The Pick Is In
+                  </span>
+                )}
               </div>
             </>
           )}
