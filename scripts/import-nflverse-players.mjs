@@ -8,6 +8,13 @@ export const NFLVERSE_PLAYERS_URL =
 const FANTASY_POSITIONS = new Set(["QB", "RB", "WR", "TE", "K"]);
 const EXCLUDED_STATUSES = new Set(["CUT", "RET"]);
 
+// Two-way players nflverse files under their defensive position. Fantasy
+// platforms rank them on offense, so without an override the position filter
+// silently drops a draftable player. Keyed by gsis_id, which is stable.
+const POSITION_OVERRIDES = {
+  "00-0040718": "WR", // Travis Hunter (listed CB/DB)
+};
+
 const TEAM_ALIASES = {
   AZ: "ARI",
   ARZ: "ARI",
@@ -79,7 +86,8 @@ export function transformNflversePlayers(rows) {
   for (const row of rows) {
     const externalId = row.gsis_id?.trim();
     const fullName = row.display_name?.trim();
-    const position = row.position?.trim().toUpperCase();
+    const rawPosition = row.position?.trim().toUpperCase();
+    const position = POSITION_OVERRIDES[externalId] ?? rawPosition;
     const status = row.status?.trim().toUpperCase();
 
     if (

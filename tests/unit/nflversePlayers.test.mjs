@@ -89,6 +89,37 @@ describe("transformNflversePlayers", () => {
     ).toBe(false);
   });
 
+  it("keeps a two-way player nflverse lists on defense", () => {
+    // Travis Hunter is listed CB/DB by nflverse but is drafted as a fantasy
+    // receiver, so the position filter would otherwise drop a top-120 player.
+    const result = transformNflversePlayers([
+      ...rows,
+      {
+        gsis_id: "00-0040718",
+        display_name: "Travis Hunter",
+        position: "CB",
+        latest_team: "JAX",
+        status: "ACT",
+        last_season: "2026",
+      },
+    ]);
+
+    expect(result.players).toContainEqual({
+      external_id: "00-0040718",
+      full_name: "Travis Hunter",
+      position: "WR",
+      nfl_team: "JAX",
+      headshot_url: null,
+    });
+  });
+
+  it("still drops defenders that have no override", () => {
+    const result = transformNflversePlayers(rows);
+    expect(
+      result.players.some((player) => player.external_id === "00-5")
+    ).toBe(false);
+  });
+
   it("deduplicates players by GSIS ID", () => {
     const result = transformNflversePlayers([
       ...rows,
