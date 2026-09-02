@@ -424,8 +424,11 @@ function TvModeOverlay({
   accentColor: string | null;
   leagueName: string | undefined;
   tickerMode: "ticker" | "nav";
+  // TV mode never renders the personal queue, so what it displays stays narrow.
+  // The setter is the room's, though, and the ticker inside TV mode can still
+  // switch the underlying board — so the callback accepts the full union.
   boardView: "draft" | "players" | "roster" | "rounds" | "grades";
-  onBoardViewChange: (v: "draft" | "players" | "roster" | "rounds" | "grades") => void;
+  onBoardViewChange: (v: "draft" | "players" | "roster" | "rounds" | "grades" | "queue") => void;
   posFilter: string;
   onPosFilterChange: (pos: string) => void;
   enabledPositions: string[];
@@ -908,7 +911,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [byeWeeks, setByeWeeks] = useState<Map<string, number>>(new Map());
   const [showChat, setShowChat] = useState(false);
   const [chatUnread, setChatUnread] = useState(0);
-  const [boardView, setBoardView] = useState<"draft" | "players" | "roster" | "rounds" | "grades">("draft");
+  const [boardView, setBoardView] = useState<"draft" | "players" | "roster" | "rounds" | "grades" | "queue">("draft");
   const [compactHeader, setCompactHeader] = useState(false);
   const [showBoardMenu, setShowBoardMenu] = useState(false);
   const [showCommishMenu, setShowCommishMenu] = useState(false);
@@ -2180,6 +2183,37 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     ? availablePlayers.find((p) => p.id === stagedPlayerId) ?? null
     : null;
 
+  // Queued players, resolved against the available pool for the same reason
+  // stagedPlayer is: a queued player drafted by someone else drops off on the
+  // next snapshot instead of sitting there un-draftable. Ids are kept in state
+  // rather than pruned so an undone pick restores its place in the order.
+  const queuedPlayers = queue
+    .map((id) => availablePlayers.find((player) => player.id === id))
+    .filter((player): player is NonNullable<typeof player> => Boolean(player));
+
+  function removeFromQueue(playerId: string) {
+    setQueue((q) => q.filter((id) => id !== playerId));
+  }
+
+  /** Swap a queued player with its neighbour as displayed. Reordering has to
+   *  work on the visible list — the raw queue can still hold drafted ids, so
+   *  raw neighbours are not necessarily visible neighbours. */
+  function moveInQueue(playerId: string, direction: -1 | 1) {
+    const visibleIds = queuedPlayers.map((player) => player.id);
+    const from = visibleIds.indexOf(playerId);
+    const to = from + direction;
+    if (from === -1 || to < 0 || to >= visibleIds.length) return;
+    const neighbourId = visibleIds[to];
+    setQueue((q) => {
+      const next = [...q];
+      const a = next.indexOf(playerId);
+      const b = next.indexOf(neighbourId);
+      if (a === -1 || b === -1) return q;
+      [next[a], next[b]] = [next[b], next[a]];
+      return next;
+    });
+  }
+
   // Position colors derived from roster settings
   const posColorMap = buildPositionColorMap(snapshot.draft.rosterPositions, DEFAULT_POSITION_ACCENTS);
   function getCard(position: string) {
@@ -2536,16 +2570,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button type="button"
               className="flex items-center gap-1.5 rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] px-3 py-1.5 text-xs font-bold text-[color:var(--color-text-primary)] transition-colors hover:bg-[color:var(--color-surface-3)]"
               onClick={() => { setShowBoardMenu((v) => !v); setShowCommishMenu(false); }}>
-              {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : boardView === "grades" ? "Draft Grades" : "Round Summary"}
+              {boardView === "draft" ? "Draft Board" : boardView === "players" ? "Player Board" : boardView === "roster" ? "Roster Board" : boardView === "grades" ? "Draft Grades" : boardView === "queue" ? "My Queue" : "Round Summary"}
               <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5 text-[color:var(--color-text-muted)]"><path d="M0 0l5 6 5-6z"/></svg>
             </button>
             {showBoardMenu && (
               <div className="absolute left-0 top-full mt-1 w-44 overflow-hidden rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] shadow-2xl">
                 {(snapshot.draft.status === "complete"
-                  ? (["draft","players","roster","rounds","grades"] as const)
-                  : (["draft","players","roster","rounds"] as const)
+                  ? (["draft","players","roster","rounds","queue","grades"] as const)
+                  : (["draft","players","roster","rounds","queue"] as const)
                 ).map((v) => {
-                  const labels = { draft: "Draft Board", players: "Player Board", roster: "Roster Board", rounds: "Round Summary", grades: "Draft Grades" };
+                  const labels = { draft: "Draft Board", players: "Player Board", roster: "Roster Board", rounds: "Round Summary", grades: "Draft Grades", queue: "My Queue" };
                   return (
                     <button key={v} type="button"
                       className={`w-full px-4 py-2.5 text-left text-sm transition-colors ${boardView === v ? "bg-[color:var(--color-surface-3)] font-semibold text-[color:var(--color-text-primary)]" : "text-[color:var(--color-text-secondary)] hover:bg-[color:var(--color-surface-2)] hover:text-[color:var(--color-text-primary)]"}`}
@@ -2941,6 +2975,18 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           />
         )}
 
+        {boardView === "queue" && (
+          <QueueBoardView
+            players={queuedPlayers}
+            posColorMap={posColorMap}
+            byeWeeks={byeWeeks}
+            canPick={canMakePick && !isMakingPick}
+            onDraft={(playerId) => { void handleMakePick(playerId); }}
+            onRemove={removeFromQueue}
+            onMove={moveInQueue}
+          />
+        )}
+
         {boardView === "grades" && gradeReport && (
           <DraftGradesBoard report={gradeReport} accentColor={primaryColor} />
         )}
@@ -3007,14 +3053,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             <button type="button"
               className="flex w-full items-center gap-3 px-4 py-3 text-sm font-semibold text-[color:var(--color-text-secondary)] transition-colors hover:bg-[color:var(--color-surface-2)] hover:text-[color:var(--color-text-primary)]"
               onClick={() => {
-                setQueue((q) => q.includes(cardMenu.playerId) ? q : [...q, cardMenu.playerId]);
+                setQueue((q) => q.includes(cardMenu.playerId)
+                  ? q.filter((id) => id !== cardMenu.playerId)
+                  : [...q, cardMenu.playerId]);
                 setCardMenu(null);
               }}>
               <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" className="h-4 w-4 shrink-0 text-[color:var(--color-text-muted)]">
                 <path d="M3 4h10M3 8h10M3 12h6"/>
                 <path d="M12 10v4M10 12h4" strokeWidth="1.5"/>
               </svg>
-              Add to Queue
+              {queue.includes(cardMenu.playerId) ? "Remove from Queue" : "Add to Queue"}
               {queue.includes(cardMenu.playerId) && (
                 <span className="ml-auto text-[10px] font-black text-[color:var(--color-league-accent)]">✓</span>
               )}
@@ -3131,7 +3179,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           accentColor={primaryColor}
           leagueName={leagueBranding?.name ?? undefined}
           tickerMode={tickerMode}
-          boardView={boardView}
+          boardView={boardView === "queue" ? "draft" : boardView}
           onBoardViewChange={setBoardView}
           posFilter={posFilter}
           onPosFilterChange={setPosFilter}
@@ -4245,6 +4293,114 @@ function RoundSummaryView({
           </tbody>
         </table>
       </div>
+    </div>
+  );
+}
+
+function QueueBoardView({
+  players, posColorMap, byeWeeks, canPick, onDraft, onRemove, onMove,
+}: {
+  players: Player[];
+  posColorMap: Map<string, import("@/lib/positionColors").PositionCellColors>;
+  byeWeeks: Map<string, number>;
+  canPick: boolean;
+  onDraft: (playerId: string) => void;
+  onRemove: (playerId: string) => void;
+  onMove: (playerId: string, direction: -1 | 1) => void;
+}) {
+  if (players.length === 0) {
+    return (
+      <div className="flex h-full items-center justify-center p-6">
+        <div className="max-w-xs text-center">
+          <p className="text-sm font-bold text-[color:var(--color-text-primary)]">Your queue is empty</p>
+          <p className="mt-1.5 text-xs leading-relaxed text-[color:var(--color-text-muted)]">
+            Open any player on the Player Board and choose Add to Queue. Players
+            drafted by someone else drop off automatically.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  const iconButton =
+    "flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-control)] border border-[color:var(--color-border-subtle)] text-[color:var(--color-text-muted)] transition-colors hover:bg-[color:var(--color-surface-3)] hover:text-[color:var(--color-text-primary)] disabled:pointer-events-none disabled:opacity-30";
+
+  return (
+    <div className="h-full overflow-y-auto p-2">
+      <ul className="mx-auto flex w-full max-w-3xl flex-col gap-1">
+        {players.map((player, index) => {
+          const card = posColorMap.get(player.position)
+            ?? positionCellColors(DEFAULT_POSITION_ACCENTS[player.position] ?? "#94A3B8");
+          const byeWeek = player.nflTeam ? byeWeeks.get(player.nflTeam) ?? null : null;
+          return (
+            <li
+              key={player.id}
+              className="flex items-center gap-2 rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-1)] px-2 py-2 sm:gap-3 sm:px-3"
+            >
+              <span className="w-5 shrink-0 text-center text-xs font-black text-[color:var(--color-text-muted)]">
+                {index + 1}
+              </span>
+              <span
+                className="w-9 shrink-0 rounded px-1 py-0.5 text-center text-[10px] font-black"
+                style={{ backgroundColor: card.bg, color: card.text }}
+              >
+                {player.position}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-sm font-bold text-[color:var(--color-text-primary)]">
+                  {player.fullName}
+                </p>
+                <p className="text-[10px] text-[color:var(--color-text-muted)]">
+                  {player.nflTeam ?? "FA"}
+                  {byeWeek ? ` · Bye ${byeWeek}` : ""}
+                  {player.rank != null ? ` · #${player.rank}` : ""}
+                </p>
+              </div>
+
+              <div className="flex shrink-0 items-center gap-1">
+                <button
+                  type="button"
+                  className={iconButton}
+                  disabled={index === 0}
+                  aria-label={`Move ${player.fullName} up`}
+                  onClick={() => onMove(player.id, -1)}
+                >
+                  <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5 rotate-180"><path d="M0 0l5 6 5-6z"/></svg>
+                </button>
+                <button
+                  type="button"
+                  className={iconButton}
+                  disabled={index === players.length - 1}
+                  aria-label={`Move ${player.fullName} down`}
+                  onClick={() => onMove(player.id, 1)}
+                >
+                  <svg viewBox="0 0 10 6" fill="currentColor" className="h-2 w-2.5"><path d="M0 0l5 6 5-6z"/></svg>
+                </button>
+                <button
+                  type="button"
+                  className={iconButton}
+                  aria-label={`Remove ${player.fullName} from queue`}
+                  onClick={() => onRemove(player.id)}
+                >
+                  <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" className="h-3 w-3">
+                    <path d="M1 1l10 10M11 1L1 11"/>
+                  </svg>
+                </button>
+                {canPick && (
+                  <button
+                    type="button"
+                    className="ml-1 rounded-[var(--radius-control)] px-2.5 py-1.5 text-[11px] font-black uppercase tracking-wide text-slate-950 transition-opacity hover:opacity-90"
+                    style={{ backgroundColor: "var(--color-league-accent)" }}
+                    onClick={() => onDraft(player.id)}
+                  >
+                    Draft
+                  </button>
+                )}
+              </div>
+            </li>
+          );
+        })}
+      </ul>
     </div>
   );
 }

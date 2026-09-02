@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Pick, Team } from "@/types/draft";
 import DraftHQLogo from "@/components/DraftHQLogo";
 
-type BoardView = "draft" | "players" | "roster" | "rounds" | "grades";
+type BoardView = "draft" | "players" | "roster" | "rounds" | "grades" | "queue";
 
 interface DraftTickerProps {
   draftName: string;
@@ -38,6 +38,7 @@ const BOARD_BUTTONS: { label: string; value: BoardView }[] = [
   { label: "Players",     value: "players" },
   { label: "Rosters",     value: "roster" },
   { label: "Rounds",      value: "rounds" },
+  { label: "Queue",       value: "queue" },
 ];
 
 const DEFAULT_POS_BUTTONS = ["QB", "RB", "WR", "TE", "K", "DST"];
