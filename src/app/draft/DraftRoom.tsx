@@ -56,6 +56,8 @@ import { useLeagueTheme } from "@/context/LeagueThemeContext";
 import { getAiAnnouncerId, resolveAnnouncerVoice } from "@/lib/speech";
 import { fetchAnnouncerClipUrl } from "@/lib/announcerClient";
 import { resolveDraftSeasonYear } from "@/lib/nflTeams";
+import { playerImage, HEADSHOT_REVEAL_WIDTH, HEADSHOT_AVATAR_WIDTH } from "@/lib/headshots";
+import type { PlayerImage } from "@/lib/headshots";
 
 // ── Draft duration helper ──────────────────────────────────────────────────
 
@@ -445,8 +447,8 @@ function TvModeOverlay({
   const tickerBoardView: "draft" | "players" | "roster" | "rounds" =
     boardView === "grades" ? "draft" : boardView;
   const lastPickTeam = lastPick ? teams.find((t) => t.id === lastPick.teamId) : null;
-  const lastPickHeadshot = lastPick
-    ? players.find((p) => p.id === lastPick.playerId)?.headshotUrl
+  const lastPickImage = lastPick
+    ? playerImage(players.find((p) => p.id === lastPick.playerId), HEADSHOT_AVATAR_WIDTH)
     : undefined;
   const sortedTeamNames = [...teams]
     .sort((a, b) => a.draftPosition - b.draftPosition)
@@ -769,9 +771,17 @@ function TvModeOverlay({
                 className="h-12 w-12 shrink-0 overflow-hidden rounded-full"
                 style={{ border: `2px solid ${accent}30`, backgroundColor: "rgba(15,23,42,0.6)" }}
               >
-                {lastPickHeadshot ? (
+                {lastPickImage ? (
                   // eslint-disable-next-line @next/next/no-img-element
-                  <img src={lastPickHeadshot} alt="" className="h-full w-full object-cover object-top" />
+                  <img
+                    src={lastPickImage.url}
+                    alt=""
+                    className={
+                      lastPickImage.isTeamLogo
+                        ? "h-full w-full object-contain p-1.5"
+                        : "h-full w-full object-cover object-top"
+                    }
+                  />
                 ) : (
                   <PlayerSilhouette color="#334155" />
                 )}
@@ -1420,13 +1430,16 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     const draftedPlayerIds = new Set(snapshot.picks.map((pick) => pick.playerId));
     const preloadRankMap = buildRankMap(snapshot.players, espnRankings);
     snapshot.players
-      .filter((player) => player.headshotUrl && !draftedPlayerIds.has(player.id))
+      .filter((player) => !draftedPlayerIds.has(player.id) && playerImage(player, HEADSHOT_REVEAL_WIDTH))
       .sort((a, b) =>
         (preloadRankMap.get(a.id) ?? a.rank ?? Number.MAX_SAFE_INTEGER) -
         (preloadRankMap.get(b.id) ?? b.rank ?? Number.MAX_SAFE_INTEGER)
       )
       .slice(0, 40)
-      .forEach((player) => { void preloadHeadshot(player.headshotUrl!); });
+      .forEach((player) => {
+        const image = playerImage(player, HEADSHOT_REVEAL_WIDTH);
+        if (image) void preloadHeadshot(image.url);
+      });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [snapshot?.players, snapshot?.picks, espnRankings]);
 
@@ -1462,10 +1475,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
         if (walkUpDefaultAudioRef.current) { walkUpDefaultAudioRef.current.pause(); walkUpDefaultAudioRef.current.currentTime = 0; }
         setLandminePick({ playerName: newest.playerName, teamName: team?.name ?? "a team", overallPickNumber: newest.overallPickNumber });
       } else if (showPickReveal && !isRoundEnd) {
-        const headshotUrl = snapshot.players.find((player) => player.id === newest.playerId)?.headshotUrl;
-        if (headshotUrl) {
+        const revealImage = playerImage(
+          snapshot.players.find((player) => player.id === newest.playerId),
+          HEADSHOT_REVEAL_WIDTH
+        );
+        if (revealImage) {
           const revealId = newest.id;
-          void preloadHeadshot(headshotUrl).then(() => {
+          void preloadHeadshot(revealImage.url).then(() => {
             if (lastRevealedPickIdRef.current === revealId) setRevealPick(newest);
           });
         } else {
@@ -3054,7 +3070,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           teams={snapshot.teams}
           draftName={snapshot.draft.name}
           leagueLogoUrl={leagueLogoUrl ?? undefined}
-          playerHeadshotUrl={snapshot.players.find((player) => player.id === revealPick.playerId)?.headshotUrl}
+          playerImage={playerImage(snapshot.players.find((player) => player.id === revealPick.playerId), HEADSHOT_REVEAL_WIDTH)}
           canUndo={isCommissioner && snapshot.draft.status !== "complete"}
           onReaction={handleRevealReaction}
           onUndo={() => { cancelPickAnnouncement(); void handleUndoPick(); setRevealPick(null); }}
@@ -3865,13 +3881,13 @@ function RoundRecapModal({
 }
 
 function PickRevealModal({
-  pick, teams, draftName, leagueLogoUrl, playerHeadshotUrl, canUndo, onReaction, onUndo, onClose, sfx1Url, sfx2Url, posReactions, negReactions,
+  pick, teams, draftName, leagueLogoUrl, playerImage: revealImage, canUndo, onReaction, onUndo, onClose, sfx1Url, sfx2Url, posReactions, negReactions,
 }: {
   pick: DraftPick;
   teams: Team[];
   draftName: string;
   leagueLogoUrl?: string;
-  playerHeadshotUrl?: string;
+  playerImage?: PlayerImage;
   canUndo: boolean;
   /** Fired when a reaction or SFX plays, so the card isn't auto-dismissed */
   onReaction: () => void;
@@ -3930,12 +3946,18 @@ function PickRevealModal({
                 )}
               </div>
             )}
-            {playerHeadshotUrl ? (
+            {revealImage ? (
               // eslint-disable-next-line @next/next/no-img-element
               <img
-                src={playerHeadshotUrl}
+                src={revealImage.url}
                 alt={pick.playerName}
-                className="h-full w-full object-contain object-bottom"
+                className={
+                  revealImage.isTeamLogo
+                    // Sit the club mark low in the frame like a headshot does,
+                    // so it clears the drafting team's badge in the top corner.
+                    ? "h-full w-full object-contain object-bottom px-3 pb-4 pt-16 sm:px-6 sm:pb-6 sm:pt-24"
+                    : "h-full w-full object-contain object-bottom"
+                }
               />
             ) : (
               <svg viewBox="0 0 96 144" fill="none" className="h-full w-full opacity-15" aria-hidden="true">
