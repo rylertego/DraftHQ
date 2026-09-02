@@ -2171,9 +2171,13 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       )
     : [...PLAYER_POSITIONS];
 
-  // Staged player lookup
+  // Staged player lookup. Resolved against the available pool, not every
+  // player: when someone else drafts the staged player the pick lands through
+  // realtime, they leave availablePlayers, and the staging clears itself.
+  // Searching snapshot.players kept them staged, so the button stayed armed and
+  // firing it failed with "That player has already been drafted."
   const stagedPlayer = stagedPlayerId
-    ? snapshot.players.find((p) => p.id === stagedPlayerId) ?? null
+    ? availablePlayers.find((p) => p.id === stagedPlayerId) ?? null
     : null;
 
   // Position colors derived from roster settings
