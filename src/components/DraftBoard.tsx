@@ -113,7 +113,14 @@ export default function DraftBoard({
     ? Math.max(1, boardHeight - headerHeight)
     : baseRowHeight * rounds;
   const stretchedRowHeight = availableBodyHeight / rounds;
-  const shouldScrollRows = rounds > 15;
+  // Scroll when the rounds cannot fit at a readable height, rather than at a
+  // fixed round count. `rounds > 15` meant a 15 round draft never scrolled: it
+  // divided the viewport by 15 and squeezed every row instead, so the shorter
+  // the window the more unreadable the board got. TV mode keeps the count rule
+  // and its clamp, because a projected board must not need scrolling.
+  const shouldScrollRows = tvMode
+    ? rounds > 15
+    : stretchedRowHeight < baseRowHeight - 0.5;
   const rowMinHeight = Math.min(baseRowHeight, stretchedRowHeight);
   const rowHeight = shouldScrollRows
     ? `${baseRowHeight}px`
