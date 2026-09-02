@@ -35,6 +35,10 @@ function splitBoardName(fullName: string): { first: string; last: string } {
   return { first: parts[0], last: parts.slice(1).join(" ") };
 }
 
+/** Narrowest readable team column before the board starts scrolling. */
+const MIN_TEAM_COL_WIDTH = 132;
+const ROUND_COL_WIDTH = 40;
+
 const NAME_SIZE_REM = [0.8, 1.0, 1.25, 1.5, 1.75, 2.0, 2.35, 2.75, 3.2, 3.75];
 
 const DEFAULT_POSITION_ACCENTS: Record<string, string> = {
@@ -134,10 +138,21 @@ export default function DraftBoard({
 
   return (
     <section className="flex h-full flex-col overflow-hidden rounded-[var(--radius-panel)] border border-[color:var(--color-border-subtle)] bg-[color-mix(in_srgb,var(--color-canvas)_86%,black)] shadow-[inset_0_1px_0_rgba(255,255,255,0.035)]" onClick={() => setPopupPick(null)}>
-      <div ref={boardViewportRef} className={`min-h-0 flex-1 ${shouldScrollRows ? "overflow-y-auto overflow-x-hidden" : "overflow-hidden"} [touch-action:pan-x_pan-y]`}>
-        <table className="w-full border-separate border-spacing-0" style={{ tableLayout: "fixed" }}>
+      <div ref={boardViewportRef} className={`min-h-0 flex-1 ${shouldScrollRows ? "overflow-y-auto" : "overflow-y-hidden"} ${tvMode ? "overflow-x-hidden" : "overflow-x-auto"} [touch-action:pan-x_pan-y]`}>
+        {/* A fixed-layout table at 100% width divides the viewport between every
+            team, so a ten-team board renders columns too narrow to read a name
+            in. Hold a floor per column and let the board scroll sideways past
+            it — width:100% still fills the space when there is room to spare.
+            TV mode keeps squeezing: a projected board must not need scrolling. */}
+        <table
+          className="w-full border-separate border-spacing-0"
+          style={{
+            tableLayout: "fixed",
+            minWidth: tvMode ? undefined : `${ROUND_COL_WIDTH + teams.length * MIN_TEAM_COL_WIDTH}px`,
+          }}
+        >
           <colgroup>
-            <col style={{ width: "40px" }} />
+            <col style={{ width: `${ROUND_COL_WIDTH}px` }} />
             {teams.map((_, i) => <col key={i} />)}
           </colgroup>
           <thead ref={tableHeaderRef}>

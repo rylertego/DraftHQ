@@ -2439,6 +2439,11 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
 
             {/* Clock display */}
             <div className="flex flex-col items-center gap-1.5">
+              {snapshot.draft.status === "paused" && (
+                <span className="text-[10px] font-black uppercase tracking-[0.24em] text-[color:var(--color-warning)]">
+                  Paused
+                </span>
+              )}
               <span className={`font-mono text-4xl sm:text-6xl font-black tabular-nums leading-none ${timerColor}`}>
                 {snapshot.draft.pickSeconds > 0 ? formatDraftClock(timerSeconds) : "--:--"}
               </span>
