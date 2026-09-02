@@ -972,6 +972,36 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   const [espnRankings, setEspnRankings] = useState<EspnRanking[]>([]);
   // edit pick modal (commissioner)
   const [editingPick, setEditingPick] = useState<DraftPick | null>(null);
+
+  /**
+   * A skipped slot has no picks row, so the edit modal — which is driven by a
+   * pick — gets a stand-in describing the empty slot. An empty playerId is what
+   * tells the modal it is recording a pick rather than changing one, and
+   * commissioner_edit_pick inserts rather than updates when the slot is bare.
+   */
+  function buildSkippedPickSlot(slot: {
+    overallPickNumber: number;
+    round: number;
+    pickNumber: number;
+  }): DraftPick {
+    const draftPosition = slot.round % 2 === 1
+      ? slot.pickNumber
+      : (snapshot?.teams.length ?? 0) - slot.pickNumber + 1;
+    const team = snapshot?.teams.find((t) => t.draftPosition === draftPosition);
+    return {
+      id: `skipped-${slot.overallPickNumber}`,
+      draftId: draftId as string,
+      teamId: team?.id ?? "",
+      playerId: "",
+      round: slot.round,
+      pickNumber: slot.pickNumber,
+      overallPickNumber: slot.overallPickNumber,
+      playerName: "",
+      playerPosition: "RB",
+      isLandmine: false,
+      createdAt: new Date().toISOString(),
+    };
+  }
   const [showClockEdit, setShowClockEdit] = useState(false);
   const [clockEditMin, setClockEditMin] = useState(1);
   const [clockEditSec, setClockEditSec] = useState(30);
@@ -2962,6 +2992,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
             onSlotClick={() => { setActionError(""); setShowPickModal(true); }}
             onUndoPick={handleUndoPick}
             onEditPick={isCommissioner ? (pick) => setEditingPick(pick) : undefined}
+            onFillSkippedPick={isCommissioner ? (slot) => setEditingPick(buildSkippedPickSlot(slot)) : undefined}
           />
         )}
 
@@ -3743,7 +3774,7 @@ function EditPickModal({
         {/* Header */}
         <div className="border-b border-[color:var(--color-border-subtle)] bg-[color:var(--color-surface-2)] px-6 py-4">
           <h2 className="font-black text-[color:var(--color-text-primary)]">
-            Edit Pick{" "}
+            {pick.playerId ? "Edit Pick" : "Record Skipped Pick"}{" "}
             <span className="text-[color:var(--color-league-accent)]">Round {pick.round} | Pick {pick.pickNumber}</span>
           </h2>
         </div>

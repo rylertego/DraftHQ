@@ -22,6 +22,8 @@ interface DraftBoardProps {
   onSlotClick: () => void;
   onUndoPick: () => void;
   onEditPick?: (pick: Pick) => void;
+  /** Record a pick into a slot the draft skipped past. */
+  onFillSkippedPick?: (slot: { overallPickNumber: number; round: number; pickNumber: number }) => void;
 }
 
 const NAME_SUFFIXES = new Set(["jr", "sr", "ii", "iii", "iv", "v"]);
@@ -59,6 +61,7 @@ export default function DraftBoard({
   accentColor,
   tvMode = false,
   onEditPick,
+  onFillSkippedPick,
 }: DraftBoardProps) {
   const [popupPick, setPopupPick] = useState<{ pick: Pick; x: number; y: number } | null>(null);
   const boardViewportRef = useRef<HTMLDivElement>(null);
@@ -246,7 +249,18 @@ export default function DraftBoard({
                             </div>
                           </div>
                         ) : isSkipped ? (
-                          <div className="flex h-full items-center justify-center">
+                          <div
+                            className={`flex h-full items-center justify-center${onFillSkippedPick ? " cursor-pointer" : ""}`}
+                            title={onFillSkippedPick ? "Record a pick for this slot" : undefined}
+                            onClick={onFillSkippedPick ? (e) => {
+                              e.stopPropagation();
+                              onFillSkippedPick({
+                                overallPickNumber: slot.overallPickNumber,
+                                round: slot.round,
+                                pickNumber: slot.pickNumber,
+                              });
+                            } : undefined}
+                          >
                             <span className={`${badgeTextClass} font-black uppercase tracking-widest text-red-400/70`}>
                               Skipped
                             </span>
