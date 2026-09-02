@@ -1575,6 +1575,12 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
       })
     : null;
 
+  // "Pick is in" is a draft-wide setting the commissioner owns, not a personal
+  // preference, so it gates the badge for every client the same way it already
+  // gated the sound. With it off, staging stays private to whoever staged.
+  const pickIsInEnabled = snapshot?.draft.pickIsInEnabled ?? true;
+  const showPickIsIn = pickIsInEnabled && Boolean(onClockStagedPlayerId);
+
   // Publish what this client has staged so the rest of the room can see it.
   // Presence-backed, so it clears itself when the tab goes away.
   useEffect(() => {
@@ -1587,7 +1593,6 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
   useEffect(() => {
     if (onClockStagedPlayerId && onClockStagedPlayerId !== prevStagedRef.current) {
       prevStagedRef.current = onClockStagedPlayerId;
-      const pickIsInEnabled = snapshot?.draft.pickIsInEnabled ?? true;
       const isLastPickOfRound = !!snapshot && snapshot.draft.currentPick % snapshot.draft.teamCount === 0;
       if (typeof window !== "undefined" && pickIsInEnabled && !isLastPickOfRound) {
         const customUrl = snapshot?.draft.pickIsInSfxUrl;
@@ -2383,7 +2388,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 <span className="truncate text-xl sm:text-3xl font-black uppercase leading-none" style={ownerIsOnClock && primaryColor ? { color: primaryColor } : { color: "#67e8f9" }}>
                   {teamOnClock.name}
                 </span>
-                {onClockStagedPlayerId && (
+                {showPickIsIn && (
                   <span className="shrink-0 animate-pulse rounded-[var(--radius-control)] bg-[var(--color-success)] px-2 py-1 text-[10px] font-black uppercase tracking-[0.18em] text-[color:var(--color-success-foreground)]">
                     The Pick Is In
                   </span>
