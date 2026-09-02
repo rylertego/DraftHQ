@@ -10,8 +10,6 @@ import {
 import {
   subscribeToDraft,
   type DraftConnectionStatus,
-  type DraftSubscription,
-  type StagedByUserId,
 } from "@/lib/draftRealtime";
 import { createSnapshotRefreshQueue } from "@/lib/refreshQueue";
 import { ensureAnonymousUser } from "@/lib/supabase";
@@ -33,10 +31,6 @@ export function useRealtimeDraftRoom(draftId: string | null) {
   const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [onlineUserIds, setOnlineUserIds] = useState<string[]>([]);
-  const [stagedByUserId, setStagedByUserId] = useState<StagedByUserId>({});
-  // Held outside the subscription so a reconnect can republish it.
-  const stagedPlayerRef = useRef<string | null>(null);
-  const subscriptionRef = useRef<DraftSubscription | null>(null);
   const refreshRef = useRef<() => Promise<void>>(async () => undefined);
   const statusRef = useRef<DraftConnectionStatus>("connecting");
   const revisionRef = useRef<string | null>(null);
@@ -47,7 +41,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
     }
 
     let cancelled = false;
-    let subscription: DraftSubscription | null = null;
+    let unsubscribe: () => void = () => undefined;
     let presenceUserId: string | null = null;
     const updateStatus = (nextStatus: DraftConnectionStatus) => {
       statusRef.current = nextStatus;
@@ -80,9 +74,9 @@ export function useRealtimeDraftRoom(draftId: string | null) {
       }
     });
 
-    const subscribe = (): DraftSubscription | null => {
+    const subscribe = () => {
       if (!presenceUserId) {
-        return null;
+        return () => undefined;
       }
 
       return subscribeToDraft(
@@ -100,9 +94,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
               if (!cancelled && statusRef.current !== "connected") void recover();
             }, 3_000);
           }
-        },
-        setStagedByUserId,
-        () => stagedPlayerRef.current
+        }
       );
     };
 
@@ -118,9 +110,8 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
       if (statusRef.current !== "connected") {
         updateStatus("connecting");
-        subscription?.unsubscribe();
-        subscription = subscribe();
-        subscriptionRef.current = subscription;
+        unsubscribe();
+        unsubscribe = subscribe();
       }
 
       await requestRefresh();
@@ -194,8 +185,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
           return;
         }
 
-        subscription = subscribe();
-        subscriptionRef.current = subscription;
+        unsubscribe = subscribe();
         await requestRefresh();
       } catch (initializeError) {
         if (!cancelled) {
@@ -209,9 +199,7 @@ export function useRealtimeDraftRoom(draftId: string | null) {
 
     return () => {
       cancelled = true;
-      subscription?.unsubscribe();
-      subscription = null;
-      subscriptionRef.current = null;
+      unsubscribe();
       window.removeEventListener("online", handleRecovery);
       window.removeEventListener("offline", handleOffline);
       window.removeEventListener("focus", handleRecovery);
@@ -223,12 +211,6 @@ export function useRealtimeDraftRoom(draftId: string | null) {
   }, [draftId]);
 
   const refresh = useCallback(() => refreshRef.current(), []);
-
-  /** Share (or clear) the player this client has staged with the room. */
-  const publishStagedPlayer = useCallback((playerId: string | null) => {
-    stagedPlayerRef.current = playerId;
-    subscriptionRef.current?.publishStagedPlayer(playerId);
-  }, []);
   const applyDraftUpdate = useCallback((draft: Draft) => {
     revisionRef.current = draft.updatedAt;
     setSnapshot((current) => (current ? { ...current, draft } : current));
@@ -243,8 +225,6 @@ export function useRealtimeDraftRoom(draftId: string | null) {
     lastSyncedAt,
     isRefreshing,
     onlineUserIds,
-    stagedByUserId,
-    publishStagedPlayer,
     applyDraftUpdate,
   };
 }
