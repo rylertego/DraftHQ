@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import type { Pick, Team } from "@/types/draft";
 import DraftHQLogo from "@/components/DraftHQLogo";
 
-type BoardView = "draft" | "players" | "roster" | "rounds" | "grades" | "queue";
+type BoardView = "draft" | "players" | "roster" | "rounds" | "grades";
 
 interface DraftTickerProps {
   draftName: string;
@@ -22,6 +22,10 @@ interface DraftTickerProps {
   posFilter?: string;
   onPosFilterChange?: (pos: string) => void;
   enabledPositions?: string[];
+  /** Queue lives in a panel anchored to this bar, mirroring chat on the left. */
+  queueCount?: number;
+  isQueueOpen?: boolean;
+  onQueueToggle?: () => void;
 }
 
 // Scroll speed in pixels per second, not seconds per lap. The ticker's content
@@ -38,7 +42,6 @@ const BOARD_BUTTONS: { label: string; value: BoardView }[] = [
   { label: "Players",     value: "players" },
   { label: "Rosters",     value: "roster" },
   { label: "Rounds",      value: "rounds" },
-  { label: "Queue",       value: "queue" },
 ];
 
 const DEFAULT_POS_BUTTONS = ["QB", "RB", "WR", "TE", "K", "DST"];
@@ -63,6 +66,9 @@ export default function DraftTicker({
   posFilter = "ALL",
   onPosFilterChange,
   enabledPositions,
+  queueCount = 0,
+  isQueueOpen = false,
+  onQueueToggle,
 }: DraftTickerProps) {
   const posButtons = ["All", ...(enabledPositions ?? DEFAULT_POS_BUTTONS)];
   const [speedIndex, setSpeedIndex] = useState(DEFAULT_SPEED_INDEX);
@@ -239,9 +245,36 @@ export default function DraftTicker({
         </div>
       )}
 
-      {/* ── Right: speed controls (ticker only) ── */}
-      {mode === "ticker" && (
-        <div className="flex shrink-0 flex-col items-center justify-center gap-0.5 border-l border-[color:var(--color-border-subtle)] px-3">
+      {/* ── Right: queue button + speed controls ── */}
+      <div className="flex shrink-0 items-center gap-2 border-l border-[color:var(--color-border-subtle)] px-3">
+        {onQueueToggle && (
+          <button
+            type="button"
+            aria-label={isQueueOpen ? "Close player queue" : "Open player queue"}
+            title="Player pick queue"
+            onClick={onQueueToggle}
+            className="relative flex h-8 w-8 items-center justify-center rounded-[var(--radius-control)] transition-colors"
+            style={isQueueOpen
+              ? { backgroundColor: `${accentColor}30`, color: accentColor }
+              : { color: "var(--color-text-muted)" }}
+          >
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" className="h-4.5 w-4.5" style={{ height: 18, width: 18 }}>
+              <path d="M2 4h9M2 8h9M2 12h5"/>
+              <path d="M13 9.5v5M10.5 12h5"/>
+            </svg>
+            {queueCount > 0 && !isQueueOpen && (
+              <span
+                className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-black text-slate-950"
+                style={{ backgroundColor: accentColor }}
+              >
+                {queueCount > 9 ? "9+" : queueCount}
+              </span>
+            )}
+          </button>
+        )}
+
+        {mode === "ticker" && (
+        <div className="flex flex-col items-center justify-center gap-0.5">
           <button type="button" title="Speed up"
             disabled={speedIndex >= SPEEDS_PX_PER_SEC.length - 1}
             className="flex h-5 w-6 items-center justify-center text-[color:var(--color-text-muted)] transition-colors hover:text-[color:var(--color-text-secondary)] disabled:opacity-20"
@@ -255,7 +288,8 @@ export default function DraftTicker({
             <svg viewBox="0 0 10 6" fill="currentColor" className="h-2.5 w-3"><polygon points="5,6 10,0 0,0"/></svg>
           </button>
         </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
