@@ -387,6 +387,7 @@ function TvModeOverlay({
   teams,
   players,
   teamOnClock,
+  pickIsIn,
   timerSeconds,
   timerColor,
   currentRound,
@@ -417,6 +418,8 @@ function TvModeOverlay({
   teams: Team[];
   players: Player[];
   teamOnClock: Team | null | undefined;
+  /** The team on the clock has a pick staged and the draft has the cue on. */
+  pickIsIn: boolean;
   timerSeconds: number;
   timerColor: string;
   currentRound: number | null;
@@ -613,6 +616,11 @@ function TvModeOverlay({
                     <div className="text-[10px] font-black uppercase tracking-[0.35em]" style={{ color: accent }}>
                       On the Clock
                     </div>
+                    {pickIsIn && (
+                      <div className="animate-pulse rounded-full bg-green-500 px-4 py-1.5 text-sm font-black uppercase italic tracking-[0.18em] text-slate-950">
+                        The Pick Is In
+                      </div>
+                    )}
                     {currentRound !== null && (
                       <div className="flex items-center gap-3 rounded-full border border-white/10 bg-white/[0.045] px-3 py-1.5">
                         <span className="text-[10px] font-black uppercase tracking-[0.18em] text-slate-500">Round</span>
@@ -2535,15 +2543,21 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
                 </div>
               )}
               <div className="flex min-w-0 flex-1 flex-col justify-center overflow-hidden">
-                {stagedPlayer && canMakePick ? (
+                {showPickIsIn ? (
                   /* "THE PICK IS IN..." mode */
                   <>
                     <div className="text-2xl sm:text-5xl font-black italic uppercase leading-none tracking-wide text-[color:var(--color-text-primary)] animate-pulse">
                       THE PICK IS IN...
                     </div>
                     <div className="mt-1 text-sm font-bold text-[color:var(--color-text-secondary)]">
-                      {stagedPlayer.fullName}
-                      <span className="ml-2 text-[color:var(--color-text-muted)]">{stagedPlayer.position}{stagedPlayer.nflTeam ? `/${stagedPlayer.nflTeam}` : ""}</span>
+                      {stagedPlayer && canMakePick ? (
+                        <>
+                          {stagedPlayer.fullName}
+                          <span className="ml-2 text-[color:var(--color-text-muted)]">{stagedPlayer.position}{stagedPlayer.nflTeam ? `/${stagedPlayer.nflTeam}` : ""}</span>
+                        </>
+                      ) : (
+                        <span className="text-[color:var(--color-text-muted)]">{teamOnClock.name} is locked in</span>
+                      )}
                     </div>
                   </>
                 ) : (
@@ -3226,6 +3240,7 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
           teams={snapshot.teams}
           players={snapshot.players}
           teamOnClock={teamOnClock}
+          pickIsIn={showPickIsIn}
           timerSeconds={timerSeconds}
           timerColor={timerColor}
           currentRound={currentRound}
