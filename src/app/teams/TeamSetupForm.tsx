@@ -2918,12 +2918,16 @@ function LandmineRevealButton({ draftId }: { draftId: string }) {
           {players.length === 0 ? (
             <p className="text-xs text-slate-500">All landmines have been triggered.</p>
           ) : (
-            <ul className="space-y-1.5">
+            // Scrolls rather than running off the bottom of the screen: a draft
+            // can carry up to 30 landmines, and an uncapped list left the last
+            // ones unreachable. The header above stays put so the count is
+            // still readable while scrolling.
+            <ul className="max-h-64 space-y-1.5 overflow-y-auto overscroll-contain pr-1">
               {players.map((p) => (
                 <li key={p.playerId} className="flex items-center gap-2 text-sm text-white">
-                  <span className="text-base">💣</span>
-                  <span className="font-medium">{p.fullName}</span>
-                  <span className="ml-auto text-xs text-slate-400">{p.position}</span>
+                  <span className="shrink-0 text-base">💣</span>
+                  <span className="min-w-0 flex-1 truncate font-medium">{p.fullName}</span>
+                  <span className="shrink-0 text-xs text-slate-400">{p.position}</span>
                 </li>
               ))}
             </ul>
