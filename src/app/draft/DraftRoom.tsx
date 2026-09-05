@@ -47,7 +47,7 @@ import {
 import { useRealtimeDraftRoom } from "@/hooks/useRealtimeDraftRoom";
 import { formatLastSyncedAt } from "@/lib/draftRecovery";
 import { getDraftClockSeconds, formatDraftClock } from "@/lib/draftTimer";
-import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getEffectiveWalkUpVolume, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
+import { DEFAULT_WALK_UP_SONGS, getDefaultWalkUpSong, getEffectiveWalkUpVolume, getShuffledWalkUpIndex, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getTeamTurnNumber, getWalkUpPlaybackTiming } from "@/lib/draftAudio";
 import { generateSnakeDraftOrder } from "@/lib/draftOrder";
 import { getLeagueBranding, getLeagueBrandingForDraft, type LeagueBranding } from "@/lib/leagueApi";
 import DraftHQLogo from "@/components/DraftHQLogo";
@@ -1920,10 +1920,18 @@ export default function DraftRoom({ draftId, leagueSlug, lobbyOnly = false }: Dr
     }
 
     // Resume mode plays the playlist sequentially from where the team left
-    // off; restart mode keeps the per-pick rotation.
+    // off; restart mode walks this owner's own shuffled order, one song per
+    // turn of theirs. Keyed on the team's turn number rather than the draft's
+    // overall pick number, so their first turn plays the first song of their
+    // order instead of landing mid-list at their draft slot.
     const songIndex = resumeMode
       ? Math.min(walkUpResumeIndexRef.current.get(teamId) ?? 0, songs.length - 1)
-      : synchronizedIndex;
+      : getShuffledWalkUpIndex(
+          teamId,
+          snapshot.draft.id,
+          getTeamTurnNumber(snapshot.picks, teamId),
+          songs.length
+        );
     const song = songs[songIndex];
 
     walkUpDelayRef.current = setTimeout(() => {
