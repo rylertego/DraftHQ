@@ -155,10 +155,52 @@ describe("per-owner shuffled walk-up order", () => {
     expect(new Set(played).size).toBe(songCount);
   });
 
-  it("wraps back to the start of the same order on the fifth turn", () => {
-    expect(getShuffledWalkUpIndex(teamA, draftId, 4, 4)).toBe(
-      getShuffledWalkUpIndex(teamA, draftId, 0, 4)
+  it("reshuffles into a new order once the list is exhausted", () => {
+    const first = getShuffledWalkUpOrder(teamA, draftId, 6, 0);
+    const second = getShuffledWalkUpOrder(teamA, draftId, 6, 1);
+    expect(second).not.toEqual(first);
+    expect([...second].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("keeps each later cycle free of repeats", () => {
+    const songCount = 5;
+    const secondCycle = [5, 6, 7, 8, 9].map((turn) =>
+      getShuffledWalkUpIndex(teamA, draftId, turn, songCount)
     );
+    expect(new Set(secondCycle).size).toBe(songCount);
+  });
+
+  it("never plays the same song twice across a cycle boundary", () => {
+    // A fresh permutation can start with whatever the last one ended on;
+    // back-to-back repeats are the one thing reshuffling could regress.
+    for (const teamId of ["team-a", "team-b", "team-c", "team-d", "team-e"]) {
+      for (let songCount = 2; songCount <= 8; songCount += 1) {
+        for (let cycle = 0; cycle < 6; cycle += 1) {
+          const current = getShuffledWalkUpOrder(teamId, draftId, songCount, cycle);
+          const next = getShuffledWalkUpOrder(teamId, draftId, songCount, cycle + 1);
+          expect(next[0]).not.toBe(current[current.length - 1]);
+        }
+      }
+    }
+  });
+
+  it("gives every client the same order for a later cycle too", () => {
+    expect(getShuffledWalkUpOrder(teamA, draftId, 5, 3)).toEqual(
+      getShuffledWalkUpOrder(teamA, draftId, 5, 3)
+    );
+  });
+
+  it("defaults to the first cycle when none is given", () => {
+    expect(getShuffledWalkUpOrder(teamA, draftId, 5)).toEqual(
+      getShuffledWalkUpOrder(teamA, draftId, 5, 0)
+    );
+  });
+
+  it("cannot avoid a boundary repeat with a single song", () => {
+    // One song means every turn is that song; the guard must not loop forever
+    // trying to avoid the unavoidable.
+    expect(getShuffledWalkUpIndex(teamA, draftId, 0, 1)).toBe(0);
+    expect(getShuffledWalkUpIndex(teamA, draftId, 1, 1)).toBe(0);
   });
 
   it("plays the first song of the owner's order on their first turn", () => {

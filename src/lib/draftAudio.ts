@@ -55,24 +55,46 @@ function seededRandom(seed: number): () => number {
  * A team's walk-up songs in shuffled order, as a list of indices into their
  * song list.
  *
- * Seeded on team + draft so it is derived, never stored: every client computes
- * the identical permutation with nothing broadcast, which is the same
- * guarantee getSynchronizedWalkUpIndex provides via modulo. Including the
- * draft id reshuffles each new draft, so an owner does not hear the same
- * sequence every season.
+ * Seeded on team + draft + cycle so it is derived, never stored: every client
+ * computes the identical permutation with nothing broadcast, which is the same
+ * guarantee getSynchronizedWalkUpIndex provides via modulo. The draft id
+ * reshuffles each new draft; the cycle reshuffles each time the owner works
+ * through their whole list, so a long draft does not replay one fixed order.
  */
-export function getShuffledWalkUpOrder(
-  teamId: string,
-  draftId: string,
-  songCount: number
-): number[] {
-  if (songCount <= 0) return [];
+function shuffleForCycle(teamId: string, draftId: string, songCount: number, cycle: number) {
   const order = Array.from({ length: songCount }, (_, i) => i);
-  const random = seededRandom(hashSeed(`${teamId}:${draftId}`));
+  const random = seededRandom(hashSeed(`${teamId}:${draftId}:${cycle}`));
   // Fisher-Yates, walked back to front.
   for (let i = songCount - 1; i > 0; i -= 1) {
     const j = Math.floor(random() * (i + 1));
     [order[i], order[j]] = [order[j], order[i]];
+  }
+  return order;
+}
+
+export function getShuffledWalkUpOrder(
+  teamId: string,
+  draftId: string,
+  songCount: number,
+  cycle = 0
+): number[] {
+  if (songCount <= 0) return [];
+
+  // Built forward from the first cycle because each cycle's guard depends on
+  // what the previous one ended on. Cycle count is bounded by rounds ÷ songs,
+  // so this stays trivial.
+  let order = shuffleForCycle(teamId, draftId, songCount, 0);
+  for (let c = 1; c <= Math.max(0, cycle); c += 1) {
+    const previousLast = order[order.length - 1];
+    const next = shuffleForCycle(teamId, draftId, songCount, c);
+    // A fresh permutation may open on the song the last one closed with,
+    // which would play it twice in a row across the boundary. Swapping the
+    // first two entries fixes that deterministically. With one song the
+    // repeat is unavoidable, so leave it alone.
+    if (songCount > 1 && next[0] === previousLast) {
+      [next[0], next[1]] = [next[1], next[0]];
+    }
+    order = next;
   }
   return order;
 }
@@ -91,8 +113,10 @@ export function getShuffledWalkUpIndex(
   songCount: number
 ): number {
   if (songCount <= 0) return 0;
-  const order = getShuffledWalkUpOrder(teamId, draftId, songCount);
-  return order[Math.max(0, turnNumber) % songCount];
+  const turn = Math.max(0, turnNumber);
+  const cycle = Math.floor(turn / songCount);
+  const order = getShuffledWalkUpOrder(teamId, draftId, songCount, cycle);
+  return order[turn % songCount];
 }
 
 /**
