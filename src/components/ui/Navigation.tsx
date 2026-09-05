@@ -108,7 +108,7 @@ export function Tabs({ tabs, value, onValueChange, label }: TabsProps) {
   );
 }
 
-type Placement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
+export type Placement = "bottom-start" | "bottom-end" | "top-start" | "top-end";
 type TriggerIconName = "chevron-down" | "info" | "mail" | "more-horizontal";
 /** Unread count rendered on the trigger. Omitted or 0 renders nothing.
  *  A number, not a node, so a badge cannot become a nested control. */
@@ -222,7 +222,11 @@ function PrimitiveTrigger({
   );
 }
 
-function useOverlayPosition(open: boolean, placement: Placement, gap = 6) {
+/** Exported so overlays outside this module — a popover anchored inside a
+ *  Panel, which clips with overflow-hidden — can escape their container the
+ *  same way Menu, Popover and Tooltip already do, rather than reimplementing
+ *  the flip-and-clamp maths. */
+export function useOverlayPosition(open: boolean, placement: Placement, gap = 6) {
   const anchorRef = useRef<HTMLButtonElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const [position, setPosition] = useState<CSSProperties>({ visibility: "hidden" });

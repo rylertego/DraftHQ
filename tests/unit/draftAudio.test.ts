@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { getEffectiveWalkUpVolume, getSynchronizedWalkUpIndex, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming, resolvePlaybackRoute } from "@/lib/draftAudio";
+import { getEffectiveWalkUpVolume, getShuffledWalkUpIndex, getShuffledWalkUpOrder, getSynchronizedWalkUpIndex, getTeamTurnNumber, getTeamCumulativeListenSeconds, getWalkUpPlaybackTiming, resolvePlaybackRoute } from "@/lib/draftAudio";
 
 describe("synchronized draft audio", () => {
   it("selects the same song from the shared pick number", () => {
@@ -112,5 +112,123 @@ describe("getEffectiveWalkUpVolume", () => {
 
   it("mutes every route when TV audio is muted", () => {
     expect(getEffectiveWalkUpVolume({ musicVolume: 55, tvMode: true, tvMasterVolume: 80, tvMuted: true })).toBe(0);
+  });
+});
+
+describe("per-owner shuffled walk-up order", () => {
+  const draftId = "draft-1";
+  const teamA = "team-a";
+  const teamB = "team-b";
+
+  it("gives every client the same order for the same team and draft", () => {
+    // Two "clients" computing independently must agree, since nothing about
+    // the order is stored or broadcast.
+    expect(getShuffledWalkUpOrder(teamA, draftId, 5)).toEqual(
+      getShuffledWalkUpOrder(teamA, draftId, 5)
+    );
+  });
+
+  it("is a permutation — every song appears exactly once", () => {
+    const order = getShuffledWalkUpOrder(teamA, draftId, 5);
+    expect([...order].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4]);
+  });
+
+  it("gives different owners different orders", () => {
+    const a = getShuffledWalkUpOrder(teamA, draftId, 8);
+    const b = getShuffledWalkUpOrder(teamB, draftId, 8);
+    expect(a).not.toEqual(b);
+  });
+
+  it("reshuffles the same team for a different draft", () => {
+    const first = getShuffledWalkUpOrder(teamA, "draft-1", 8);
+    const second = getShuffledWalkUpOrder(teamA, "draft-2", 8);
+    expect(first).not.toEqual(second);
+  });
+
+  it("walks the shuffled order one song per turn, no repeats until it wraps", () => {
+    const songCount = 4;
+    const order = getShuffledWalkUpOrder(teamA, draftId, songCount);
+    const played = [0, 1, 2, 3].map((turn) =>
+      getShuffledWalkUpIndex(teamA, draftId, turn, songCount)
+    );
+    expect(played).toEqual(order);
+    expect(new Set(played).size).toBe(songCount);
+  });
+
+  it("reshuffles into a new order once the list is exhausted", () => {
+    const first = getShuffledWalkUpOrder(teamA, draftId, 6, 0);
+    const second = getShuffledWalkUpOrder(teamA, draftId, 6, 1);
+    expect(second).not.toEqual(first);
+    expect([...second].sort((a, b) => a - b)).toEqual([0, 1, 2, 3, 4, 5]);
+  });
+
+  it("keeps each later cycle free of repeats", () => {
+    const songCount = 5;
+    const secondCycle = [5, 6, 7, 8, 9].map((turn) =>
+      getShuffledWalkUpIndex(teamA, draftId, turn, songCount)
+    );
+    expect(new Set(secondCycle).size).toBe(songCount);
+  });
+
+  it("never plays the same song twice across a cycle boundary", () => {
+    // A fresh permutation can start with whatever the last one ended on;
+    // back-to-back repeats are the one thing reshuffling could regress.
+    for (const teamId of ["team-a", "team-b", "team-c", "team-d", "team-e"]) {
+      for (let songCount = 2; songCount <= 8; songCount += 1) {
+        for (let cycle = 0; cycle < 6; cycle += 1) {
+          const current = getShuffledWalkUpOrder(teamId, draftId, songCount, cycle);
+          const next = getShuffledWalkUpOrder(teamId, draftId, songCount, cycle + 1);
+          expect(next[0]).not.toBe(current[current.length - 1]);
+        }
+      }
+    }
+  });
+
+  it("gives every client the same order for a later cycle too", () => {
+    expect(getShuffledWalkUpOrder(teamA, draftId, 5, 3)).toEqual(
+      getShuffledWalkUpOrder(teamA, draftId, 5, 3)
+    );
+  });
+
+  it("defaults to the first cycle when none is given", () => {
+    expect(getShuffledWalkUpOrder(teamA, draftId, 5)).toEqual(
+      getShuffledWalkUpOrder(teamA, draftId, 5, 0)
+    );
+  });
+
+  it("cannot avoid a boundary repeat with a single song", () => {
+    // One song means every turn is that song; the guard must not loop forever
+    // trying to avoid the unavoidable.
+    expect(getShuffledWalkUpIndex(teamA, draftId, 0, 1)).toBe(0);
+    expect(getShuffledWalkUpIndex(teamA, draftId, 1, 1)).toBe(0);
+  });
+
+  it("plays the first song of the owner's order on their first turn", () => {
+    const order = getShuffledWalkUpOrder(teamA, draftId, 6);
+    expect(getShuffledWalkUpIndex(teamA, draftId, 0, 6)).toBe(order[0]);
+  });
+
+  it("handles a single song and an empty list without dividing by zero", () => {
+    expect(getShuffledWalkUpIndex(teamA, draftId, 3, 1)).toBe(0);
+    expect(getShuffledWalkUpIndex(teamA, draftId, 3, 0)).toBe(0);
+    expect(getShuffledWalkUpOrder(teamA, draftId, 0)).toEqual([]);
+  });
+});
+
+describe("counting a team's completed turns", () => {
+  const picks = [
+    { teamId: "a", overallPickNumber: 1, createdAt: "2026-06-28T12:00:00.000Z" },
+    { teamId: "b", overallPickNumber: 2, createdAt: "2026-06-28T12:01:00.000Z" },
+    { teamId: "a", overallPickNumber: 3, createdAt: "2026-06-28T12:02:00.000Z" },
+  ];
+
+  it("counts only that team's picks", () => {
+    expect(getTeamTurnNumber(picks, "a")).toBe(2);
+    expect(getTeamTurnNumber(picks, "b")).toBe(1);
+  });
+
+  it("is zero for a team that has not picked yet", () => {
+    expect(getTeamTurnNumber(picks, "c")).toBe(0);
+    expect(getTeamTurnNumber([], "a")).toBe(0);
   });
 });
