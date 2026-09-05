@@ -34,7 +34,7 @@ export type {
   SwitchProps,
   TextareaProps,
 } from "./Forms";
-export { Menu, Popover, Tabs, Tooltip } from "./Navigation";
+export { Menu, Popover, Tabs, Tooltip, useOverlayPosition } from "./Navigation";
 export type {
   MenuItem,
   MenuProps,

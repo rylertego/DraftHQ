@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -46,7 +47,8 @@ import { AI_ANNOUNCER_PERSONAS, ELEVENLABS_VOICE_PREFIX, getAiAnnouncerId, getAn
 import { fetchAnnouncerClipUrl, getStoredElevenLabsKey, listElevenLabsVoices, storeElevenLabsKey, type ElevenLabsVoice } from "@/lib/announcerClient";
 import { DEFAULT_ROSTER_POSITIONS } from "@/lib/rosterPositions";
 import ClockSettings from "@/components/ClockSettings";
-import { Alert, Button, Checkbox, Field, Input, Panel, Select, StatusBadge, Textarea } from "@/components/ui";
+import { Alert, Button, Checkbox, Field, Input, Panel, Select, StatusBadge, Textarea, useOverlayPosition } from "@/components/ui";
+import { useClientMounted } from "@/components/ui/overlayHooks";
 import DraftOrderRace from "@/components/DraftOrderRace";
 import SongPicker from "@/components/SongPicker";
 import ResetDraftModal from "@/components/ResetDraftModal";
@@ -2887,6 +2889,11 @@ function LandmineRevealButton({ draftId }: { draftId: string }) {
   const [players, setPlayers] = useState<LandminedPlayer[] | null>(null);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  // Portalled to the body: this button sits inside a Panel, and Panel clips
+  // with overflow-hidden, so an absolutely-positioned popover was cut off at
+  // the panel's edge no matter how the list itself scrolled.
+  const mounted = useClientMounted();
+  const { anchorRef, overlayRef, position } = useOverlayPosition(open && mounted, "bottom-start");
 
   const handleReveal = async () => {
     if (open) { setOpen(false); return; }
@@ -2901,8 +2908,9 @@ function LandmineRevealButton({ draftId }: { draftId: string }) {
   };
 
   return (
-    <div className="relative">
+    <>
       <button
+        ref={anchorRef}
         type="button"
         onClick={() => void handleReveal()}
         disabled={loading}
@@ -2910,8 +2918,12 @@ function LandmineRevealButton({ draftId }: { draftId: string }) {
       >
         {loading ? "Loading…" : open ? "Hide" : "💣 Reveal"}
       </button>
-      {open && players && (
-        <div className="absolute left-0 top-9 z-20 w-64 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl">
+      {mounted && open && players && createPortal(
+        <div
+          ref={overlayRef}
+          style={position}
+          className="z-50 w-64 rounded-xl border border-slate-700 bg-slate-900 p-3 shadow-xl"
+        >
           <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-slate-400">
             Active Landmines ({players.length})
           </p>
@@ -2932,8 +2944,9 @@ function LandmineRevealButton({ draftId }: { draftId: string }) {
               ))}
             </ul>
           )}
-        </div>
+        </div>,
+        document.body,
       )}
-    </div>
+    </>
   );
 }
