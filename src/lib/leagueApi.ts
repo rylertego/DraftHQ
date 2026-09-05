@@ -337,21 +337,22 @@ export async function getLeagueSettings(slug: string): Promise<LeagueSettings> {
   };
 }
 
-export async function updateLeagueSettings(
-  leagueId: string,
-  input: {
-    name: string;
-    slug: string;
-    logoUrl: string;
-    bannerUrl: string;
-    primaryColor: string;
-    secondaryColor: string;
-    theme: LeagueTheme;
-    teamCount?: number;
-  }
-) {
-  await requirePersistentUser();
-  const { data, error } = await supabase.rpc("update_league_settings", {
+export type LeagueSettingsInput = {
+  name: string;
+  slug: string;
+  logoUrl: string;
+  bannerUrl: string;
+  primaryColor: string;
+  secondaryColor: string;
+  theme: LeagueTheme;
+  teamCount?: number;
+};
+
+// Split out from updateLeagueSettings so the argument mapping is unit-testable:
+// team_count silently went missing here once before, and the only symptom was
+// the field reverting on refresh.
+export function buildLeagueSettingsRpcArgs(leagueId: string, input: LeagueSettingsInput) {
+  return {
     p_league_id:       leagueId,
     p_name:            input.name.trim(),
     p_slug:            input.slug.trim(),
@@ -360,7 +361,17 @@ export async function updateLeagueSettings(
     p_primary_color:   input.primaryColor.trim(),
     p_secondary_color: input.secondaryColor.trim(),
     p_theme:           input.theme,
-  });
+    // null leaves the stored capacity untouched.
+    p_team_count:      input.teamCount ?? null,
+  };
+}
+
+export async function updateLeagueSettings(leagueId: string, input: LeagueSettingsInput) {
+  await requirePersistentUser();
+  const { data, error } = await supabase.rpc(
+    "update_league_settings",
+    buildLeagueSettingsRpcArgs(leagueId, input)
+  );
 
   if (error) throw error;
 
